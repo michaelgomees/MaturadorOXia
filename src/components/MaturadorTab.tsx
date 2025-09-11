@@ -118,10 +118,12 @@ export const MaturadorTab = () => {
   };
 
   const handleStartMaturador = async () => {
-    if (whatsappConnections.filter(c => c.status === 'active').length < 2) {
+    const activePairs = dbPairs.filter(p => p.is_active);
+    
+    if (activePairs.length === 0) {
       toast({ 
         title: "Erro", 
-        description: "Você precisa de pelo menos 2 chips ativos para iniciar o maturador.", 
+        description: "Você precisa de pelo menos 1 dupla ativa para iniciar o maturador.", 
         variant: "destructive" 
       });
       return;
@@ -130,17 +132,23 @@ export const MaturadorTab = () => {
     try {
       if (maturadorEngine.isRunning) {
         maturadorEngine.stopMaturador();
+        // Pausar todas as duplas ativas
+        for (const pair of activePairs) {
+          await updatePair(pair.id, { status: 'paused' });
+        }
         toast({ 
           title: "Maturador Pausado", 
           description: "O sistema de conversas automáticas foi pausado." 
         });
       } else {
+        // Ativar todas as duplas ativas para 'running'
+        for (const pair of activePairs) {
+          await updatePair(pair.id, { status: 'running' });
+        }
         maturadorEngine.startMaturador();
-        // Iniciar primeira conversa imediatamente
-        await startChipConversation();
         toast({ 
           title: "🎯 Maturador Iniciado!", 
-          description: "O sistema começou a gerar conversas automáticas entre os chips." 
+          description: `Sistema ativado para ${activePairs.length} duplas.` 
         });
       }
     } catch (error) {

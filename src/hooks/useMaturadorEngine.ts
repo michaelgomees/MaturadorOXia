@@ -224,16 +224,21 @@ export const useMaturadorEngine = () => {
       console.log(`Par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
       console.log('Par ativo?', pair.isActive);
       console.log('Status do par:', pair.status);
-      // Buscar prompt global
-      const savedPrompts = localStorage.getItem('ox-ai-prompts');
+      // Buscar prompt global do Supabase
       let globalPrompt = 'Participe de uma conversa natural e engajante.';
       
-      if (savedPrompts) {
-        const prompts = JSON.parse(savedPrompts);
-        const basePrompt = prompts.find((p: any) => p.isGlobal);
-        if (basePrompt) {
-          globalPrompt = basePrompt.content;
+      try {
+        const { data: prompts } = await supabase
+          .from('saas_prompts')
+          .select('*')
+          .eq('is_global', true)
+          .single();
+        
+        if (prompts) {
+          globalPrompt = prompts.conteudo;
         }
+      } catch (error) {
+        console.log('Usando prompt padrão');
       }
 
       // Usar prompt da instância se configurado

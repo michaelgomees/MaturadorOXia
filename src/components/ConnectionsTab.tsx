@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Link, CheckCircle, XCircle, RefreshCw, Trash2, Save } from "lucide-react";
+import { Link, CheckCircle, XCircle, RefreshCw, Trash2, Save, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Connection {
   id: string;
@@ -32,81 +33,76 @@ export const ConnectionsTab = () => {
   });
   const { toast } = useToast();
 
-  // Carregar conexões do localStorage
+  // Carregar conexões do Supabase
   useEffect(() => {
-    const savedConnections = localStorage.getItem('ox-connections');
-    if (savedConnections) {
-      setConnections(JSON.parse(savedConnections));
-    }
+    loadConnections();
   }, []);
 
-  // Salvar conexões no localStorage
-  const saveConnections = (newConnections: Connection[]) => {
-    setConnections(newConnections);
-    localStorage.setItem('ox-connections', JSON.stringify(newConnections));
-  };
+  const loadConnections = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('saas_conexoes')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-  const handleCreateConnection = () => {
-    if (!newConnection.name || !newConnection.endpoint) {
+      if (error) throw error;
+
+      const formattedConnections = (data || []).map(conn => ({
+        id: conn.id,
+        name: conn.nome,
+        endpoint: conn.evolution_instance_name || '',
+        apiKey: '***configurado***',
+        status: conn.status === 'ativo' ? 'connected' as const : 'disconnected' as const,
+        isActive: true,
+        lastConnectionTime: conn.last_sync || conn.created_at,
+        notes: conn.display_name || ''
+      }));
+
+      setConnections(formattedConnections);
+    } catch (error: any) {
+      console.error('Erro ao carregar conexões:', error);
       toast({
         title: "Erro",
-        description: "Nome e endpoint são obrigatórios.",
+        description: "Não foi possível carregar as conexões",
         variant: "destructive"
       });
-      return;
     }
+  };
 
-    const connection: Connection = {
-      id: Date.now().toString(),
-      ...newConnection,
-      status: 'disconnected',
-      isActive: false,
-      lastConnectionTime: new Date().toISOString()
-    };
+  // Resetar memória das conexões
+  const resetConnectionMemory = async () => {
+    try {
+      const { error } = await supabase
+        .from('saas_conexoes')
+        .update({ 
+          conversation_history: [],
+          config: null 
+        })
+        .neq('id', '00000000-0000-0000-0000-000000000000');
 
-    saveConnections([...connections, connection]);
-    setNewConnection({ name: '', endpoint: '', apiKey: '', notes: '' });
-    setIsCreating(false);
-    
-    toast({
-      title: "Conexão criada",
-      description: "Nova conexão Evolution API adicionada com sucesso."
-    });
+      if (error) throw error;
+
+      toast({
+        title: "Memória resetada",
+        description: "Histórico de conversas das conexões foi limpo"
+      });
+    } catch (error: any) {
+      console.error('Erro ao resetar memória:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível resetar a memória das conexões",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleTestConnection = async (id: string) => {
     const connection = connections.find(c => c.id === id);
     if (!connection) return;
 
-    // Simular teste de conexão
-    const updatedConnections = connections.map(c => 
-      c.id === id 
-        ? { ...c, status: 'connected' as const, lastConnectionTime: new Date().toISOString() }
-        : c
-    );
-    
-    saveConnections(updatedConnections);
-    
     toast({
-      title: "Conexão testada",
-      description: `Conexão ${connection.name} estabelecida com sucesso.`
-    });
-  };
-
-  const handleToggleActive = (id: string) => {
-    const updatedConnections = connections.map(c => 
-      c.id === id ? { ...c, isActive: !c.isActive } : c
-    );
-    saveConnections(updatedConnections);
-  };
-
-  const handleDeleteConnection = (id: string) => {
-    const updatedConnections = connections.filter(c => c.id !== id);
-    saveConnections(updatedConnections);
-    
-    toast({
-      title: "Conexão removida",
-      description: "Conexão deletada com sucesso."
+      title: "Informação",
+      description: "Esta funcionalidade está implementada na aba Dados. Use o gerenciamento completo de chips lá."
     });
   };
 
@@ -141,76 +137,18 @@ export const ConnectionsTab = () => {
             Gerencie conexões com a API do Evolution para WhatsApp
           </p>
         </div>
-        <Button onClick={() => setIsCreating(true)}>
-          <Link className="w-4 h-4 mr-2" />
-          Nova Conexão
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={resetConnectionMemory}>
+            <RotateCcw className="w-4 h-4 mr-2" />
+            Resetar Memórias
+          </Button>
+          <Button onClick={() => toast({ title: "Informação", description: "Use a aba 'Dados' para gerenciar chips e conexões completas" })}>
+            <Link className="w-4 h-4 mr-2" />
+            Ver Dados
+          </Button>
+        </div>
       </div>
 
-      {/* Formulário de nova conexão */}
-      {isCreating && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Nova Conexão Evolution API</CardTitle>
-            <CardDescription>
-              Configure uma nova conexão com a API do Evolution
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome da Conexão</Label>
-                <Input
-                  id="name"
-                  placeholder="Ex: WhatsApp Principal"
-                  value={newConnection.name}
-                  onChange={(e) => setNewConnection(prev => ({ ...prev, name: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="endpoint">Endpoint Evolution</Label>
-                <Input
-                  id="endpoint"
-                  placeholder="https://evolution-api.exemplo.com"
-                  value={newConnection.endpoint}
-                  onChange={(e) => setNewConnection(prev => ({ ...prev, endpoint: e.target.value }))}
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="apiKey">Chave de API</Label>
-              <Input
-                id="apiKey"
-                type="password"
-                placeholder="Sua chave de API do Evolution"
-                value={newConnection.apiKey}
-                onChange={(e) => setNewConnection(prev => ({ ...prev, apiKey: e.target.value }))}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="notes">Observações</Label>
-              <Textarea
-                id="notes"
-                placeholder="Notas sobre esta conexão..."
-                value={newConnection.notes}
-                onChange={(e) => setNewConnection(prev => ({ ...prev, notes: e.target.value }))}
-              />
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsCreating(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleCreateConnection}>
-                <Save className="w-4 h-4 mr-2" />
-                Salvar Conexão
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Lista de conexões */}
       <div className="grid gap-4">
@@ -222,9 +160,9 @@ export const ConnectionsTab = () => {
               <p className="text-sm text-muted-foreground mb-4">
                 Configure sua primeira conexão Evolution API
               </p>
-              <Button onClick={() => setIsCreating(true)}>
+              <Button onClick={() => toast({ title: "Informação", description: "Use a aba 'Dados' para criar e gerenciar chips" })}>
                 <Link className="w-4 h-4 mr-2" />
-                Criar Primeira Conexão
+                Ir para Dados
               </Button>
             </CardContent>
           </Card>
@@ -255,24 +193,8 @@ export const ConnectionsTab = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor={`active-${connection.id}`}>Conexão Ativa</Label>
-                      <Switch
-                        id={`active-${connection.id}`}
-                        checked={connection.isActive}
-                        onCheckedChange={() => handleToggleActive(connection.id)}
-                      />
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteConnection(connection.id)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Remover
-                    </Button>
+                  <div className="text-sm text-muted-foreground">
+                    💡 Para gerenciar completamente esta conexão, use a aba "Dados"
                   </div>
 
                   {connection.notes && (

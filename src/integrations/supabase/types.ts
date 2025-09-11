@@ -70,6 +70,7 @@ export type Database = {
           avatar_url: string | null
           config: Json | null
           conversas_count: number | null
+          conversation_history: Json | null
           created_at: string
           display_name: string | null
           evolution_instance_id: string | null
@@ -88,6 +89,7 @@ export type Database = {
           avatar_url?: string | null
           config?: Json | null
           conversas_count?: number | null
+          conversation_history?: Json | null
           created_at?: string
           display_name?: string | null
           evolution_instance_id?: string | null
@@ -106,6 +108,7 @@ export type Database = {
           avatar_url?: string | null
           config?: Json | null
           conversas_count?: number | null
+          conversation_history?: Json | null
           created_at?: string
           display_name?: string | null
           evolution_instance_id?: string | null

@@ -2,6 +2,8 @@ import { useEffect, useCallback } from 'react';
 import { useConnections } from '@/contexts/ConnectionsContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useMaturadorPairs } from './useMaturadorPairs';
+import { usePrompts } from './usePrompts';
 
 /**
  * Hook para controlar a maturação dos chips e iniciar conversas automáticas
@@ -9,6 +11,8 @@ import { supabase } from '@/integrations/supabase/client';
 export const useChipMaturation = () => {
   const { connections } = useConnections();
   const { toast } = useToast();
+  const { pairs } = useMaturadorPairs();
+  const { getGlobalPrompt } = usePrompts();
 
   // Gera um prompt para iniciar uma conversa entre dois chips
   const generateConversationPrompt = useCallback((chip1: any, chip2: any) => {
@@ -101,41 +105,23 @@ export const useChipMaturation = () => {
     }
   }, [connections, generateConversationPrompt, sendMessageBetweenChips]);
 
-  // Monitor para iniciar conversas automáticas quando chips estão ativos
+  // Monitor para iniciar conversas automáticas APENAS quando pares estão ativos
   useEffect(() => {
-    const activeChips = connections.filter(conn => 
-      conn.status === 'active' && 
-      conn.isActive && 
-      conn.phone && 
-      conn.displayName &&
-      conn.evolutionInstanceName
+    const activePairs = pairs.filter(pair => 
+      pair.is_active && 
+      pair.status === 'running'
     );
 
-    console.log(`🔍 Chips ativos disponíveis para maturação: ${activeChips.length}`);
+    console.log(`🔍 Pares ativos para maturação: ${activePairs.length}`);
 
-    if (activeChips.length >= 2) {
-      console.log('✅ Condições atendidas para maturação - iniciando conversas automáticas');
-      
-      // Iniciar primeira conversa imediatamente
-      const timer1 = setTimeout(() => {
-        startChipConversation();
-      }, 5000); // 5 segundos de delay inicial
-
-      // Programar conversas periódicas a cada 2-5 minutos
-      const timer2 = setInterval(() => {
-        if (Math.random() > 0.3) { // 70% de chance
-          startChipConversation();
-        }
-      }, Math.random() * 180000 + 120000); // 2-5 minutos
-
-      return () => {
-        clearTimeout(timer1);
-        clearInterval(timer2);
-      };
+    if (activePairs.length > 0) {
+      console.log('✅ Pares ativos encontrados - sistema aguardando ativação manual');
+      // Agora só inicia quando especificamente ativado no maturador
+      // Não mais iniciando automaticamente
     } else {
-      console.log('⏳ Aguardando mais chips ativos para iniciar maturação...');
+      console.log('⏳ Nenhum par ativo no maturador...');
     }
-  }, [connections.filter(c => c.status === 'active' && c.isActive && c.phone && c.displayName).length, startChipConversation]);
+  }, [pairs]);
 
   return {
     startChipConversation,
