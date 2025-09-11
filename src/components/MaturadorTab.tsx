@@ -13,7 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { 
   Play, Pause, Square, Users, MessageCircle, ArrowRight, 
-  Settings, Activity, Wifi, Bot, FileText, Eraser 
+  Settings, Activity, Wifi, Bot, FileText, Eraser, Clock 
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useConnections } from "@/contexts/ConnectionsContext";
@@ -21,6 +21,7 @@ import { useMaturadorEngine } from "@/hooks/useMaturadorEngine";
 import { useChipMaturation } from "@/hooks/useChipMaturation";
 import { useMaturadorPairs } from "@/hooks/useMaturadorPairs";
 import { usePrompts } from "@/hooks/usePrompts";
+import { MaturationSettings } from "./MaturationSettings";
 
 interface ChipPair {
   id: string;
@@ -177,9 +178,20 @@ export const MaturadorTab = () => {
     }
   };
 
-  const getStatusBadge = (status: ChipPair['status']) => {
+  const getStatusBadge = (status: ChipPair['status'], lastActivity?: string) => {
     switch (status) {
-      case 'running': return <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Em Execução</Badge>;
+      case 'running': 
+        const startDate = lastActivity ? new Date(lastActivity).toLocaleDateString('pt-BR') : 'Hoje';
+        const startTime = lastActivity ? new Date(lastActivity).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+        return (
+          <div className="flex items-center gap-2">
+            <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Em Execução</Badge>
+            <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              Maturando desde: {startDate} {startTime}
+            </div>
+          </div>
+        );
       case 'paused': return <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Pausado</Badge>;
       default: return <Badge variant="secondary">Parado</Badge>;
     }
@@ -227,15 +239,18 @@ export const MaturadorTab = () => {
             {isRunning ? (
               <>
                 <Square className="w-4 h-4" />
-                Maturador Ativo
+                <span className="text-white">Parar Maturador</span>
               </>
             ) : (
               <>
                 <Play className="w-4 h-4" />
-                Maturador Inativo
+                <span className="text-white">Iniciar Maturador</span>
               </>
             )}
           </Button>
+          <Badge variant={isRunning ? "default" : "secondary"} className="px-3 py-1">
+            {isRunning ? "🟢 Ativo" : "🔴 Inativo"}
+          </Badge>
           <Button 
             onClick={handleStartConversation} 
             variant="outline"
@@ -341,38 +356,8 @@ export const MaturadorTab = () => {
           </CardContent>
         </Card>
 
-        {/* Configurações do Maturador */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Configurações do Maturador</CardTitle>
-            <CardDescription>Parâmetros gerais</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center space-x-2">
-              <Switch 
-                checked={config.useBasePrompt} 
-                onCheckedChange={(checked) => setConfig(prev => ({ ...prev, useBasePrompt: checked }))}
-              />
-              <Label>Usar prompt base das APIs de IA</Label>
-            </div>
-            
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <FileText className="w-4 h-4" />
-                Prompt Personalizado (opcional)
-              </Label>
-              <Textarea
-                placeholder="Digite um prompt personalizado para as conversas..."
-                value={config.customPrompt || ''}
-                onChange={(e) => setConfig(prev => ({ ...prev, customPrompt: e.target.value }))}
-                className="min-h-[100px]"
-              />
-              <p className="text-xs text-muted-foreground">
-                Se preenchido, este prompt será usado ao invés do prompt global definido na aba Prompts
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Configurações de Humanização */}
+        <MaturationSettings />
       </div>
 
       {/* Lista de Duplas */}
@@ -394,63 +379,80 @@ export const MaturadorTab = () => {
                 {config.selectedPairs.map(pair => (
                   <Card key={pair.id} className="border-l-4 border-l-primary/30">
                     <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline">{pair.chip1}</Badge>
-                            <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                            <Badge variant="outline">{pair.chip2}</Badge>
-                          </div>
-                          {getStatusBadge(pair.status)}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="text-right text-sm">
-                            <p className="font-medium">{pair.messagesExchanged} mensagens</p>
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(pair.lastActivity).toLocaleTimeString('pt-BR')}
-                            </p>
+                        <div className="space-y-3">
+                          {/* Linha 1: Chips e Status */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">{pair.chip1}</Badge>
+                              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                              <Badge variant="outline">{pair.chip2}</Badge>
+                            </div>
+                            <div className="text-right text-sm">
+                              <p className="font-medium">{pair.messagesExchanged} mensagens</p>
+                            </div>
                           </div>
                           
-                          <Select defaultValue="">
-                            <SelectTrigger className="w-32">
-                              <SelectValue placeholder="Prompt" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="global">Global</SelectItem>
-                              {prompts.filter(p => p.is_active).map(prompt => (
-                                <SelectItem key={prompt.id} value={prompt.id}>
-                                  {prompt.nome}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {/* Linha 2: Status com Data */}
+                          <div className="flex items-center justify-between">
+                            <div>
+                              {getStatusBadge(pair.status, pair.lastActivity)}
+                            </div>
+                          </div>
                           
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => handleTogglePair(pair.id)}
-                          >
-                            {pair.isActive ? (
-                              <>
-                                <Pause className="w-4 h-4 mr-2"/>
-                                Pausar
-                              </>
-                            ) : (
-                              <>
-                                <Play className="w-4 h-4 mr-2"/>
-                                Ativar
-                              </>
-                            )}
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => handleRemovePair(pair.id)}
-                          >
-                            Remover
-                          </Button>
+                          {/* Linha 3: Controles */}
+                          <div className="flex items-center justify-between">
+                            <Select 
+                              defaultValue="global"
+                              onValueChange={(value) => {
+                                console.log(`Prompt selecionado para par ${pair.id}: ${value}`);
+                                // TODO: Implementar salvamento do prompt selecionado
+                                toast({
+                                  title: "Prompt Selecionado", 
+                                  description: `Prompt ${value === 'global' ? 'global' : 'personalizado'} será usado nesta dupla.`,
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="w-40">
+                                <SelectValue placeholder="Prompt" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="global">🌐 Prompt Global</SelectItem>
+                                {prompts.filter(p => p.is_active).map(prompt => (
+                                  <SelectItem key={prompt.id} value={prompt.id}>
+                                    📝 {prompt.nome}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            
+                            <div className="flex gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handleTogglePair(pair.id)}
+                              >
+                                {pair.isActive ? (
+                                  <>
+                                    <Pause className="w-4 h-4 mr-1"/>
+                                    Pausar
+                                  </>
+                                ) : (
+                                  <>
+                                    <Play className="w-4 h-4 mr-1"/>
+                                    Ativar
+                                  </>
+                                )}
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handleRemovePair(pair.id)}
+                              >
+                                Remover
+                              </Button>
+                            </div>
+                          </div>
                         </div>
-                      </div>
                     </CardContent>
                   </Card>
                 ))}

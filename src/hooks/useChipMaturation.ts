@@ -28,53 +28,69 @@ export const useChipMaturation = () => {
     }
   }, []);
 
-  // Gera um prompt para iniciar uma conversa entre dois chips usando prompt efetivo (par > global)
-  const generateConversationPrompt = useCallback(async (chip1: any, chip2: any) => {
+  // Gera mensagem humanizada usando sempre o prompt global mais atualizado
+  const generateConversationPrompt = useCallback(async (
+    chip1: any, 
+    chip2: any, 
+    isFirstMessage: boolean = false,
+    conversationHistory: any[] = []
+  ) => {
     try {
-      // Verificar se existe um par correspondente com prompt da instância
+      console.log(`🎯 Gerando mensagem para ${chip1.name} -> ${chip2.name} (primeira: ${isFirstMessage})`);
+      
+      // SEMPRE buscar prompt global mais recente para garantir atualização
+      const globalPrompt = await fetchLatestGlobalPrompt();
+      let effectivePrompt = globalPrompt?.conteudo || 'Participe de uma conversa natural e casual no WhatsApp. Seja conciso, humano e use emojis moderadamente.';
+      
+      // Verificar se existe par com prompt específico
       const matchingPair = pairs.find(p =>
         (p.nome_chip1 === chip1.name && p.nome_chip2 === chip2.name) ||
         (p.nome_chip1 === chip2.name && p.nome_chip2 === chip1.name)
       );
 
-      let effectivePrompt: string | null = null;
       if (matchingPair?.use_instance_prompt && matchingPair.instance_prompt) {
         effectivePrompt = matchingPair.instance_prompt;
+        console.log('✅ Usando prompt da instância');
       } else {
-        const globalPrompt = await fetchLatestGlobalPrompt();
-        effectivePrompt = globalPrompt?.conteudo || null;
+        console.log('✅ Usando prompt global mais recente');
       }
 
-      if (effectivePrompt) {
-        const { data, error } = await supabase.functions.invoke('openai-chat', {
-          body: {
-            prompt: effectivePrompt,
-            chipName: chip1.name,
-            historyLength: 0
-          }
-        });
-
-        if (data?.message && !error) {
-          return data.message;
+      // Chamar OpenAI com configurações humanizadas
+      const { data, error } = await supabase.functions.invoke('openai-chat', {
+        body: {
+          prompt: effectivePrompt,
+          chipName: chip1.name,
+          conversationHistory: conversationHistory.slice(-3), // Histórico limitado
+          isFirstMessage,
+          responseDelay: 30 + Math.random() * 30 // 30-60 segundos de delay
         }
+      });
+
+      if (data?.message && !error) {
+        console.log(`✅ Mensagem gerada para ${chip1.name}:`, data.message);
+        return data.message;
+      }
+
+      if (error) {
+        console.error('Erro na OpenAI:', error);
       }
     } catch (error) {
-      console.log('Usando prompt padrão devido a erro:', error);
+      console.error('Erro ao gerar prompt:', error);
     }
     
-    // Fallback para prompts padrão
-    const prompts = [
-      "Olá! Como você está hoje?",
-      "Oi! Tudo bem por aí?", 
-      "Bom dia! Como foi seu fim de semana?",
-      "Oi! Você tem alguma novidade interessante?",
-      "Olá! Que tal conversarmos um pouco?",
-      "Oi! Como estão as coisas?",
-      "Bom dia! Espero que esteja tendo um ótimo dia!",
-      "Olá! Já fez algo interessante hoje?"
+    // Fallback humanizados para emergência
+    const humanizedFallbacks = [
+      "oi, tudo bom? 😊",
+      "e aí, como tá?",
+      "opa! blz?",
+      "fala! tudo certo?",
+      "oi! como foi o dia?",
+      "e aí, novidades? 🤔",
+      "opa, beleza?",
+      "oi! tudo tranquilo?"
     ];
     
-    return prompts[Math.floor(Math.random() * prompts.length)];
+    return humanizedFallbacks[Math.floor(Math.random() * humanizedFallbacks.length)];
   }, [pairs, fetchLatestGlobalPrompt]);
 
   // Envia uma mensagem entre dois chips usando a API Evolution
@@ -131,43 +147,6 @@ export const useChipMaturation = () => {
     }
   }, [toast]);
 
-  // Inicia uma conversa entre dois chips ativos
-  const startChipConversation = useCallback(async () => {
-    const activeChips = connections.filter(conn => 
-      conn.status === 'active' && 
-      conn.isActive && 
-      conn.phone && 
-      conn.displayName &&
-      conn.evolutionInstanceName
-    );
-
-    if (activeChips.length < 2) {
-      console.log('⚠️ Precisa de pelo menos 2 chips ativos para iniciar conversa');
-      return;
-    }
-
-    // Selecionar dois chips aleatórios
-    const shuffled = [...activeChips].sort(() => Math.random() - 0.5);
-    const chip1 = shuffled[0];
-    const chip2 = shuffled[1];
-
-    console.log(`🎯 Iniciando conversa entre ${chip1.name} e ${chip2.name}`);
-
-    // Gerar prompt e enviar mensagem
-    const prompt = await generateConversationPrompt(chip1, chip2);
-    const success = await sendMessageBetweenChips(chip1, chip2, prompt);
-
-    if (success) {
-      // Simular resposta após 30-60 segundos
-      const responseDelay = Math.random() * 30000 + 30000; // 30-60 segundos
-      
-      setTimeout(async () => {
-        const responsePrompt = await generateConversationPrompt(chip2, chip1);
-        await sendMessageBetweenChips(chip2, chip1, responsePrompt);
-      }, responseDelay);
-    }
-  }, [connections, generateConversationPrompt, sendMessageBetweenChips]);
-
   // Resetar memórias das conversas dos chips (limpa conversation_history)
   const resetActiveChipsMemory = useCallback(async (apenasDuplasAtivas: boolean = true) => {
     try {
@@ -200,6 +179,49 @@ export const useChipMaturation = () => {
       toast({ title: 'Erro', description: e.message || 'Falha ao resetar memórias', variant: 'destructive' });
     }
   }, [pairs, connections, toast]);
+
+  // Inicia uma conversa entre dois chips ativos com mensagem de início da maturação
+  const startChipConversation = useCallback(async () => {
+    const activeChips = connections.filter(conn => 
+      conn.status === 'active' && 
+      conn.isActive && 
+      conn.phone && 
+      conn.displayName &&
+      conn.evolutionInstanceName
+    );
+
+    if (activeChips.length < 2) {
+      console.log('⚠️ Precisa de pelo menos 2 chips ativos para iniciar conversa');
+      return;
+    }
+
+    // Selecionar dois chips aleatórios
+    const shuffled = [...activeChips].sort(() => Math.random() - 0.5);
+    const chip1 = shuffled[0];
+    const chip2 = shuffled[1];
+
+    console.log(`🎯 Iniciando nova maturação entre ${chip1.name} e ${chip2.name}`);
+
+    // PRIMEIRO: Reset da memória dos chips para nova maturação
+    await resetActiveChipsMemory(true);
+    
+    // SEGUNDO: Gerar mensagem de início da maturação
+    const startMessage = await generateConversationPrompt(chip1, chip2, true, []);
+    const success = await sendMessageBetweenChips(chip1, chip2, startMessage);
+
+    if (success) {
+      // TERCEIRO: Agendar primeira resposta humanizada com delay controlado
+      const responseDelay = (30 + Math.random() * 30) * 1000; // 30-60 segundos
+      console.log(`⏰ Próxima resposta em ${responseDelay/1000}s`);
+      
+      setTimeout(async () => {
+        const responsePrompt = await generateConversationPrompt(chip2, chip1, false, []);
+        await sendMessageBetweenChips(chip2, chip1, responsePrompt);
+      }, responseDelay);
+    }
+  }, [connections, generateConversationPrompt, sendMessageBetweenChips, resetActiveChipsMemory]);
+
+  // (Esta função foi movida para cima para resolver dependência)
 
   // Monitor para iniciar conversas automáticas APENAS quando pares estão ativos
   useEffect(() => {

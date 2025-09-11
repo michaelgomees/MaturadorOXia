@@ -181,23 +181,26 @@ export const useMaturadorEngine = () => {
     }
   }, [connections]);
 
-  // Gerar mensagem usando OpenAI
+  // Gerar mensagem humanizada usando OpenAI com controles rigorosos
   const generateMessage = useCallback(async (
     chipName: string, 
     prompt: string, 
-    conversationHistory: MaturadorMessage[]
+    conversationHistory: MaturadorMessage[],
+    isFirstMessage: boolean = false
   ): Promise<string> => {
     try {
-      console.log(`Gerando mensagem para ${chipName}`);
+      console.log(`🤖 Gerando mensagem para ${chipName} (primeira: ${isFirstMessage})`);
       
       const { data, error } = await supabase.functions.invoke('openai-chat', {
         body: {
           prompt,
           chipName,
-          conversationHistory: conversationHistory.slice(-5).map(msg => ({
+          conversationHistory: conversationHistory.slice(-3).map(msg => ({
             content: msg.content,
             isFromThisChip: msg.fromChipName === chipName
-          }))
+          })),
+          isFirstMessage,
+          responseDelay: 30 + Math.random() * 30 // 30-60 segundos
         }
       });
 
@@ -210,10 +213,23 @@ export const useMaturadorEngine = () => {
         throw new Error('Resposta inválida da OpenAI');
       }
 
+      console.log(`✅ Mensagem gerada (${data.message.length} chars):`, data.message);
       return data.message;
     } catch (error) {
       console.error('Erro ao gerar mensagem:', error);
-      throw error;
+      
+      // Fallback humanizado em caso de erro
+      const fallbacks = [
+        "kkk 😅",
+        "show!",
+        "entendi 🤔",
+        "massa!",
+        "boa! 👍",
+        "legal isso",
+        "interessante 😊"
+      ];
+      
+      return fallbacks[Math.floor(Math.random() * fallbacks.length)];
     }
   }, []);
 
@@ -268,12 +284,21 @@ export const useMaturadorEngine = () => {
         ? { id: pair.secondChipId, name: pair.secondChipName }
         : { id: pair.firstChipId, name: pair.firstChipName };
 
-      // Gerar mensagem
+      // Determinar se é primeira mensagem desta nova maturação
+      const isFirstMessage = pairHistory.length === 0;
+      
+      // Gerar mensagem humanizada
       const messageContent = await generateMessage(
         respondingChip.name,
         effectivePrompt,
-        pairHistory
+        pairHistory,
+        isFirstMessage
       );
+
+      // Aplicar delay humanizado antes do envio (simular digitação)
+      const typingDelay = Math.random() * 3000 + 2000; // 2-5 segundos de "digitação"
+      console.log(`⌨️ Simulando digitação por ${typingDelay/1000}s...`);
+      await new Promise(resolve => setTimeout(resolve, typingDelay));
 
       // Enviar mensagem real entre os chips
       try {
