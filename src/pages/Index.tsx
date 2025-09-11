@@ -1,0 +1,360 @@
+import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Bot, MessageCircle, Zap, Settings, BarChart3, QrCode, Link, Brain, GitBranch, Users } from "lucide-react";
+import { Header } from "@/components/Header";
+import { ChipCard } from "@/components/ChipCard";
+import { StatsCard } from "@/components/StatsCard";
+import { CreateChipModal } from "@/components/CreateChipModal";
+import { QRCodeModal } from "@/components/QRCodeModal";
+import { AnalyticsModal } from "@/components/AnalyticsModal";
+import { useToast } from "@/hooks/use-toast";
+import { useConnections } from "@/contexts/ConnectionsContext";
+import { useAutoSync } from "@/hooks/useAutoSync";
+import { useChipMaturation } from "@/hooks/useChipMaturation";
+import { APIsTab } from "@/components/APIsTab";
+import { PromptsTab } from "@/components/PromptsTab";
+import { DadosTab } from "@/components/DadosTab";
+import { MaturadorTab } from "@/components/MaturadorTab";
+import { ProtectedRoute } from "@/contexts/AuthContext";
+
+// Dados reais - sem demonstração
+
+const Index = () => {
+  const [selectedChip, setSelectedChip] = useState<string | null>(null);
+  const [createChipModalOpen, setCreateChipModalOpen] = useState(false);
+  const [qrCodeModalOpen, setQrCodeModalOpen] = useState(false);
+  const [selectedChipForQR, setSelectedChipForQR] = useState<{name: string, phone: string} | null>(null);
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [analyticsModalOpen, setAnalyticsModalOpen] = useState(false);
+  const { toast } = useToast();
+  const { connections, activeConnectionsCount } = useConnections();
+  
+  // Usar hooks de sincronização automática e maturação
+  useAutoSync();
+  const { startChipConversation } = useChipMaturation();
+
+  const handleGenerateQRCode = (chipName: string, chipPhone: string) => {
+    setSelectedChipForQR({ name: chipName, phone: chipPhone });
+    setQrCodeModalOpen(true);
+  };
+
+  const handleChipCreated = () => {
+    // Recarregar lista de chips ou atualizar estado
+    toast({
+      title: "Lista atualizada",
+      description: "A lista de chips foi atualizada com sucesso.",
+    });
+  };
+
+  return (
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gradient-to-br from-background to-muted">
+        <Header />
+      
+      <main className="container mx-auto px-6 py-8 space-y-8">
+        {/* Navigation Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="dashboard" className="flex items-center gap-2">
+              <Bot className="w-4 h-4" />
+              Dashboard
+            </TabsTrigger>
+            <TabsTrigger value="apis" className="flex items-center gap-2">
+              <Link className="w-4 h-4" />
+              APIs
+            </TabsTrigger>
+            <TabsTrigger value="ai-config" className="flex items-center gap-2">
+              <Brain className="w-4 h-4" />
+              Prompts de IA
+            </TabsTrigger>
+            <TabsTrigger value="dados" className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Dados
+            </TabsTrigger>
+            <TabsTrigger value="maturador" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Maturador
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="dashboard" className="space-y-8 mt-8">
+            {/* Hero Section */}
+            <section className="text-center space-y-6">
+              <div className="space-y-4">
+                <h1 className="text-5xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                  OX MATURADOR
+                </h1>
+                <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                  Plataforma inteligente de automação conversacional com IA. 
+                  Crie, gerencie e monitore chips conversacionais autônomos.
+                </p>
+              </div>
+              
+              <div className="flex gap-4 justify-center">
+                <Button size="lg" onClick={() => setCreateChipModalOpen(true)} className="hover:bg-primary/90 hover:scale-105 transition-all duration-300">
+                  <Plus className="w-5 h-5 mr-2" />
+                  Nova Conexão
+                </Button>
+                {activeConnectionsCount >= 2 && (
+                  <Button 
+                    size="lg" 
+                    variant="secondary" 
+                    className="hover:scale-105 transition-all duration-300" 
+                    onClick={startChipConversation}
+                  >
+                    <Bot className="w-5 h-5 mr-2" />
+                    Iniciar Conversa
+                  </Button>
+                )}
+                <Button size="lg" variant="outline" className="hover:bg-secondary/10 hover:border-secondary transition-all duration-300" onClick={() => setAnalyticsModalOpen(true)}>
+                  <BarChart3 className="w-5 h-5 mr-2" />
+                  Ver Analytics
+                </Button>
+              </div>
+            </section>
+
+            {/* Stats Overview */}
+            <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <StatsCard 
+                title="Conexões Ativas"
+                value={activeConnectionsCount.toString()}
+                description={activeConnectionsCount === 0 ? "Configure suas primeiras conexões" : "Conexões funcionando"}
+                icon={<Bot className="w-5 h-5 text-primary" />}
+              />
+              <StatsCard 
+                title="Total de Conversas"
+                value={connections.reduce((total, conn) => total + conn.conversationsCount, 0).toString()}
+                description={connections.length === 0 ? "Aguardando ativação" : "Conversas processadas"}
+                icon={<MessageCircle className="w-5 h-5 text-secondary" />}
+              />
+              <StatsCard 
+                title="Taxa de Conexão"
+                value={connections.length > 0 ? Math.round((activeConnectionsCount / connections.length) * 100) + "%" : "0%"}
+                description={connections.length === 0 ? "Sem dados ainda" : "Conexões funcionais"}
+                icon={<Zap className="w-5 h-5 text-accent" />}
+              />
+              <StatsCard 
+                title="Sistema"
+                value={connections.length > 0 ? "Operacional" : "Pronto"}
+                description={connections.length > 0 ? "Sistema em funcionamento" : "Configuração inicial"}
+                icon={<Settings className="w-5 h-5 text-primary" />}
+              />
+            </section>
+
+            {/* Sistema de Maturação */}
+            {activeConnectionsCount >= 2 && (
+              <section className="bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-lg p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="text-2xl">🎯</div>
+                  <h3 className="text-lg font-semibold">Sistema de Maturação Ativo</h3>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse ml-2"></div>
+                </div>
+                <p className="text-muted-foreground mb-4">
+                  Você tem {activeConnectionsCount} chips ativos. O sistema está gerando conversas automáticas entre eles para desenvolver personalidades únicas e aprimorar as respostas da IA.
+                </p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-primary">
+                    <span>Conversas automáticas em andamento</span>
+                  </div>
+                  <Button onClick={startChipConversation} size="sm" variant="outline">
+                    <Bot className="w-4 h-4 mr-2" />
+                    Forçar Conversa
+                  </Button>
+                </div>
+              </section>
+            )}
+
+            {/* Sistema de Maturação Ativo */}
+            {connections.filter(c => c.status === 'active').length >= 2 && (
+              <section className="bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-lg p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="text-2xl">🎯</div>
+                  <h3 className="text-lg font-semibold">Sistema de Maturação Disponível</h3>
+                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse ml-2"></div>
+                </div>
+                <p className="text-muted-foreground mb-4">
+                  Você tem {connections.filter(c => c.status === 'active').length} chips ativos. O sistema pode gerar conversas automáticas entre eles para desenvolver personalidades únicas.
+                </p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-primary">
+                    <span>Pronto para iniciar conversas automáticas</span>
+                  </div>
+                  <Button onClick={startChipConversation} size="sm">
+                    <Bot className="w-4 h-4 mr-2" />
+                    Iniciar Conversa Agora
+                  </Button>
+                </div>
+              </section>
+            )}
+            <section className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-semibold">Minhas Conexões</h2>
+                <div className="flex gap-2">
+                  <Badge variant="secondary">{connections.length} Total</Badge>
+                  <Badge variant="outline" className="text-secondary">{activeConnectionsCount} Ativas</Badge>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Conexões Reais */}
+                {connections.map((connection) => (
+                  <ChipCard
+                    key={connection.id}
+                    chip={{
+                      id: connection.id,
+                      name: connection.name,
+                      status: connection.status === 'active' ? 'active' : connection.status === 'inactive' ? 'idle' : 'offline',
+                      aiModel: connection.aiModel || 'ChatGPT',
+                      conversations: connection.conversationsCount,
+                      lastActive: new Date(connection.lastActive).toLocaleString('pt-BR')
+                    }}
+                    isSelected={selectedChip === connection.id}
+                    onSelect={() => setSelectedChip(connection.id)}
+                    onGenerateQR={() => handleGenerateQRCode(connection.name, connection.phone || '')}
+                    onChipUpdated={handleChipCreated}
+                  />
+                ))}
+                
+                {/* Add New Chip Card */}
+                <Card 
+                  className="border-dashed border-2 hover:border-primary/50 transition-all duration-300 cursor-pointer group hover:scale-105"
+                  onClick={() => setActiveTab("apis")}
+                >
+                  <CardContent className="flex flex-col items-center justify-center h-full min-h-[200px] text-muted-foreground group-hover:text-primary transition-colors">
+                    <Plus className="w-12 h-12 mb-4 group-hover:scale-110 transition-transform duration-300" />
+                    <h3 className="font-semibold">Nova Conexão</h3>
+                    <p className="text-sm text-center">Configure uma nova instância conversacional</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
+
+            {/* Quick Actions */}
+            <section className="bg-card rounded-lg border p-6">
+              <h3 className="text-lg font-semibold mb-4">Ações Rápidas</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Button 
+                  variant="outline" 
+                  className="h-auto p-4 justify-start hover:bg-secondary/10 hover:border-secondary transition-all duration-300"
+                  onClick={() => setActiveTab("ai-config")}
+                >
+                  <Bot className="w-5 h-5 mr-3" />
+                  <div className="text-left">
+                    <div className="font-medium">Configurar IA</div>
+                    <div className="text-sm text-muted-foreground">Gerenciar modelos e APIs</div>
+                  </div>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="h-auto p-4 justify-start hover:bg-secondary/10 hover:border-secondary transition-all duration-300"
+                  onClick={() => setActiveTab("apis")}
+                >
+                  <MessageCircle className="w-5 h-5 mr-3" />
+                  <div className="text-left">
+                    <div className="font-medium">Configurar APIs</div>
+                    <div className="text-sm text-muted-foreground">Evolution e modelos de IA</div>
+                  </div>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="h-auto p-4 justify-start hover:bg-secondary/10 hover:border-secondary transition-all duration-300"
+                  onClick={() => setActiveTab("dados")}
+                >
+                  <BarChart3 className="w-5 h-5 mr-3" />
+                  <div className="text-left">
+                    <div className="font-medium">Central de Dados</div>
+                    <div className="text-sm text-muted-foreground">Recursos multimídia</div>
+                  </div>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="h-auto p-4 justify-start hover:bg-secondary/10 hover:border-secondary transition-all duration-300"
+                  onClick={() => {
+                    if (activeConnectionsCount >= 2) {
+                      startChipConversation();
+                      toast({
+                        title: "🤖 Conversa Iniciada!",
+                        description: "Uma nova conversa entre chips foi iniciada.",
+                      });
+                    } else {
+                      toast({
+                        title: "⚠️ Chips Insuficientes",
+                        description: "Você precisa de pelo menos 2 chips ativos para iniciar uma conversa.",
+                        variant: "destructive"
+                      });
+                    }
+                  }}
+                  disabled={activeConnectionsCount < 2}
+                >
+                  <Users className="w-5 h-5 mr-3" />
+                  <div className="text-left">
+                    <div className="font-medium">
+                      {activeConnectionsCount >= 2 ? "Iniciar Conversa" : "Maturador (Aguardando)"}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {activeConnectionsCount >= 2 ? "Conversas automáticas" : `${activeConnectionsCount}/2 chips ativos`}
+                    </div>
+                  </div>
+                </Button>
+              </div>
+            </section>
+
+            {/* Connection Notice */}
+            <section className="bg-primary/10 border border-primary/20 rounded-lg p-6 text-center">
+              <h3 className="font-semibold text-foreground mb-2">
+                Conecte ao Supabase para Funcionalidade Completa
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Para implementar autenticação, banco de dados, integração com Evolution API e modelos de IA, 
+                conecte seu projeto ao Supabase usando nossa integração nativa.
+              </p>
+            </section>
+          </TabsContent>
+
+          <TabsContent value="apis" className="mt-8">
+            <APIsTab />
+          </TabsContent>
+
+          <TabsContent value="ai-config" className="mt-8">
+            <PromptsTab />
+          </TabsContent>
+
+          <TabsContent value="dados" className="mt-8">
+            <DadosTab />
+          </TabsContent>
+
+          <TabsContent value="maturador" className="mt-8">
+            <MaturadorTab />
+          </TabsContent>
+        </Tabs>
+      </main>
+
+      {/* Modals */}
+      <CreateChipModal 
+        open={createChipModalOpen}
+        onOpenChange={setCreateChipModalOpen}
+        onChipCreated={handleChipCreated}
+      />
+      
+      {selectedChipForQR && (
+        <QRCodeModal 
+          open={qrCodeModalOpen}
+          onOpenChange={setQrCodeModalOpen}
+          chipName={selectedChipForQR.name}
+          chipPhone={selectedChipForQR.phone}
+        />
+      )}
+
+      <AnalyticsModal 
+        open={analyticsModalOpen}
+        onOpenChange={setAnalyticsModalOpen}
+      />
+      </div>
+    </ProtectedRoute>
+  );
+};
+
+export default Index;
