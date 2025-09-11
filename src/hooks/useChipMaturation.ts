@@ -3,7 +3,6 @@ import { useConnections } from '@/contexts/ConnectionsContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useMaturadorPairs } from './useMaturadorPairs';
-import { usePrompts } from './usePrompts';
 
 /**
  * Hook para controlar a maturação dos chips e iniciar conversas automáticas
@@ -12,17 +11,44 @@ export const useChipMaturation = () => {
   const { connections } = useConnections();
   const { toast } = useToast();
   const { pairs } = useMaturadorPairs();
-  const { getGlobalPrompt } = usePrompts();
+  // Busca sempre o prompt global mais recente diretamente do Supabase
+  const fetchLatestGlobalPrompt = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from('saas_prompts')
+        .select('*')
+        .eq('is_global', true)
+        .eq('is_active', true)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .single();
+      return data || null;
+    } catch (e) {
+      return null;
+    }
+  }, []);
 
-  // Gera um prompt para iniciar uma conversa entre dois chips usando prompt global
+  // Gera um prompt para iniciar uma conversa entre dois chips usando prompt efetivo (par > global)
   const generateConversationPrompt = useCallback(async (chip1: any, chip2: any) => {
     try {
-      const globalPrompt = getGlobalPrompt();
-      if (globalPrompt) {
-        // Usar a edge function OpenAI para gerar mensagem com prompt global
+      // Verificar se existe um par correspondente com prompt da instância
+      const matchingPair = pairs.find(p =>
+        (p.nome_chip1 === chip1.name && p.nome_chip2 === chip2.name) ||
+        (p.nome_chip1 === chip2.name && p.nome_chip2 === chip1.name)
+      );
+
+      let effectivePrompt: string | null = null;
+      if (matchingPair?.use_instance_prompt && matchingPair.instance_prompt) {
+        effectivePrompt = matchingPair.instance_prompt;
+      } else {
+        const globalPrompt = await fetchLatestGlobalPrompt();
+        effectivePrompt = globalPrompt?.conteudo || null;
+      }
+
+      if (effectivePrompt) {
         const { data, error } = await supabase.functions.invoke('openai-chat', {
           body: {
-            prompt: globalPrompt.conteudo,
+            prompt: effectivePrompt,
             chipName: chip1.name,
             historyLength: 0
           }
@@ -49,7 +75,7 @@ export const useChipMaturation = () => {
     ];
     
     return prompts[Math.floor(Math.random() * prompts.length)];
-  }, [getGlobalPrompt]);
+  }, [pairs, fetchLatestGlobalPrompt]);
 
   // Envia uma mensagem entre dois chips usando a API Evolution
   const sendMessageBetweenChips = useCallback(async (senderChip: any, receiverChip: any, message: string) => {
@@ -142,6 +168,39 @@ export const useChipMaturation = () => {
     }
   }, [connections, generateConversationPrompt, sendMessageBetweenChips]);
 
+  // Resetar memórias das conversas dos chips (limpa conversation_history)
+  const resetActiveChipsMemory = useCallback(async (apenasDuplasAtivas: boolean = true) => {
+    try {
+      const alvo = new Set<string>();
+      if (apenasDuplasAtivas) {
+        pairs.filter(p => p.is_active).forEach(p => {
+          alvo.add(p.nome_chip1);
+          alvo.add(p.nome_chip2);
+        });
+      } else {
+        connections.forEach(c => alvo.add(c.name));
+      }
+
+      const nomes = Array.from(alvo);
+      if (nomes.length === 0) {
+        toast({ title: 'Nada para limpar', description: 'Nenhum chip selecionado para resetar memória.' });
+        return;
+      }
+
+      const { error } = await supabase
+        .from('saas_conexoes')
+        .update({ conversation_history: [] })
+        .in('nome', nomes);
+
+      if (error) throw error;
+
+      toast({ title: 'Memórias resetadas', description: `Limpamos ${nomes.length} chip(s).` });
+    } catch (e: any) {
+      console.error('Erro ao resetar memórias:', e);
+      toast({ title: 'Erro', description: e.message || 'Falha ao resetar memórias', variant: 'destructive' });
+    }
+  }, [pairs, connections, toast]);
+
   // Monitor para iniciar conversas automáticas APENAS quando pares estão ativos
   useEffect(() => {
     const activePairs = pairs.filter(pair => 
@@ -162,6 +221,7 @@ export const useChipMaturation = () => {
 
   return {
     startChipConversation,
-    sendMessageBetweenChips
+    sendMessageBetweenChips,
+    resetActiveChipsMemory
   };
 };

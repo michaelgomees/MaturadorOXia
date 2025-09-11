@@ -13,7 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { 
   Play, Pause, Square, Users, MessageCircle, ArrowRight, 
-  Settings, Activity, Wifi, Bot, FileText 
+  Settings, Activity, Wifi, Bot, FileText, Eraser 
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useConnections } from "@/contexts/ConnectionsContext";
@@ -30,6 +30,8 @@ interface ChipPair {
   messagesExchanged: number;
   lastActivity: string;
   status: 'running' | 'paused' | 'stopped';
+  useInstancePrompt?: boolean;
+  instancePrompt?: string | null;
 }
 
 interface ActiveConnection {
