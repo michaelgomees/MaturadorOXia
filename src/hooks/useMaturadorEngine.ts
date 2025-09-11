@@ -284,15 +284,14 @@ export const useMaturadorEngine = () => {
         ? { id: pair.secondChipId, name: pair.secondChipName }
         : { id: pair.firstChipId, name: pair.firstChipName };
 
-      // Determinar se é primeira mensagem desta nova maturação
-      const isFirstMessage = pairHistory.length === 0;
+      // Não precisa mais da flag isFirstMessage para gerar mensagens especiais
       
       // Gerar mensagem humanizada
       const messageContent = await generateMessage(
         respondingChip.name,
         effectivePrompt,
         pairHistory,
-        isFirstMessage
+        false // Sempre false - não enviar mensagens especiais
       );
 
       // Aplicar delay humanizado antes do envio (simular digitação)
@@ -415,7 +414,35 @@ export const useMaturadorEngine = () => {
 
     setIsRunning(true);
     
-    // Iniciar conversas para cada par ativo
+    // Iniciar conversas contínuas para cada par ativo
+    activePairs.forEach(pair => {
+      const pairId = pair.id;
+      
+      // Criar intervalo para manter conversas ativas
+      const interval = setInterval(async () => {
+        try {
+          // Verificar se ainda está ativo
+          if (!isRunning) {
+            console.log(`Par ${pairId} parado - maturador desativado`);
+            return;
+          }
+          
+          // Processar conversa do par
+          await processChipPairConversation(pair);
+          
+        } catch (error) {
+          console.error(`Erro no par ${pairId}:`, error);
+        }
+      }, (60 + Math.random() * 120) * 1000); // Intervalo de 1-3 minutos entre mensagens
+      
+      // Armazenar referência do intervalo
+      intervalRefs.current.set(pairId, interval);
+      
+      // Iniciar primeira conversa imediatamente
+      setTimeout(() => {
+        processChipPairConversation(pair).catch(console.error);
+      }, Math.random() * 10000); // Entre 0-10 segundos para início
+    });
 
     console.log('Total de intervalos ativos:', intervalRefs.current.size);
 

@@ -72,19 +72,7 @@ serve(async (req) => {
       throw new Error('Prompt is required');
     }
 
-    // Se é a primeira mensagem, enviar mensagem de início da maturação
-    if (isFirstMessage) {
-      const startMessage = `🔄 Maturando desde: ${formatBrazilianDateTime()}`;
-      console.log('Sending first maturation message:', startMessage);
-      
-      return new Response(JSON.stringify({ 
-        message: startMessage,
-        isStartMessage: true,
-        delay: responseDelay * 1000 // converter para ms
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // Remover lógica de mensagem "Maturando desde" - isso deve aparecer apenas no painel
 
     // Sistema prompt humanizado com regras específicas
     const systemPrompt = `${prompt}
