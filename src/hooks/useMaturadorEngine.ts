@@ -224,27 +224,36 @@ export const useMaturadorEngine = () => {
       console.log(`Par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
       console.log('Par ativo?', pair.isActive);
       console.log('Status do par:', pair.status);
-      // Buscar prompt global do Supabase
-      let globalPrompt = 'Participe de uma conversa natural e engajante.';
+      
+      // SEMPRE buscar prompt global atualizado do Supabase
+      let effectivePrompt = 'Participe de uma conversa natural e engajante.';
       
       try {
-        const { data: prompts } = await supabase
+        // Buscar prompt global mais recente
+        const { data: globalPrompt } = await supabase
           .from('saas_prompts')
           .select('*')
           .eq('is_global', true)
+          .eq('is_active', true)
+          .order('updated_at', { ascending: false })
+          .limit(1)
           .single();
         
-        if (prompts) {
-          globalPrompt = prompts.conteudo;
+        if (globalPrompt?.conteudo) {
+          effectivePrompt = globalPrompt.conteudo;
+          console.log('✅ Usando prompt global:', globalPrompt.nome);
         }
       } catch (error) {
-        console.log('Usando prompt padrão');
+        console.log('⚠️ Erro ao buscar prompt global, usando padrão:', error);
       }
 
-      // Usar prompt da instância se configurado
-      const effectivePrompt = pair.useInstancePrompt && pair.instancePrompt 
-        ? pair.instancePrompt 
-        : globalPrompt;
+      // Usar prompt da instância apenas se especificamente configurado
+      if (pair.useInstancePrompt && pair.instancePrompt) {
+        effectivePrompt = pair.instancePrompt;
+        console.log('✅ Usando prompt da instância');
+      }
+      
+      console.log('📝 Prompt efetivo:', effectivePrompt.substring(0, 100) + '...');
 
       // Buscar histórico de conversa deste par
       const pairHistory = messages.filter(msg => msg.chipPairId === pair.id);
