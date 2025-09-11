@@ -271,7 +271,16 @@ export const useMaturadorEngine = () => {
         await sendRealMessage(respondingChip.name, receivingChip.name, messageContent);
         console.log(`✅ Mensagem real enviada: ${respondingChip.name} -> ${receivingChip.name}`);
         
-        // Só criar mensagem no histórico e incrementar contador se o envio real foi bem-sucedido
+        // Atualizar contador no Supabase
+        await supabase
+          .from('saas_pares_maturacao')
+          .update({ 
+            messages_count: pair.messagesCount + 1,
+            last_activity: new Date().toISOString()
+          })
+          .eq('id', pair.id);
+        
+        // Só criar mensagem no histórico se o envio real foi bem-sucedido
         const newMessage: MaturadorMessage = {
           id: crypto.randomUUID(),
           chipPairId: pair.id,

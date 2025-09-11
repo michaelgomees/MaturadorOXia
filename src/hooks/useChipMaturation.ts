@@ -14,8 +14,29 @@ export const useChipMaturation = () => {
   const { pairs } = useMaturadorPairs();
   const { getGlobalPrompt } = usePrompts();
 
-  // Gera um prompt para iniciar uma conversa entre dois chips
-  const generateConversationPrompt = useCallback((chip1: any, chip2: any) => {
+  // Gera um prompt para iniciar uma conversa entre dois chips usando prompt global
+  const generateConversationPrompt = useCallback(async (chip1: any, chip2: any) => {
+    try {
+      const globalPrompt = getGlobalPrompt();
+      if (globalPrompt) {
+        // Usar a edge function OpenAI para gerar mensagem com prompt global
+        const { data, error } = await supabase.functions.invoke('openai-chat', {
+          body: {
+            prompt: globalPrompt.conteudo,
+            chipName: chip1.name,
+            historyLength: 0
+          }
+        });
+
+        if (data?.message && !error) {
+          return data.message;
+        }
+      }
+    } catch (error) {
+      console.log('Usando prompt padrão devido a erro:', error);
+    }
+    
+    // Fallback para prompts padrão
     const prompts = [
       "Olá! Como você está hoje?",
       "Oi! Tudo bem por aí?", 
@@ -28,7 +49,7 @@ export const useChipMaturation = () => {
     ];
     
     return prompts[Math.floor(Math.random() * prompts.length)];
-  }, []);
+  }, [getGlobalPrompt]);
 
   // Envia uma mensagem entre dois chips usando a API Evolution
   const sendMessageBetweenChips = useCallback(async (senderChip: any, receiverChip: any, message: string) => {
@@ -52,6 +73,22 @@ export const useChipMaturation = () => {
 
       if (data?.success) {
         console.log(`✅ Mensagem enviada com sucesso de ${senderChip.name} para ${receiverChip.name}`);
+        
+        // Incrementar contador de mensagens no par do Supabase
+        const matchingPair = pairs.find(p => 
+          (p.nome_chip1 === senderChip.name && p.nome_chip2 === receiverChip.name) ||
+          (p.nome_chip1 === receiverChip.name && p.nome_chip2 === senderChip.name)
+        );
+        
+        if (matchingPair) {
+          await supabase
+            .from('saas_pares_maturacao')
+            .update({ 
+              messages_count: matchingPair.messages_count + 1,
+              last_activity: new Date().toISOString()
+            })
+            .eq('id', matchingPair.id);
+        }
         
         toast({
           title: "🤖 Conversa Iniciada!",
@@ -91,7 +128,7 @@ export const useChipMaturation = () => {
     console.log(`🎯 Iniciando conversa entre ${chip1.name} e ${chip2.name}`);
 
     // Gerar prompt e enviar mensagem
-    const prompt = generateConversationPrompt(chip1, chip2);
+    const prompt = await generateConversationPrompt(chip1, chip2);
     const success = await sendMessageBetweenChips(chip1, chip2, prompt);
 
     if (success) {
@@ -99,7 +136,7 @@ export const useChipMaturation = () => {
       const responseDelay = Math.random() * 30000 + 30000; // 30-60 segundos
       
       setTimeout(async () => {
-        const responsePrompt = generateConversationPrompt(chip2, chip1);
+        const responsePrompt = await generateConversationPrompt(chip2, chip1);
         await sendMessageBetweenChips(chip2, chip1, responsePrompt);
       }, responseDelay);
     }

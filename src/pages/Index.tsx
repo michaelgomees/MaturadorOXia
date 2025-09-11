@@ -167,28 +167,6 @@ const Index = () => {
               </section>
             )}
 
-            {/* Sistema de Maturação Ativo */}
-            {connections.filter(c => c.status === 'active').length >= 2 && (
-              <section className="bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-lg p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="text-2xl">🎯</div>
-                  <h3 className="text-lg font-semibold">Sistema de Maturação Disponível</h3>
-                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse ml-2"></div>
-                </div>
-                <p className="text-muted-foreground mb-4">
-                  Você tem {connections.filter(c => c.status === 'active').length} chips ativos. O sistema pode gerar conversas automáticas entre eles para desenvolver personalidades únicas.
-                </p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-primary">
-                    <span>Pronto para iniciar conversas automáticas</span>
-                  </div>
-                  <Button onClick={startChipConversation} size="sm">
-                    <Bot className="w-4 h-4 mr-2" />
-                    Iniciar Conversa Agora
-                  </Button>
-                </div>
-              </section>
-            )}
             <section className="space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-semibold">Minhas Conexões</h2>

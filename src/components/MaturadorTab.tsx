@@ -146,6 +146,14 @@ export const MaturadorTab = () => {
           await updatePair(pair.id, { status: 'running' });
         }
         maturadorEngine.startMaturador();
+        
+        // Iniciar conversas em intervalos para os pares ativos
+        activePairs.forEach((pair, index) => {
+          setTimeout(() => {
+            startChipConversation();
+          }, index * 5000); // 5 segundos entre cada início
+        });
+        
         toast({ 
           title: "🎯 Maturador Iniciado!", 
           description: `Sistema ativado para ${activePairs.length} duplas.` 

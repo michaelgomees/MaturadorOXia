@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Brain, Star, Trash2, Save, Plus } from "lucide-react";
 import { useAPIConfigs, APIConfig } from "@/hooks/useAPIConfigs";
 import { usePrompts } from "@/hooks/usePrompts";
+import { OpenAIConfigCard } from "./OpenAIConfigCard";
 
 const AI_PROVIDERS = [
   { value: 'openai', label: 'OpenAI (ChatGPT)', icon: '🤖' },
@@ -396,6 +397,9 @@ export const AIConfigTab = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Configuração rápida OpenAI */}
+      <OpenAIConfigCard />
 
       {/* Lista de Configurações */}
       <Card>
