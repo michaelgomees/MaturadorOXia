@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      saas_api_configs: {
+        Row: {
+          api_key: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          max_tokens: number
+          model: string
+          nome: string
+          priority: number
+          provider: string
+          status: string
+          temperature: number
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          max_tokens?: number
+          model: string
+          nome: string
+          priority?: number
+          provider: string
+          status?: string
+          temperature?: number
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          max_tokens?: number
+          model?: string
+          nome?: string
+          priority?: number
+          provider?: string
+          status?: string
+          temperature?: number
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
       saas_conexoes: {
         Row: {
           avatar_url: string | null
@@ -68,6 +119,87 @@ export type Database = {
           telefone?: string | null
           updated_at?: string
           usuario_id?: string | null
+        }
+        Relationships: []
+      }
+      saas_pares_maturacao: {
+        Row: {
+          created_at: string
+          id: string
+          instance_prompt: string | null
+          is_active: boolean
+          last_activity: string
+          messages_count: number
+          nome_chip1: string
+          nome_chip2: string
+          status: string
+          updated_at: string
+          use_instance_prompt: boolean
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instance_prompt?: string | null
+          is_active?: boolean
+          last_activity?: string
+          messages_count?: number
+          nome_chip1: string
+          nome_chip2: string
+          status?: string
+          updated_at?: string
+          use_instance_prompt?: boolean
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instance_prompt?: string | null
+          is_active?: boolean
+          last_activity?: string
+          messages_count?: number
+          nome_chip1?: string
+          nome_chip2?: string
+          status?: string
+          updated_at?: string
+          use_instance_prompt?: boolean
+          usuario_id?: string
+        }
+        Relationships: []
+      }
+      saas_prompts: {
+        Row: {
+          categoria: string
+          conteudo: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_global: boolean
+          nome: string
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          categoria?: string
+          conteudo: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_global?: boolean
+          nome: string
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          categoria?: string
+          conteudo?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_global?: boolean
+          nome?: string
+          updated_at?: string
+          usuario_id?: string
         }
         Relationships: []
       }

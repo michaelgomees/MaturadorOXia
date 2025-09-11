@@ -16,7 +16,7 @@ import { SystemConfigModal } from "./SystemConfigModal";
 import { ProfileModal } from "./ProfileModal";
 import { useConnections } from "@/contexts/ConnectionsContext";
 import { useAuth } from "@/contexts/AuthContext";
-import oxLogo from "@/assets/ox-logo.png";
+import oxLogo from "/ox-logo.png";
 
 export const Header = () => {
   const { toast } = useToast();

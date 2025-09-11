@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,18 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Brain, Star, Trash2, Save, Plus, Edit } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-
-interface AIPrompt {
-  id: string;
-  name: string;
-  content: string;
-  category: 'conversacao' | 'vendas' | 'suporte' | 'personalizado';
-  isActive: boolean;
-  isGlobal: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+import { usePrompts, AIPrompt } from "@/hooks/usePrompts";
 
 const PROMPT_CATEGORIES = [
   { value: 'conversacao', label: 'Conversação Geral', icon: '💬' },
@@ -28,142 +17,104 @@ const PROMPT_CATEGORIES = [
 ];
 
 export const PromptsTab = () => {
-  const [prompts, setPrompts] = useState<AIPrompt[]>([]);
+  const {
+    prompts,
+    loading,
+    createPrompt,
+    updatePrompt,
+    deletePrompt,
+    setGlobalPrompt,
+    getGlobalPrompt
+  } = usePrompts();
+  
   const [isCreating, setIsCreating] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<AIPrompt | null>(null);
   const [newPrompt, setNewPrompt] = useState<{
-    name: string;
-    content: string;
-    category: AIPrompt['category'];
-    isGlobal: boolean;
+    nome: string;
+    conteudo: string;
+    categoria: AIPrompt['categoria'];
+    is_global: boolean;
   }>({
-    name: '',
-    content: '',
-    category: 'conversacao',
-    isGlobal: false
+    nome: '',
+    conteudo: '',
+    categoria: 'conversacao',
+    is_global: false
   });
-  const { toast } = useToast();
 
-  // Carregar prompts do localStorage
-  useEffect(() => {
-    const savedPrompts = localStorage.getItem('ox-ai-prompts');
-    if (savedPrompts) {
-      setPrompts(JSON.parse(savedPrompts));
-    }
-  }, []);
-
-  // Salvar prompts no localStorage
-  const savePrompts = (newPrompts: AIPrompt[]) => {
-    setPrompts(newPrompts);
-    localStorage.setItem('ox-ai-prompts', JSON.stringify(newPrompts));
-  };
-
-  const handleCreatePrompt = () => {
-    if (!newPrompt.name || !newPrompt.content) {
-      toast({
-        title: "Erro",
-        description: "Nome e conteúdo do prompt são obrigatórios.",
-        variant: "destructive"
-      });
+  const handleCreatePrompt = async () => {
+    if (!newPrompt.nome || !newPrompt.conteudo) {
       return;
     }
 
-    // Se for prompt global, desativar outros globais
-    let updatedPrompts = prompts;
-    if (newPrompt.isGlobal) {
-      updatedPrompts = prompts.map(p => ({ ...p, isGlobal: false }));
+    try {
+      await createPrompt({
+        nome: newPrompt.nome,
+        conteudo: newPrompt.conteudo,
+        categoria: newPrompt.categoria,
+        is_active: true,
+        is_global: newPrompt.is_global
+      });
+
+      setNewPrompt({ nome: '', conteudo: '', categoria: 'conversacao', is_global: false });
+      setIsCreating(false);
+    } catch (error) {
+      // Error já tratado no hook
     }
-
-    const prompt: AIPrompt = {
-      id: Date.now().toString(),
-      name: newPrompt.name,
-      content: newPrompt.content,
-      category: newPrompt.category,
-      isActive: true,
-      isGlobal: newPrompt.isGlobal,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    savePrompts([...updatedPrompts, prompt]);
-    setNewPrompt({ name: '', content: '', category: 'conversacao', isGlobal: false });
-    setIsCreating(false);
-    
-    toast({
-      title: "Prompt criado",
-      description: `Prompt "${newPrompt.name}" criado com sucesso.`
-    });
   };
 
-  const handleUpdatePrompt = () => {
+  const handleUpdatePrompt = async () => {
     if (!editingPrompt) return;
 
-    // Se for prompt global, desativar outros globais
-    let updatedPrompts = prompts;
-    if (editingPrompt.isGlobal) {
-      updatedPrompts = prompts.map(p => 
-        p.id === editingPrompt.id ? p : { ...p, isGlobal: false }
-      );
+    try {
+      await updatePrompt(editingPrompt.id, {
+        nome: editingPrompt.nome,
+        conteudo: editingPrompt.conteudo,
+        categoria: editingPrompt.categoria,
+        is_global: editingPrompt.is_global
+      });
+
+      setEditingPrompt(null);
+    } catch (error) {
+      // Error já tratado no hook
     }
+  };
 
-    const finalPrompts = updatedPrompts.map(p => 
-      p.id === editingPrompt.id 
-        ? { ...editingPrompt, updatedAt: new Date().toISOString() }
-        : p
+  const handleSetGlobalPrompt = async (id: string) => {
+    try {
+      await setGlobalPrompt(id);
+    } catch (error) {
+      // Error já tratado no hook
+    }
+  };
+
+  const handleDeletePrompt = async (id: string) => {
+    try {
+      await deletePrompt(id);
+    } catch (error) {
+      // Error já tratado no hook
+    }
+  };
+
+  const getCategoryIcon = (categoria: string) => {
+    return PROMPT_CATEGORIES.find(c => c.value === categoria)?.icon || '💬';
+  };
+
+  const getCategoryLabel = (categoria: string) => {
+    return PROMPT_CATEGORIES.find(c => c.value === categoria)?.label || 'Conversação';
+  };
+
+  const globalPrompt = getGlobalPrompt();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <Brain className="w-12 h-12 text-muted-foreground mx-auto mb-4 animate-pulse" />
+          <p className="text-muted-foreground">Carregando prompts...</p>
+        </div>
+      </div>
     );
-
-    savePrompts(finalPrompts);
-    setEditingPrompt(null);
-    
-    toast({
-      title: "Prompt atualizado",
-      description: "Prompt foi atualizado com sucesso."
-    });
-  };
-
-  const handleSetGlobalPrompt = (id: string) => {
-    const updatedPrompts = prompts.map(p => ({
-      ...p,
-      isGlobal: p.id === id,
-      updatedAt: p.id === id ? new Date().toISOString() : p.updatedAt
-    }));
-    
-    savePrompts(updatedPrompts);
-    
-    toast({
-      title: "Prompt global definido",
-      description: "Este prompt agora é usado como padrão global."
-    });
-  };
-
-  const handleToggleActive = (id: string) => {
-    const updatedPrompts = prompts.map(p => 
-      p.id === id 
-        ? { ...p, isActive: !p.isActive, updatedAt: new Date().toISOString() }
-        : p
-    );
-    savePrompts(updatedPrompts);
-  };
-
-  const handleDeletePrompt = (id: string) => {
-    const updatedPrompts = prompts.filter(p => p.id !== id);
-    savePrompts(updatedPrompts);
-    
-    toast({
-      title: "Prompt removido",
-      description: "Prompt deletado com sucesso."
-    });
-  };
-
-  const getCategoryIcon = (category: string) => {
-    return PROMPT_CATEGORIES.find(c => c.value === category)?.icon || '💬';
-  };
-
-  const getCategoryLabel = (category: string) => {
-    return PROMPT_CATEGORIES.find(c => c.value === category)?.label || 'Conversação';
-  };
-
-  const globalPrompt = prompts.find(p => p.isGlobal);
+  }
 
   return (
     <div className="space-y-6">
@@ -196,9 +147,9 @@ export const PromptsTab = () => {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-medium">{globalPrompt.name}</h4>
+                  <h4 className="font-medium">{globalPrompt.nome}</h4>
                   <p className="text-sm text-muted-foreground">
-                    {getCategoryIcon(globalPrompt.category)} {getCategoryLabel(globalPrompt.category)}
+                    {getCategoryIcon(globalPrompt.categoria)} {getCategoryLabel(globalPrompt.categoria)}
                   </p>
                 </div>
                 <Badge className="bg-yellow-500/20 text-yellow-700 border-yellow-500/30">
@@ -206,7 +157,7 @@ export const PromptsTab = () => {
                 </Badge>
               </div>
               <div className="bg-muted/50 rounded-lg p-3">
-                <p className="text-sm">{globalPrompt.content}</p>
+                <p className="text-sm">{globalPrompt.conteudo}</p>
               </div>
             </div>
           ) : (
@@ -236,12 +187,12 @@ export const PromptsTab = () => {
                 <Input
                   id="promptName"
                   placeholder="Ex: Vendedor Persuasivo, Suporte Atencioso..."
-                  value={editingPrompt ? editingPrompt.name : newPrompt.name}
+                  value={editingPrompt ? editingPrompt.nome : newPrompt.nome}
                   onChange={(e) => {
                     if (editingPrompt) {
-                      setEditingPrompt({ ...editingPrompt, name: e.target.value });
+                      setEditingPrompt({ ...editingPrompt, nome: e.target.value });
                     } else {
-                      setNewPrompt(prev => ({ ...prev, name: e.target.value }));
+                      setNewPrompt(prev => ({ ...prev, nome: e.target.value }));
                     }
                   }}
                 />
@@ -251,13 +202,13 @@ export const PromptsTab = () => {
                 <select
                   id="category"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  value={editingPrompt ? editingPrompt.category : newPrompt.category}
+                  value={editingPrompt ? editingPrompt.categoria : newPrompt.categoria}
                   onChange={(e) => {
-                    const value = e.target.value as AIPrompt['category'];
+                    const value = e.target.value as AIPrompt['categoria'];
                     if (editingPrompt) {
-                      setEditingPrompt({ ...editingPrompt, category: value });
+                      setEditingPrompt({ ...editingPrompt, categoria: value });
                     } else {
-                      setNewPrompt(prev => ({ ...prev, category: value }));
+                      setNewPrompt(prev => ({ ...prev, categoria: value }));
                     }
                   }}
                 >
@@ -276,12 +227,12 @@ export const PromptsTab = () => {
                 id="promptContent"
                 placeholder="Descreva como a IA deve se comportar, o tom de voz, diretrizes específicas..."
                 rows={8}
-                value={editingPrompt ? editingPrompt.content : newPrompt.content}
+                value={editingPrompt ? editingPrompt.conteudo : newPrompt.conteudo}
                 onChange={(e) => {
                   if (editingPrompt) {
-                    setEditingPrompt({ ...editingPrompt, content: e.target.value });
+                    setEditingPrompt({ ...editingPrompt, conteudo: e.target.value });
                   } else {
-                    setNewPrompt(prev => ({ ...prev, content: e.target.value }));
+                    setNewPrompt(prev => ({ ...prev, conteudo: e.target.value }));
                   }
                 }}
               />
@@ -291,12 +242,12 @@ export const PromptsTab = () => {
               <input
                 type="checkbox"
                 id="isGlobal"
-                checked={editingPrompt ? editingPrompt.isGlobal : newPrompt.isGlobal}
+                checked={editingPrompt ? editingPrompt.is_global : newPrompt.is_global}
                 onChange={(e) => {
                   if (editingPrompt) {
-                    setEditingPrompt({ ...editingPrompt, isGlobal: e.target.checked });
+                    setEditingPrompt({ ...editingPrompt, is_global: e.target.checked });
                   } else {
-                    setNewPrompt(prev => ({ ...prev, isGlobal: e.target.checked }));
+                    setNewPrompt(prev => ({ ...prev, is_global: e.target.checked }));
                   }
                 }}
                 className="rounded border-gray-300"
@@ -347,31 +298,31 @@ export const PromptsTab = () => {
           ) : (
             <div className="space-y-4">
               {prompts.map((prompt) => (
-                <Card key={prompt.id} className={`border-l-4 ${prompt.isGlobal ? 'border-l-yellow-500' : 'border-l-primary/30'}`}>
+                <Card key={prompt.id} className={`border-l-4 ${prompt.is_global ? 'border-l-yellow-500' : 'border-l-primary/30'}`}>
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-medium">{prompt.name}</h4>
-                          {prompt.isGlobal && <Star className="w-4 h-4 text-yellow-500" />}
-                          <Badge variant={prompt.isActive ? 'default' : 'secondary'} className="text-xs">
-                            {prompt.isActive ? 'Ativo' : 'Inativo'}
+                          <h4 className="font-medium">{prompt.nome}</h4>
+                          {prompt.is_global && <Star className="w-4 h-4 text-yellow-500" />}
+                          <Badge variant={prompt.is_active ? 'default' : 'secondary'} className="text-xs">
+                            {prompt.is_active ? 'Ativo' : 'Inativo'}
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground mb-2">
-                          {getCategoryIcon(prompt.category)} {getCategoryLabel(prompt.category)}
+                          {getCategoryIcon(prompt.categoria)} {getCategoryLabel(prompt.categoria)}
                         </p>
                         <div className="bg-muted/50 rounded p-3 mb-2">
-                          <p className="text-sm">{prompt.content}</p>
+                          <p className="text-sm">{prompt.conteudo}</p>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Criado: {new Date(prompt.createdAt).toLocaleString('pt-BR')} | 
-                          Atualizado: {new Date(prompt.updatedAt).toLocaleString('pt-BR')}
+                          Criado: {new Date(prompt.created_at).toLocaleString('pt-BR')} | 
+                          Atualizado: {new Date(prompt.updated_at).toLocaleString('pt-BR')}
                         </p>
                       </div>
                       
                       <div className="flex flex-col gap-2 ml-4">
-                        {!prompt.isGlobal && (
+                        {!prompt.is_global && (
                           <Button
                             size="sm"
                             variant="outline"

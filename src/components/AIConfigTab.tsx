@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,33 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
-import { Brain, CheckCircle, XCircle, Star, Trash2, Save, Plus } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-
-interface AIConfig {
-  id: string;
-  name: string;
-  provider: 'openai' | 'anthropic' | 'google' | 'other';
-  apiKey: string;
-  model: string;
-  isActive: boolean;
-  priority: number;
-  maxTokens: number;
-  temperature: number;
-  description: string;
-  status: 'active' | 'inactive' | 'error';
-}
-
-interface BasePrompt {
-  id: string;
-  name: string;
-  content: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+import { Brain, Star, Trash2, Save, Plus } from "lucide-react";
+import { useAPIConfigs, APIConfig } from "@/hooks/useAPIConfigs";
+import { usePrompts } from "@/hooks/usePrompts";
 
 const AI_PROVIDERS = [
   { value: 'openai', label: 'OpenAI (ChatGPT)', icon: '🤖' },
@@ -46,181 +22,107 @@ const ANTHROPIC_MODELS = ['claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'];
 const GOOGLE_MODELS = ['gemini-pro', 'gemini-pro-vision', 'gemini-ultra'];
 
 export const AIConfigTab = () => {
-  const [aiConfigs, setAiConfigs] = useState<AIConfig[]>([]);
-  const [basePrompts, setBasePrompts] = useState<BasePrompt[]>([]);
+  const { 
+    configs: aiConfigs, 
+    loading: configsLoading, 
+    createConfig, 
+    updateConfig, 
+    deleteConfig, 
+    testConfig 
+  } = useAPIConfigs();
+  
+  const { 
+    prompts: basePrompts, 
+    loading: promptsLoading, 
+    createPrompt: createBasePrompt,
+    getGlobalPrompt 
+  } = usePrompts();
+  
   const [isCreating, setIsCreating] = useState(false);
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
   const [newConfig, setNewConfig] = useState({
-    name: '',
+    nome: '',
     provider: 'openai' as const,
-    apiKey: '',
+    api_key: '',
     model: '',
-    maxTokens: 2000,
+    max_tokens: 2000,
     temperature: 0.7,
     description: ''
   });
   const [newPrompt, setNewPrompt] = useState({
-    name: '',
-    content: ''
+    nome: '',
+    conteudo: ''
   });
-  const { toast } = useToast();
 
-  // Carregar configurações do localStorage
-  useEffect(() => {
-    const savedConfigs = localStorage.getItem('ox-ai-configs');
-    if (savedConfigs) {
-      setAiConfigs(JSON.parse(savedConfigs));
-    }
-    
-    const savedPrompts = localStorage.getItem('ox-base-prompts');
-    if (savedPrompts) {
-      setBasePrompts(JSON.parse(savedPrompts));
-    }
-  }, []);
-
-  // Salvar configurações no localStorage
-  const saveConfigs = (newConfigs: AIConfig[]) => {
-    setAiConfigs(newConfigs);
-    localStorage.setItem('ox-ai-configs', JSON.stringify(newConfigs));
-  };
-
-  // Salvar prompts no localStorage
-  const savePrompts = (newPrompts: BasePrompt[]) => {
-    setBasePrompts(newPrompts);
-    localStorage.setItem('ox-base-prompts', JSON.stringify(newPrompts));
-  };
-
-  const handleCreateConfig = () => {
-    if (!newConfig.name || !newConfig.apiKey || !newConfig.model) {
-      toast({
-        title: "Erro",
-        description: "Nome, chave de API e modelo são obrigatórios.",
-        variant: "destructive"
-      });
+  const handleCreateConfig = async () => {
+    if (!newConfig.nome || !newConfig.api_key || !newConfig.model) {
       return;
     }
 
-    const config: AIConfig = {
-      id: Date.now().toString(),
-      ...newConfig,
-      isActive: true,
-      priority: aiConfigs.length + 1,
-      status: 'inactive'
-    };
+    try {
+      await createConfig({
+        nome: newConfig.nome,
+        provider: newConfig.provider,
+        api_key: newConfig.api_key,
+        model: newConfig.model,
+        is_active: true,
+        priority: aiConfigs.length + 1,
+        max_tokens: newConfig.max_tokens,
+        temperature: newConfig.temperature,
+        description: newConfig.description,
+        status: 'inactive'
+      });
 
-    saveConfigs([...aiConfigs, config]);
-    setNewConfig({
-      name: '',
-      provider: 'openai',
-      apiKey: '',
-      model: '',
-      maxTokens: 2000,
-      temperature: 0.7,
-      description: ''
-    });
-    setIsCreating(false);
-    
-    toast({
-      title: "IA configurada",
-      description: "Nova configuração de IA adicionada com sucesso."
-    });
+      setNewConfig({
+        nome: '',
+        provider: 'openai',
+        api_key: '',
+        model: '',
+        max_tokens: 2000,
+        temperature: 0.7,
+        description: ''
+      });
+      setIsCreating(false);
+    } catch (error) {
+      // Error já tratado no hook
+    }
+  };
+
+  const handleCreatePrompt = async () => {
+    if (!newPrompt.nome || !newPrompt.conteudo) {
+      return;
+    }
+
+    try {
+      await createBasePrompt({
+        nome: newPrompt.nome,
+        conteudo: newPrompt.conteudo,
+        categoria: 'conversacao',
+        is_active: false,
+        is_global: true
+      });
+
+      setNewPrompt({ nome: '', conteudo: '' });
+      setIsCreatingPrompt(false);
+    } catch (error) {
+      // Error já tratado no hook
+    }
   };
 
   const handleTestConfig = async (id: string) => {
-    const config = aiConfigs.find(c => c.id === id);
-    if (!config) return;
-
-    // Simular teste de conexão
-    const updatedConfigs = aiConfigs.map(c => 
-      c.id === id ? { ...c, status: 'active' as const } : c
-    );
-    
-    saveConfigs(updatedConfigs);
-    
-    toast({
-      title: "IA testada",
-      description: `Configuração ${config.name} validada com sucesso.`
-    });
-  };
-
-  const handleToggleActive = (id: string) => {
-    const updatedConfigs = aiConfigs.map(c => 
-      c.id === id ? { ...c, isActive: !c.isActive } : c
-    );
-    saveConfigs(updatedConfigs);
-  };
-
-  const handleSetPriority = (id: string, priority: number) => {
-    const updatedConfigs = aiConfigs.map(c => 
-      c.id === id ? { ...c, priority } : c
-    );
-    saveConfigs(updatedConfigs);
-  };
-
-  const handleDeleteConfig = (id: string) => {
-    const updatedConfigs = aiConfigs.filter(c => c.id !== id);
-    saveConfigs(updatedConfigs);
-    
-    toast({
-      title: "IA removida",
-      description: "Configuração de IA deletada com sucesso."
-    });
-  };
-
-  const handleCreatePrompt = () => {
-    if (!newPrompt.name || !newPrompt.content) {
-      toast({
-        title: "Erro",
-        description: "Nome e conteúdo do prompt são obrigatórios.",
-        variant: "destructive"
-      });
-      return;
+    try {
+      await testConfig(id);
+    } catch (error) {
+      // Error já tratado no hook
     }
-
-    // Desativar todos os prompts existentes
-    const updatedPrompts = basePrompts.map(p => ({ ...p, isActive: false }));
-
-    const prompt: BasePrompt = {
-      id: Date.now().toString(),
-      name: newPrompt.name,
-      content: newPrompt.content,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    savePrompts([...updatedPrompts, prompt]);
-    setNewPrompt({ name: '', content: '' });
-    setIsCreatingPrompt(false);
-    
-    toast({
-      title: "Prompt criado",
-      description: "Novo prompt base configurado e ativado."
-    });
   };
 
-  const handleActivatePrompt = (id: string) => {
-    const updatedPrompts = basePrompts.map(p => ({
-      ...p,
-      isActive: p.id === id,
-      updatedAt: p.id === id ? new Date().toISOString() : p.updatedAt
-    }));
-    savePrompts(updatedPrompts);
-    
-    toast({
-      title: "Prompt ativado",
-      description: "Prompt base foi ativado com sucesso."
-    });
-  };
-
-  const handleDeletePrompt = (id: string) => {
-    const updatedPrompts = basePrompts.filter(p => p.id !== id);
-    savePrompts(updatedPrompts);
-    
-    toast({
-      title: "Prompt removido",
-      description: "Prompt base deletado com sucesso."
-    });
+  const handleDeleteConfig = async (id: string) => {
+    try {
+      await deleteConfig(id);
+    } catch (error) {
+      // Error já tratado no hook
+    }
   };
 
   const getModelOptions = (provider: string) => {
@@ -236,7 +138,7 @@ export const AIConfigTab = () => {
     }
   };
 
-  const getStatusBadge = (status: AIConfig['status']) => {
+  const getStatusBadge = (status: APIConfig['status']) => {
     switch (status) {
       case 'active':
         return <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Ativo</Badge>;
@@ -250,6 +152,20 @@ export const AIConfigTab = () => {
   const getProviderIcon = (provider: string) => {
     return AI_PROVIDERS.find(p => p.value === provider)?.icon || '🤖';
   };
+
+  const globalPrompt = getGlobalPrompt();
+  const loading = configsLoading || promptsLoading;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <Brain className="w-12 h-12 text-muted-foreground mx-auto mb-4 animate-pulse" />
+          <p className="text-muted-foreground">Carregando configurações...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -272,21 +188,38 @@ export const AIConfigTab = () => {
         </div>
       </div>
 
-      {/* Prompts Base */}
+      {/* Prompt Base Ativo */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            Prompts Base do Maturador
+            Prompt Base Ativo
             <Badge variant="secondary">
-              {basePrompts.filter(p => p.isActive).length} ativo
+              {globalPrompt ? '1 ativo' : '0 ativo'}
             </Badge>
           </CardTitle>
           <CardDescription>
-            Configure prompts base que guiam o estilo de conversação de todos os chips
+            Prompt base que guia o estilo de conversação de todos os chips
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {basePrompts.length === 0 ? (
+          {globalPrompt ? (
+            <div className="p-4 border rounded-lg border-primary bg-primary/5">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <h4 className="font-medium flex items-center gap-2">
+                    {globalPrompt.nome}
+                    <Star className="w-4 h-4 text-yellow-500" />
+                  </h4>
+                  <p className="text-xs text-muted-foreground">
+                    Criado em: {new Date(globalPrompt.created_at).toLocaleString('pt-BR')}
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded">
+                {globalPrompt.conteudo}
+              </p>
+            </div>
+          ) : (
             <div className="text-center py-8">
               <Brain className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="font-semibold mb-2">Nenhum prompt base configurado</h3>
@@ -297,51 +230,6 @@ export const AIConfigTab = () => {
                 <Plus className="w-4 h-4 mr-2" />
                 Criar Primeiro Prompt
               </Button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {basePrompts.map((prompt) => (
-                <div
-                  key={prompt.id}
-                  className={`p-4 border rounded-lg ${
-                    prompt.isActive ? 'border-primary bg-primary/5' : 'border-border'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h4 className="font-medium flex items-center gap-2">
-                        {prompt.name}
-                        {prompt.isActive && <Star className="w-4 h-4 text-yellow-500" />}
-                      </h4>
-                      <p className="text-xs text-muted-foreground">
-                        Criado em: {new Date(prompt.createdAt).toLocaleString('pt-BR')}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      {!prompt.isActive && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleActivatePrompt(prompt.id)}
-                        >
-                          Ativar
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDeletePrompt(prompt.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded">
-                    {prompt.content}
-                  </p>
-                </div>
-              ))}
             </div>
           )}
         </CardContent>
@@ -362,8 +250,8 @@ export const AIConfigTab = () => {
               <Input
                 id="promptName"
                 placeholder="Ex: Estilo Profissional, Casual Amigável..."
-                value={newPrompt.name}
-                onChange={(e) => setNewPrompt(prev => ({ ...prev, name: e.target.value }))}
+                value={newPrompt.nome}
+                onChange={(e) => setNewPrompt(prev => ({ ...prev, nome: e.target.value }))}
               />
             </div>
             
@@ -373,8 +261,8 @@ export const AIConfigTab = () => {
                 id="promptContent"
                 placeholder="Defina como os chips devem conversar, o tom, estilo, diretrizes..."
                 rows={6}
-                value={newPrompt.content}
-                onChange={(e) => setNewPrompt(prev => ({ ...prev, content: e.target.value }))}
+                value={newPrompt.conteudo}
+                onChange={(e) => setNewPrompt(prev => ({ ...prev, conteudo: e.target.value }))}
               />
             </div>
 
@@ -407,8 +295,8 @@ export const AIConfigTab = () => {
                 <Input
                   id="name"
                   placeholder="Ex: ChatGPT Principal"
-                  value={newConfig.name}
-                  onChange={(e) => setNewConfig(prev => ({ ...prev, name: e.target.value }))}
+                  value={newConfig.nome}
+                  onChange={(e) => setNewConfig(prev => ({ ...prev, nome: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">
@@ -456,8 +344,8 @@ export const AIConfigTab = () => {
                   id="apiKey"
                   type="password"
                   placeholder="Sua chave de API"
-                  value={newConfig.apiKey}
-                  onChange={(e) => setNewConfig(prev => ({ ...prev, apiKey: e.target.value }))}
+                  value={newConfig.api_key}
+                  onChange={(e) => setNewConfig(prev => ({ ...prev, api_key: e.target.value }))}
                 />
               </div>
             </div>
@@ -468,8 +356,8 @@ export const AIConfigTab = () => {
                 <Input
                   id="maxTokens"
                   type="number"
-                  value={newConfig.maxTokens}
-                  onChange={(e) => setNewConfig(prev => ({ ...prev, maxTokens: parseInt(e.target.value) }))}
+                  value={newConfig.max_tokens}
+                  onChange={(e) => setNewConfig(prev => ({ ...prev, max_tokens: parseInt(e.target.value) }))}
                 />
               </div>
               <div className="space-y-2">
@@ -509,122 +397,79 @@ export const AIConfigTab = () => {
         </Card>
       )}
 
-      {/* Lista de configurações */}
-      <div className="grid gap-4">
-        {aiConfigs.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Brain className="w-12 h-12 text-muted-foreground mb-4" />
-              <h3 className="font-semibold mb-2">Nenhuma IA configurada</h3>
+      {/* Lista de Configurações */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Configurações de IA ({aiConfigs.length})</CardTitle>
+          <CardDescription>
+            Gerencie todas as configurações de APIs de IA
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {aiConfigs.length === 0 ? (
+            <div className="text-center py-12">
+              <Brain className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="font-semibold mb-2">Nenhuma configuração</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Configure sua primeira API de inteligência artificial
+                Configure a primeira API de IA para começar
               </p>
               <Button onClick={() => setIsCreating(true)}>
                 <Plus className="w-4 h-4 mr-2" />
-                Configurar Primeira IA
+                Criar Primeira Configuração
               </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          aiConfigs
-            .sort((a, b) => a.priority - b.priority)
-            .map((config) => (
-              <Card key={config.id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{getProviderIcon(config.provider)}</span>
-                      <div>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          {config.name}
-                          {config.priority === 1 && <Star className="w-4 h-4 text-yellow-500" />}
-                        </CardTitle>
-                        <CardDescription>{config.model}</CardDescription>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {getStatusBadge(config.status)}
-                      <Badge variant="outline">Prioridade {config.priority}</Badge>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleTestConfig(config.id)}
-                      >
-                        Testar
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor={`active-${config.id}`}>Ativo</Label>
-                        <Switch
-                          id={`active-${config.id}`}
-                          checked={config.isActive}
-                          onCheckedChange={() => handleToggleActive(config.id)}
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Label>Prioridade:</Label>
-                        <Select
-                          value={config.priority.toString()}
-                          onValueChange={(value) => handleSetPriority(config.id, parseInt(value))}
-                        >
-                          <SelectTrigger className="w-20">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {[1, 2, 3, 4, 5].map(num => (
-                              <SelectItem key={num} value={num.toString()}>
-                                {num}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Max Tokens</Label>
-                        <p>{config.maxTokens}</p>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Temperature</Label>
-                        <p>{config.temperature}</p>
-                      </div>
-                    </div>
-
-                    {config.description && (
-                      <>
-                        <Separator />
-                        <div>
-                          <Label className="text-sm font-medium">Descrição:</Label>
-                          <p className="text-sm text-muted-foreground mt-1">{config.description}</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {aiConfigs.map((config) => (
+                <Card key={config.id} className="border-l-4 border-l-primary/30">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-medium flex items-center gap-2">
+                            {getProviderIcon(config.provider)} {config.nome}
+                          </h4>
+                          {getStatusBadge(config.status)}
                         </div>
-                      </>
-                    )}
-
-                    <Separator />
-                    <div className="flex justify-end">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteConfig(config.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Remover
-                      </Button>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          {config.model} - {config.max_tokens} tokens
+                        </p>
+                        {config.description && (
+                          <p className="text-xs text-muted-foreground mb-2">
+                            {config.description}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Criado: {new Date(config.created_at).toLocaleString('pt-BR')}
+                        </p>
+                      </div>
+                      
+                      <div className="flex flex-col gap-2 ml-4">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleTestConfig(config.id)}
+                        >
+                          Testar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeleteConfig(config.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Deletar
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-        )}
-      </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

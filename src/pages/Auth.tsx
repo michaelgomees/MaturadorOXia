@@ -81,7 +81,7 @@ const Auth = () => {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-4">
-            <div className="text-primary text-2xl font-bold">🐂</div>
+            <img src="/ox-logo.png" alt="OX Maturador" className="w-16 h-16" />
           </div>
           <h1 className="text-2xl font-bold text-primary mb-2">OX Maturador</h1>
           <p className="text-muted-foreground">Sistema de Gestão</p>

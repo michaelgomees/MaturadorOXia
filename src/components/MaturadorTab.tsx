@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useConnections } from "@/contexts/ConnectionsContext";
 import { useMaturadorEngine } from "@/hooks/useMaturadorEngine";
 import { useChipMaturation } from "@/hooks/useChipMaturation";
+import { useMaturadorPairs } from "@/hooks/useMaturadorPairs";
 
 interface ChipPair {
   id: string;
@@ -47,6 +48,8 @@ export const MaturadorTab = () => {
   const { connections: whatsappConnections } = useConnections();
   const maturadorEngine = useMaturadorEngine();
   const { startChipConversation } = useChipMaturation();
+  const { pairs: dbPairs, createPair, updatePair, deletePair, togglePairActive } = useMaturadorPairs();
+  
   const [config, setConfig] = useState<MaturadorConfig>({
     isRunning: false,
     selectedPairs: [],
@@ -61,26 +64,26 @@ export const MaturadorTab = () => {
     maturadorEngine.loadData();
   }, []);
 
-  // Sincronizar configuração com engine
+  // Sincronizar configuração com dados do Supabase
   useEffect(() => {
-    const enginePairs = maturadorEngine.chipPairs.map(pair => ({
+    const mappedPairs = dbPairs.map(pair => ({
       id: pair.id,
-      chip1: pair.firstChipName,
-      chip2: pair.secondChipName,
-      isActive: pair.isActive,
-      messagesExchanged: pair.messagesCount,
-      lastActivity: pair.lastActivity.toISOString(),
+      chip1: pair.nome_chip1,
+      chip2: pair.nome_chip2,
+      isActive: pair.is_active,
+      messagesExchanged: pair.messages_count,
+      lastActivity: pair.last_activity,
       status: pair.status
     }));
     
     setConfig(prev => ({
       ...prev,
-      selectedPairs: enginePairs,
+      selectedPairs: mappedPairs,
       isRunning: maturadorEngine.isRunning
     }));
-  }, [maturadorEngine.chipPairs, maturadorEngine.isRunning]);
+  }, [dbPairs, maturadorEngine.isRunning]);
 
-  const handleAddPair = () => {
+  const handleAddPair = async () => {
     if (!newPair.chip1 || !newPair.chip2 || newPair.chip1 === newPair.chip2) {
       toast({
         title: "Erro",
@@ -90,62 +93,28 @@ export const MaturadorTab = () => {
       return;
     }
 
-    // Verificar duplicidade
-    const pairExists = config.selectedPairs.some(
-      pair => 
-        (pair.chip1 === newPair.chip1 && pair.chip2 === newPair.chip2) ||
-        (pair.chip1 === newPair.chip2 && pair.chip2 === newPair.chip1)
-    );
-
-    if (pairExists) {
-      toast({
-        title: "Erro",
-        description: "Esta dupla de chips já foi configurada.",
-        variant: "destructive"
-      });
-      return;
+    try {
+      await createPair(newPair.chip1, newPair.chip2);
+      setNewPair({ chip1: '', chip2: '' });
+    } catch (error) {
+      // Error já tratado no hook
     }
-
-    const enginePair = {
-      id: Date.now().toString(),
-      firstChipId: Date.now().toString() + '_1',
-      firstChipName: newPair.chip1,
-      secondChipId: Date.now().toString() + '_2',
-      secondChipName: newPair.chip2,
-      isActive: true,
-      messagesCount: 0,
-      lastActivity: new Date(),
-      status: 'stopped' as const,
-      useInstancePrompt: false
-    };
-
-    maturadorEngine.setChipPairs(prev => [...prev, enginePair]);
-    setNewPair({ chip1: '', chip2: '' });
-    
-    toast({
-      title: "Par adicionado",
-      description: `Conversa entre ${newPair.chip1} e ${newPair.chip2} configurada.`
-    });
   };
 
-  const handleRemovePair = (pairId: string) => {
-    maturadorEngine.setChipPairs(prev => prev.filter(pair => pair.id !== pairId));
-    toast({ title: "Par removido", description: "Configuração de conversa removida." });
+  const handleRemovePair = async (pairId: string) => {
+    try {
+      await deletePair(pairId);
+    } catch (error) {
+      // Error já tratado no hook
+    }
   };
 
-  const handleTogglePair = (pairId: string) => {
-    maturadorEngine.setChipPairs(prev => 
-      prev.map(pair => 
-        pair.id === pairId 
-          ? { 
-              ...pair, 
-              isActive: !pair.isActive,
-              status: (!pair.isActive ? 'running' : 'paused'),
-              lastActivity: new Date()
-            }
-          : pair
-      )
-    );
+  const handleTogglePair = async (pairId: string) => {
+    try {
+      await togglePairActive(pairId);
+    } catch (error) {
+      // Error já tratado no hook
+    }
   };
 
   const handleStartMaturador = async () => {
