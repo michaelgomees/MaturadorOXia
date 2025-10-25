@@ -16,6 +16,7 @@ export interface WhatsAppConnection {
   avatar?: string;
   displayName?: string;
   lastSync?: string;
+  prompt?: string;
 }
 
 interface ConnectionsContextType {
@@ -72,7 +73,8 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     aiModel: conn.modelo_ia || 'ChatGPT',
     avatar: conn.avatar_url,
     displayName: conn.display_name,
-    lastSync: conn.last_sync
+    lastSync: conn.last_sync,
+    prompt: conn.prompt
   }));
 
       setConnections(formattedConnections);
@@ -99,7 +101,8 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         display_name: connection.displayName,
         last_sync: new Date().toISOString(),
         config: {},
-        usuario_id: user?.id || null
+        usuario_id: user?.id || null,
+        prompt: connection.prompt
       };
 
       console.log(`💾 Salvando no Supabase (${isUpdate ? 'update' : 'insert'}):`, {

@@ -79,6 +79,7 @@ export type Database = {
           last_sync: string | null
           modelo_ia: string | null
           nome: string
+          prompt: string | null
           qr_code: string | null
           status: string
           telefone: string | null
@@ -98,6 +99,7 @@ export type Database = {
           last_sync?: string | null
           modelo_ia?: string | null
           nome: string
+          prompt?: string | null
           qr_code?: string | null
           status?: string
           telefone?: string | null
@@ -117,6 +119,7 @@ export type Database = {
           last_sync?: string | null
           modelo_ia?: string | null
           nome?: string
+          prompt?: string | null
           qr_code?: string | null
           status?: string
           telefone?: string | null
@@ -244,10 +247,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_current_user_id: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      get_current_user_id: { Args: never; Returns: string }
       get_user_for_login: {
         Args: { p_email: string }
         Returns: {

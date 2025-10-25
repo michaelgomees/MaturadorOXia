@@ -240,36 +240,6 @@ export const useMaturadorEngine = () => {
       console.log(`Par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
       console.log('Par ativo?', pair.isActive);
       console.log('Status do par:', pair.status);
-      
-      // SEMPRE buscar prompt global atualizado do Supabase
-      let effectivePrompt = 'Participe de uma conversa natural e engajante.';
-      
-      try {
-        // Buscar prompt global mais recente
-        const { data: globalPrompt } = await supabase
-          .from('saas_prompts')
-          .select('*')
-          .eq('is_global', true)
-          .eq('is_active', true)
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .single();
-        
-        if (globalPrompt?.conteudo) {
-          effectivePrompt = globalPrompt.conteudo;
-          console.log('✅ Usando prompt global:', globalPrompt.nome);
-        }
-      } catch (error) {
-        console.log('⚠️ Erro ao buscar prompt global, usando padrão:', error);
-      }
-
-      // Usar prompt da instância apenas se especificamente configurado
-      if (pair.useInstancePrompt && pair.instancePrompt) {
-        effectivePrompt = pair.instancePrompt;
-        console.log('✅ Usando prompt da instância');
-      }
-      
-      console.log('📝 Prompt efetivo:', effectivePrompt.substring(0, 100) + '...');
 
       // Buscar histórico de conversa deste par
       const pairHistory = messages.filter(msg => msg.chipPairId === pair.id);
@@ -284,14 +254,18 @@ export const useMaturadorEngine = () => {
         ? { id: pair.secondChipId, name: pair.secondChipName }
         : { id: pair.firstChipId, name: pair.firstChipName };
 
-      // Não precisa mais da flag isFirstMessage para gerar mensagens especiais
+      // Buscar prompt específico do chip que vai responder
+      const respondingConnection = connections.find(c => c.name === respondingChip.name);
+      const chipPrompt = respondingConnection?.prompt || 'Você é um assistente amigável e prestativo. Responda de forma natural, breve e humanizada. Use emojis ocasionalmente para dar mais naturalidade às conversas.';
       
-      // Gerar mensagem humanizada
+      console.log(`📝 Usando prompt do chip ${respondingChip.name}:`, chipPrompt.substring(0, 100) + '...');
+      
+      // Gerar mensagem humanizada usando o prompt do chip
       const messageContent = await generateMessage(
         respondingChip.name,
-        effectivePrompt,
+        chipPrompt,
         pairHistory,
-        false // Sempre false - não enviar mensagens especiais
+        false
       );
 
       // Aplicar delay humanizado antes do envio (simular digitação)

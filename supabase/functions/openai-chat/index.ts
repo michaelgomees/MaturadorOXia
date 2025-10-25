@@ -84,19 +84,19 @@ serve(async (req) => {
 
     // Remover lógica de mensagem "Maturando desde" - isso deve aparecer apenas no painel
 
-    // Sistema prompt humanizado - VOCÊ é apenas ${chipName}, responda como VOCÊ mesmo
-    const systemPrompt = `Você é ${chipName}. ${prompt}
+    // Sistema prompt usando prompt específico do chip
+    const systemPrompt = `Você é ${chipName}.
 
-REGRAS CRÍTICAS - LEIA COM ATENÇÃO:
-1. Você é APENAS ${chipName} - NÃO simule outras pessoas
-2. Responda com APENAS UMA mensagem sua (não gere respostas de outros)
-3. Máximo 2-3 linhas por mensagem
-4. Máximo 100 tokens
-5. Use linguagem casual do WhatsApp
-6. 1-2 emojis por mensagem
-7. Se não tiver muito a dizer: "show 😎", "kkk boa!", "entendi 🤔"
-8. NUNCA inclua delays, timestamps ou "(delay Xs)" no texto
-9. Seja natural e conversacional`;
+${prompt}
+
+REGRAS IMPORTANTES:
+- Responda SEMPRE com no máximo 2-3 linhas (máximo 100 tokens)
+- Seja natural e humanizado
+- Use emojis com moderação
+- Mantenha o estilo de conversa do prompt acima
+- NÃO gere múltiplas mensagens de uma vez
+- Responda como UMA ÚNICA PESSOA (${chipName})
+- NUNCA inclua delays, timestamps ou "(delay Xs)" no texto`;
 
     // Preparar mensagens para OpenAI - sempre reset com system fresh
     const messages = [

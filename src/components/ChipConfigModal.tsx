@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Save, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useConnections } from "@/contexts/ConnectionsContext";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ChipConfigModalProps {
   open: boolean;
@@ -54,6 +56,8 @@ export const ChipConfigModal = ({ open, onOpenChange, chipId, chipName }: ChipCo
   });
   
   const { toast } = useToast();
+  const { getConnection, updateConnection } = useConnections();
+  const [chipPrompt, setChipPrompt] = useState<string>("");
 
   useEffect(() => {
     if (open) {
@@ -66,29 +70,58 @@ export const ChipConfigModal = ({ open, onOpenChange, chipId, chipName }: ChipCo
           setConfig(chipConfig);
         }
       }
+      
+      // Carregar prompt do chip do Supabase
+      const connection = getConnection(chipId);
+      if (connection?.prompt) {
+        setChipPrompt(connection.prompt);
+      }
     }
-  }, [open, chipId]);
+  }, [open, chipId, getConnection]);
 
-  const handleSave = () => {
-    // Salvar no localStorage
-    const savedConfigs = localStorage.getItem('ox-chip-configs');
-    let configs = savedConfigs ? JSON.parse(savedConfigs) : [];
-    
-    const existingIndex = configs.findIndex((c: ChipConfig) => c.id === chipId);
-    if (existingIndex >= 0) {
-      configs[existingIndex] = config;
-    } else {
-      configs.push(config);
+  const handleSave = async () => {
+    try {
+      // Salvar no localStorage
+      const savedConfigs = localStorage.getItem('ox-chip-configs');
+      let configs = savedConfigs ? JSON.parse(savedConfigs) : [];
+      
+      const existingIndex = configs.findIndex((c: ChipConfig) => c.id === chipId);
+      if (existingIndex >= 0) {
+        configs[existingIndex] = config;
+      } else {
+        configs.push(config);
+      }
+      
+      localStorage.setItem('ox-chip-configs', JSON.stringify(configs));
+      
+      // Salvar prompt do chip no Supabase
+      const { error } = await supabase
+        .from('saas_conexoes')
+        .update({ prompt: chipPrompt })
+        .eq('id', chipId);
+      
+      if (error) {
+        console.error('Erro ao salvar prompt:', error);
+        throw error;
+      }
+      
+      // Atualizar no contexto também
+      await updateConnection(chipId, { prompt: chipPrompt });
+      
+      toast({
+        title: "Configuração salva",
+        description: `Configurações e prompt do chip ${chipName} foram atualizados.`
+      });
+      
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Erro ao salvar:', error);
+      toast({
+        title: "Erro ao salvar",
+        description: "Não foi possível salvar as configurações.",
+        variant: "destructive"
+      });
     }
-    
-    localStorage.setItem('ox-chip-configs', JSON.stringify(configs));
-    
-    toast({
-      title: "Configuração salva",
-      description: `Configurações do chip ${chipName} foram atualizadas.`
-    });
-    
-    onOpenChange(false);
   };
 
   return (
@@ -137,6 +170,29 @@ export const ChipConfigModal = ({ open, onOpenChange, chipId, chipName }: ChipCo
             </div>
           </div>
 
+          {/* Prompt do Chip (Principal) */}
+          <div className="space-y-4 border-2 border-primary/20 rounded-lg p-4 bg-primary/5">
+            <h3 className="text-lg font-semibold text-primary">🤖 Prompt do Chip (Comportamento na Maturação)</h3>
+            <p className="text-sm text-muted-foreground">
+              Este é o prompt que define como o chip vai se comportar durante as conversas de maturação. 
+              Configure aqui a personalidade, estilo de conversa e instruções específicas.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="chipPrompt">Prompt Personalizado</Label>
+              <Textarea
+                id="chipPrompt"
+                rows={8}
+                placeholder="Ex: Você é um jovem brasileiro de 25 anos, descontraído e amigável. Use gírias brasileiras ocasionalmente. Responda sempre de forma breve (máximo 2-3 linhas). Use emojis com moderação. Seja natural e humanizado."
+                value={chipPrompt}
+                onChange={(e) => setChipPrompt(e.target.value)}
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                💡 Dica: Seja específico sobre personalidade, idade, estilo de fala, uso de emojis e tamanho das respostas.
+              </p>
+            </div>
+          </div>
+
           {/* Configurações de IA */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Configurações de IA</h3>
@@ -180,16 +236,6 @@ export const ChipConfigModal = ({ open, onOpenChange, chipId, chipName }: ChipCo
                   onChange={(e) => setConfig(prev => ({ ...prev, temperature: parseFloat(e.target.value) }))}
                 />
               </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="systemPrompt">Prompt do Sistema</Label>
-              <Textarea
-                id="systemPrompt"
-                rows={4}
-                value={config.systemPrompt}
-                onChange={(e) => setConfig(prev => ({ ...prev, systemPrompt: e.target.value }))}
-              />
             </div>
           </div>
 
