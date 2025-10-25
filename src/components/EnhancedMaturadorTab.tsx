@@ -5,21 +5,11 @@ import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Switch } from './ui/switch';
 import { Label } from './ui/label';
-import { Textarea } from './ui/textarea';
 import { ScrollArea } from './ui/scroll-area';
-import { Separator } from './ui/separator';
-import { Play, Pause, Square, Settings, MessageCircle, Users, Activity, Zap, ArrowRight, Plus } from 'lucide-react';
+import { Play, Square, Settings, MessageCircle, Users, Activity, Zap, ArrowRight, Plus } from 'lucide-react';
 import { StatsCard } from './StatsCard';
 import { useMaturadorEngine } from '@/hooks/useMaturadorEngine';
 import { useToast } from '@/hooks/use-toast';
-
-interface AIPrompt {
-  id: string;
-  name: string;
-  content: string;
-  category: string;
-  isGlobal?: boolean;
-}
 
 interface ActiveConnection {
   id: string;
@@ -39,7 +29,6 @@ export const EnhancedMaturadorTab: React.FC = () => {
     getPairMessages 
   } = useMaturadorEngine();
   
-  const [availablePrompts, setAvailablePrompts] = useState<AIPrompt[]>([]);
   const [newPair, setNewPair] = useState({
     firstChipId: '',
     secondChipId: ''
@@ -50,12 +39,6 @@ export const EnhancedMaturadorTab: React.FC = () => {
   // Carregar dados iniciais
   useEffect(() => {
     loadData();
-    
-    const savedPrompts = localStorage.getItem('ox-ai-prompts');
-    if (savedPrompts) {
-      const prompts = JSON.parse(savedPrompts);
-      setAvailablePrompts(prompts);
-    }
 
     // Carregar conexões ativas
     const connections = getActiveConnections();
@@ -118,18 +101,6 @@ export const EnhancedMaturadorTab: React.FC = () => {
     ));
   };
 
-  const handleToggleInstancePrompt = (pairId: string) => {
-    setChipPairs(prev => prev.map(pair =>
-      pair.id === pairId ? { ...pair, useInstancePrompt: !pair.useInstancePrompt } : pair
-    ));
-  };
-
-  const handleSetPairPrompt = (pairId: string, prompt: string) => {
-    setChipPairs(prev => prev.map(pair =>
-      pair.id === pairId ? { ...pair, instancePrompt: prompt } : pair
-    ));
-  };
-
   const handleStartMaturador = () => {
     if (!isRunning) {
       // Verificar se há pares ativos
@@ -139,18 +110,6 @@ export const EnhancedMaturadorTab: React.FC = () => {
         toast({
           title: "Erro",
           description: "Configure pelo menos um par de chips ativo para iniciar",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Verificar se há prompt configurado
-      const hasGlobalPrompt = availablePrompts.some(prompt => prompt.isGlobal);
-      
-      if (!hasGlobalPrompt && !activePairs.some(pair => pair.useInstancePrompt && pair.instancePrompt)) {
-        toast({
-          title: "Erro", 
-          description: "Configure um prompt global ou prompts específicos para os pares",
           variant: "destructive"
         });
         return;
@@ -317,40 +276,18 @@ export const EnhancedMaturadorTab: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Configurações do Maturador */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="w-5 h-5" />
-                Configurações do Sistema
-              </CardTitle>
-              <CardDescription>
-                O sistema sempre usa o prompt global configurado na aba "Prompts"
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {availablePrompts.find(p => p.isGlobal) ? (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Zap className="w-4 h-4 text-green-600" />
-                      <span className="font-medium text-green-800">Prompt Global Configurado</span>
-                    </div>
-                    <p className="text-sm text-green-700">
-                      {availablePrompts.find(p => p.isGlobal)?.name}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Settings className="w-4 h-4 text-yellow-600" />
-                      <span className="font-medium text-yellow-800">Prompt Global Não Configurado</span>
-                    </div>
-                    <p className="text-sm text-yellow-700">
-                      Configure um prompt global na aba "Prompts" para que as conversas funcionem corretamente.
-                    </p>
-                  </div>
-                )}
+          {/* Info sobre Prompts */}
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <Zap className="w-5 h-5 text-primary mt-0.5" />
+                <div>
+                  <h3 className="font-semibold mb-1">Prompts Individuais</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Cada chip usa seu próprio prompt configurado na aba "Prompts de IA". 
+                    Configure os prompts individualmente para criar personalidades únicas.
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -414,41 +351,10 @@ export const EnhancedMaturadorTab: React.FC = () => {
                           </div>
                         </div>
 
-                        <Separator />
-
-                        {/* Configuração de Prompt da Instância */}
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            <Switch
-                              checked={pair.useInstancePrompt}
-                              onCheckedChange={() => handleToggleInstancePrompt(pair.id)}
-                              disabled={isRunning}
-                            />
-                            <Label className="text-sm font-medium">
-                              Usar prompt específico para este par
-                            </Label>
-                          </div>
-                          
-                          {pair.useInstancePrompt && (
-                            <div className="space-y-2">
-                              <Label className="text-sm">Prompt específico:</Label>
-                              <Textarea
-                                placeholder="Digite o prompt específico para este par de chips..."
-                                value={pair.instancePrompt || ''}
-                                onChange={(e) => handleSetPairPrompt(pair.id, e.target.value)}
-                                disabled={isRunning}
-                                className="min-h-20 text-sm"
-                              />
-                            </div>
-                          )}
-
-                          {!pair.useInstancePrompt && (
-                            <div className="bg-blue-50 border border-blue-200 rounded p-2">
-                              <p className="text-xs text-blue-800">
-                                Este par usará o prompt global configurado no sistema
-                              </p>
-                            </div>
-                          )}
+                        <div className="bg-blue-50 border border-blue-200 rounded p-2">
+                          <p className="text-xs text-blue-800">
+                            💡 Cada chip usará seu próprio prompt configurado na aba "Prompts de IA"
+                          </p>
                         </div>
                       </div>
                     </div>
