@@ -8,23 +8,33 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Função para truncar mensagens para 2-3 linhas máximo
+// Função para limpar e truncar mensagens 
 function truncateMessage(message: string): string {
   if (!message) return message;
   
-  const lines = message.split('\n').filter(line => line.trim().length > 0);
+  // Remover qualquer menção a delays, timestamps ou formatações especiais
+  let cleaned = message
+    .replace(/\(delay \d+s?\)/gi, '')
+    .replace(/\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}/g, '')
+    .replace(/🔄\s*Maturando desde:/gi, '')
+    .trim();
+  
+  // Pegar apenas a primeira fala (antes de qualquer quebra dupla ou nome de pessoa)
+  const firstSpeech = cleaned.split(/\n\n|\n[A-Z][a-z]+:/)[0].trim();
+  
+  const lines = firstSpeech.split('\n').filter(line => line.trim().length > 0);
   const maxLines = 3;
   
   if (lines.length > maxLines) {
-    return lines.slice(0, maxLines).join('\n') + '...';
+    return lines.slice(0, maxLines).join('\n');
   }
   
-  // Se não tem quebras de linha, mas é muito longo
-  if (message.length > 150) {
-    return message.substring(0, 150) + '...';
+  // Se muito longo, cortar em 200 chars (mais generoso)
+  if (firstSpeech.length > 200) {
+    return firstSpeech.substring(0, 200).trim();
   }
   
-  return message;
+  return firstSpeech;
 }
 
 // Função para formatar data brasileira
@@ -74,18 +84,19 @@ serve(async (req) => {
 
     // Remover lógica de mensagem "Maturando desde" - isso deve aparecer apenas no painel
 
-    // Sistema prompt humanizado com regras específicas
-    const systemPrompt = `${prompt}
+    // Sistema prompt humanizado - VOCÊ é apenas ${chipName}, responda como VOCÊ mesmo
+    const systemPrompt = `Você é ${chipName}. ${prompt}
 
-REGRAS CRÍTICAS DE RESPOSTA:
-- Máximo 2-3 linhas por mensagem
-- Máximo 100 tokens por resposta
-- Use linguagem casual e natural do WhatsApp
-- Seja conciso e direto
-- Use emojis moderadamente (1-2 por mensagem)
-- Se não tiver muito a dizer, responda brevemente (ex: "show 😎", "kkk boa!", "entendi 🤔")
-- Evite textos longos ou explicações extensas
-- Mantenha o tom conversacional e humanizado`;
+REGRAS CRÍTICAS - LEIA COM ATENÇÃO:
+1. Você é APENAS ${chipName} - NÃO simule outras pessoas
+2. Responda com APENAS UMA mensagem sua (não gere respostas de outros)
+3. Máximo 2-3 linhas por mensagem
+4. Máximo 100 tokens
+5. Use linguagem casual do WhatsApp
+6. 1-2 emojis por mensagem
+7. Se não tiver muito a dizer: "show 😎", "kkk boa!", "entendi 🤔"
+8. NUNCA inclua delays, timestamps ou "(delay Xs)" no texto
+9. Seja natural e conversacional`;
 
     // Preparar mensagens para OpenAI - sempre reset com system fresh
     const messages = [

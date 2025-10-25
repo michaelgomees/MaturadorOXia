@@ -414,37 +414,54 @@ export const useMaturadorEngine = () => {
 
     setIsRunning(true);
     
-    // Iniciar conversas contínuas para cada par ativo
+    // Criar intervalos contínuos para cada par
     activePairs.forEach(pair => {
       const pairId = pair.id;
+      console.log(`📍 Configurando intervalo para par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
       
-      // Criar intervalo para manter conversas ativas
-      const interval = setInterval(async () => {
+      // Função recursiva para manter conversas ativas
+      const scheduleNextMessage = async () => {
         try {
-          // Verificar se ainda está ativo
-          if (!isRunning) {
-            console.log(`Par ${pairId} parado - maturador desativado`);
+          // Verificar se ainda está ativo antes de processar
+          const currentPair = chipPairs.find(p => p.id === pairId);
+          if (!currentPair?.isActive || currentPair.status === 'paused') {
+            console.log(`⏸️ Par ${pairId} pausado ou inativo`);
             return;
           }
           
-          // Processar conversa do par
+          console.log(`💬 Processando mensagem do par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
           await processChipPairConversation(pair);
           
+          // Agendar próxima mensagem após delay de 1-3 minutos
+          const nextDelay = (60 + Math.random() * 120) * 1000;
+          console.log(`⏰ Próxima mensagem em ${nextDelay/1000}s para par ${pairId}`);
+          
+          const timeout = setTimeout(() => {
+            scheduleNextMessage();
+          }, nextDelay);
+          
+          intervalRefs.current.set(pairId, timeout as any);
+          
         } catch (error) {
-          console.error(`Erro no par ${pairId}:`, error);
+          console.error(`❌ Erro no par ${pairId}:`, error);
+          // Mesmo com erro, reagendar para tentar novamente
+          const retryDelay = 30000; // 30 segundos
+          const timeout = setTimeout(() => {
+            scheduleNextMessage();
+          }, retryDelay);
+          intervalRefs.current.set(pairId, timeout as any);
         }
-      }, (60 + Math.random() * 120) * 1000); // Intervalo de 1-3 minutos entre mensagens
+      };
       
-      // Armazenar referência do intervalo
-      intervalRefs.current.set(pairId, interval);
-      
-      // Iniciar primeira conversa imediatamente
+      // Iniciar primeira mensagem com delay aleatório inicial
+      const initialDelay = Math.random() * 10000; // 0-10 segundos
+      console.log(`🚀 Iniciando par ${pairId} em ${initialDelay/1000}s`);
       setTimeout(() => {
-        processChipPairConversation(pair).catch(console.error);
-      }, Math.random() * 10000); // Entre 0-10 segundos para início
+        scheduleNextMessage();
+      }, initialDelay);
     });
 
-    console.log('Total de intervalos ativos:', intervalRefs.current.size);
+    console.log('✅ Total de pares configurados:', activePairs.length);
 
     toast({
       title: "Maturador Iniciado",
