@@ -236,10 +236,8 @@ export const useMaturadorEngine = () => {
   // Processar conversa de um par de chips
   const processChipPairConversation = useCallback(async (pair: ChipPair) => {
     try {
-      console.log(`=== PROCESSANDO CONVERSA ===`);
+      console.log(`=== PROCESSANDO CONVERSA DO PAR ===`);
       console.log(`Par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
-      console.log('Par ativo?', pair.isActive);
-      console.log('Status do par:', pair.status);
 
       // Buscar histórico de conversa deste par
       const pairHistory = messages.filter(msg => msg.chipPairId === pair.id);
@@ -258,25 +256,29 @@ export const useMaturadorEngine = () => {
       const respondingConnection = connections.find(c => c.name === respondingChip.name);
       const chipPrompt = respondingConnection?.prompt || 'Você é um assistente amigável e prestativo. Responda de forma natural, breve e humanizada. Use emojis ocasionalmente para dar mais naturalidade às conversas.';
       
-      console.log(`📝 Usando prompt do chip ${respondingChip.name}:`, chipPrompt.substring(0, 100) + '...');
+      console.log(`🎯 Chip respondendo: ${respondingChip.name}`);
+      console.log(`📝 Prompt do chip (primeiros 150 chars): ${chipPrompt.substring(0, 150)}...`);
       
       // Gerar mensagem humanizada usando o prompt do chip
       const messageContent = await generateMessage(
         respondingChip.name,
         chipPrompt,
         pairHistory,
-        false
+        pairHistory.length === 0
       );
+
+      console.log(`✅ Mensagem gerada (${messageContent.length} chars): ${messageContent.substring(0, 100)}...`);
 
       // Aplicar delay humanizado antes do envio (simular digitação)
       const typingDelay = Math.random() * 3000 + 2000; // 2-5 segundos de "digitação"
-      console.log(`⌨️ Simulando digitação por ${typingDelay/1000}s...`);
+      console.log(`⌨️ Simulando digitação por ${(typingDelay/1000).toFixed(1)}s...`);
       await new Promise(resolve => setTimeout(resolve, typingDelay));
 
       // Enviar mensagem real entre os chips
       try {
+        console.log(`💬 Enviando mensagem de ${respondingChip.name} para ${receivingChip.name}`);
         await sendRealMessage(respondingChip.name, receivingChip.name, messageContent);
-        console.log(`✅ Mensagem real enviada: ${respondingChip.name} -> ${receivingChip.name}`);
+        console.log(`✅ Mensagem enviada com sucesso!`);
         
         // Atualizar contador no Supabase
         await supabase
@@ -287,7 +289,7 @@ export const useMaturadorEngine = () => {
           })
           .eq('id', pair.id);
         
-        // Só criar mensagem no histórico se o envio real foi bem-sucedido
+        // Criar mensagem no histórico
         const newMessage: MaturadorMessage = {
           id: crypto.randomUUID(),
           chipPairId: pair.id,
@@ -300,7 +302,7 @@ export const useMaturadorEngine = () => {
           aiModel: 'gpt-4o-mini'
         };
 
-        // Atualizar estado apenas se mensagem foi enviada com sucesso
+        // Atualizar estado
         setMessages(prev => {
           const updated = [newMessage, ...prev];
           return updated;
@@ -323,8 +325,6 @@ export const useMaturadorEngine = () => {
           
           return updated;
         });
-
-        console.log(`Mensagem processada com sucesso: ${respondingChip.name} -> ${receivingChip.name}`);
         
       } catch (error: any) {
         console.error('❌ Erro ao enviar mensagem real:', error);
@@ -344,17 +344,13 @@ export const useMaturadorEngine = () => {
           description: errorMessage,
           variant: "destructive"
         });
-        // Não salva mensagem nem incrementa contador se falhou o envio real
-        return;
+        
+        throw error; // Propagar erro para parar o loop deste par
       }
 
     } catch (error) {
-      console.error('Erro ao processar conversa:', error);
-      toast({
-        title: "Erro na Conversa",
-        description: `Erro ao gerar mensagem para ${pair.firstChipName} <-> ${pair.secondChipName}`,
-        variant: "destructive"
-      });
+      console.error('❌ Erro ao processar conversa:', error);
+      throw error; // Propagar erro
     }
   }, [messages, generateMessage, sendRealMessage, saveData, toast, connections]);
 
@@ -362,13 +358,12 @@ export const useMaturadorEngine = () => {
   const startMaturador = useCallback(async () => {
     console.log('=== INICIANDO MATURADOR ===');
     console.log('Total de pares:', chipPairs.length);
-    console.log('Pares configurados:', chipPairs);
     
     const activePairs = chipPairs.filter(pair => pair.isActive && pair.status !== 'paused');
-    console.log('Pares ativos encontrados:', activePairs.length, activePairs);
+    console.log('Pares ativos encontrados:', activePairs.length);
     
     if (activePairs.length === 0) {
-      console.warn('Nenhum par ativo encontrado!');
+      console.warn('⚠️ Nenhum par ativo encontrado!');
       toast({
         title: "Nenhum par ativo",
         description: "Ative pelo menos um par para iniciar o maturador",
@@ -377,8 +372,9 @@ export const useMaturadorEngine = () => {
       return;
     }
     
-    // Sincroniza dados das conexões com a Evolution API antes de iniciar
+    // Sincronizar conexões antes de iniciar
     try {
+      console.log('🔄 Sincronizando conexões com Evolution API...');
       await Promise.all(activePairs.flatMap(pair => {
         const from = connections.find(c => c.name === pair.firstChipName);
         const to = connections.find(c => c.name === pair.secondChipName);
@@ -387,44 +383,57 @@ export const useMaturadorEngine = () => {
         if (to?.id) tasks.push(syncWithEvolutionAPI(to.id));
         return tasks;
       }));
+      console.log('✅ Sincronização concluída');
     } catch (e) {
-      console.warn('Falha ao sincronizar conexões antes de iniciar:', e);
+      console.warn('⚠️ Falha ao sincronizar conexões:', e);
     }
 
     setIsRunning(true);
     
-    // Loop contínuo de conversação para cada par
+    // Atualizar localStorage para sinalizar que está rodando
+    const savedConfig = localStorage.getItem('ox-enhanced-maturador-config');
+    if (savedConfig) {
+      const config = JSON.parse(savedConfig);
+      config.isRunning = true;
+      localStorage.setItem('ox-enhanced-maturador-config', JSON.stringify(config));
+    }
+    
+    // Iniciar conversa contínua para cada par
     activePairs.forEach(pair => {
       const pairId = pair.id;
-      console.log(`📍 Iniciando conversa contínua para: ${pair.firstChipName} <-> ${pair.secondChipName}`);
+      console.log(`🚀 Iniciando conversa contínua para par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
       
       // Função recursiva para manter conversas ininterruptas
       const keepConversationGoing = async () => {
-        // Verificar se deve continuar
-        const savedConfig = localStorage.getItem('ox-enhanced-maturador-config');
-        if (!savedConfig) return;
-        
-        const config = JSON.parse(savedConfig);
-        if (!config.isRunning) {
-          console.log(`⏹️ Maturador parado, encerrando conversa do par ${pairId}`);
-          return;
-        }
-        
-        const currentPair = config.selectedPairs?.find((p: any) => p.id === pairId);
-        if (!currentPair?.isActive || currentPair.status === 'paused') {
-          console.log(`⏸️ Par ${pairId} pausado ou inativo, encerrando conversa`);
-          return;
-        }
-        
         try {
-          console.log(`💬 Processando mensagem do par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
+          // Verificar se deve continuar
+          const savedConfig = localStorage.getItem('ox-enhanced-maturador-config');
+          if (!savedConfig) {
+            console.log(`⏹️ Config não encontrada, parando par ${pairId}`);
+            return;
+          }
+          
+          const config = JSON.parse(savedConfig);
+          if (!config.isRunning) {
+            console.log(`⏹️ Maturador parado, encerrando conversa do par ${pairId}`);
+            return;
+          }
+          
+          const currentPair = config.selectedPairs?.find((p: any) => p.id === pairId);
+          if (!currentPair?.isActive || currentPair.status === 'paused') {
+            console.log(`⏸️ Par ${pairId} pausado ou inativo`);
+            return;
+          }
+          
+          // Processar mensagem
+          console.log(`💬 Processando mensagem do par ${pairId}...`);
           await processChipPairConversation(pair);
           
-          // Delay curto e natural entre mensagens (5-15 segundos)
-          const nextDelay = (5 + Math.random() * 10) * 1000;
-          console.log(`⏰ Próxima mensagem em ${(nextDelay/1000).toFixed(1)}s`);
+          // Delay natural entre mensagens (10-20 segundos)
+          const nextDelay = (10 + Math.random() * 10) * 1000;
+          console.log(`⏰ Próxima mensagem do par ${pairId} em ${(nextDelay/1000).toFixed(1)}s`);
           
-          // Continuar a conversa automaticamente
+          // Agendar próxima mensagem
           const timeout = setTimeout(() => {
             keepConversationGoing();
           }, nextDelay);
@@ -434,9 +443,9 @@ export const useMaturadorEngine = () => {
         } catch (error) {
           console.error(`❌ Erro no par ${pairId}:`, error);
           
-          // Em caso de erro, aguardar um pouco mais antes de tentar novamente
-          const retryDelay = 15000; // 15 segundos
-          console.log(`🔄 Tentando novamente em ${retryDelay/1000}s`);
+          // Em caso de erro, aguardar mais tempo antes de tentar novamente
+          const retryDelay = 30000; // 30 segundos
+          console.log(`🔄 Tentando novamente o par ${pairId} em ${retryDelay/1000}s`);
           
           const timeout = setTimeout(() => {
             keepConversationGoing();
@@ -446,18 +455,12 @@ export const useMaturadorEngine = () => {
         }
       };
       
-      // Iniciar conversa imediatamente com pequeno delay inicial
-      const initialDelay = Math.random() * 5000; // 0-5 segundos
-      console.log(`🚀 Iniciando conversa do par ${pairId} em ${(initialDelay/1000).toFixed(1)}s`);
-      
-      const initialTimeout = setTimeout(() => {
-        keepConversationGoing();
-      }, initialDelay);
-      
-      intervalRefs.current.set(pairId, initialTimeout as any);
+      // Iniciar conversa imediatamente
+      console.log(`▶️ Iniciando primeira mensagem do par ${pairId}...`);
+      keepConversationGoing();
     });
 
-    console.log('✅ Total de pares em conversa contínua:', activePairs.length);
+    console.log(`✅ ${activePairs.length} par(es) em conversa contínua`);
 
     toast({
       title: "Maturador Iniciado",

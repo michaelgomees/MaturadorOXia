@@ -89,30 +89,38 @@ serve(async (req) => {
 
 ${prompt}
 
-REGRAS IMPORTANTES:
+REGRAS CRÍTICAS DE RESPOSTA:
 - Responda SEMPRE com no máximo 2-3 linhas (máximo 100 tokens)
-- Seja natural e humanizado
-- Use emojis com moderação
-- Mantenha o estilo de conversa do prompt acima
+- Seja natural e humanizado como se fosse uma conversa real no WhatsApp
+- Use emojis com moderação (1-2 por mensagem no máximo)
+- Mantenha o estilo e personalidade do prompt acima
 - NÃO gere múltiplas mensagens de uma vez
 - Responda como UMA ÚNICA PESSOA (${chipName})
-- NUNCA inclua delays, timestamps ou "(delay Xs)" no texto`;
+- NUNCA inclua delays, timestamps, "(delay Xs)", data/hora no texto
+- NUNCA inclua o seu nome (${chipName}) no início ou final da mensagem
+- NUNCA inclua "Nome:" ou "Pessoa:" antes da mensagem
+- Responda DIRETAMENTE como se estivesse digitando no WhatsApp
+- Seja breve e objetivo, como em conversas reais de mensagem`;
 
-    // Preparar mensagens para OpenAI - sempre reset com system fresh
+    // Preparar mensagens para OpenAI
     const messages = [
       {
         role: 'system',
         content: systemPrompt
       },
-      // Apenas histórico recente para manter contexto sem prompts antigos
-      ...conversationHistory.slice(-3).map((msg: any) => ({
+      // Apenas histórico recente para manter contexto
+      ...conversationHistory.slice(-5).map((msg: any) => ({
         role: msg.isFromThisChip ? 'assistant' : 'user',
         content: msg.content
       })),
     ];
 
-    console.log('Sending request to OpenAI with', messages.length, 'messages');
-    console.log('System prompt being used:', systemPrompt.substring(0, 200) + '...');
+    console.log('Enviando para OpenAI:', {
+      chipName,
+      messagesCount: messages.length,
+      systemPromptLength: systemPrompt.length,
+      promptUsed: prompt.substring(0, 100) + '...'
+    });
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -137,20 +145,33 @@ REGRAS IMPORTANTES:
     }
 
     const data = await response.json();
-    console.log('OpenAI response received');
+    console.log('Resposta da OpenAI recebida:', {
+      finishReason: data.choices[0].finish_reason,
+      contentLength: data.choices[0].message.content.length
+    });
     
     let generatedMessage = data.choices[0].message.content;
+    
+    // Remover qualquer prefixo com nome do chip ou formatação indevida
+    generatedMessage = generatedMessage
+      .replace(new RegExp(`^${chipName}:\\s*`, 'i'), '') // Remove "ChipName: " do início
+      .replace(/^[A-Z][a-zà-ú]+:\s*/, '') // Remove "NomeQualquer: " do início
+      .trim();
     
     // Aplicar truncamento para garantir 2-3 linhas máximo
     generatedMessage = truncateMessage(generatedMessage);
     
-    console.log('Final processed message:', generatedMessage);
+    console.log('Mensagem processada final:', {
+      length: generatedMessage.length,
+      preview: generatedMessage.substring(0, 100),
+      wasTruncated: generatedMessage.endsWith('...')
+    });
 
     return new Response(JSON.stringify({ 
       message: generatedMessage,
       usage: data.usage,
       model: data.model,
-      delay: responseDelay * 1000, // delay em ms
+      delay: responseDelay * 1000,
       truncated: generatedMessage.endsWith('...')
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
