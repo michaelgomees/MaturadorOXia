@@ -369,6 +369,11 @@ export const useMaturadorEngine = () => {
     
     if (activePairs.length === 0) {
       console.warn('Nenhum par ativo encontrado!');
+      toast({
+        title: "Nenhum par ativo",
+        description: "Ative pelo menos um par para iniciar o maturador",
+        variant: "destructive"
+      });
       return;
     }
     
@@ -388,71 +393,98 @@ export const useMaturadorEngine = () => {
 
     setIsRunning(true);
     
-    // Criar intervalos contínuos para cada par
+    // Loop contínuo de conversação para cada par
     activePairs.forEach(pair => {
       const pairId = pair.id;
-      console.log(`📍 Configurando intervalo para par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
+      console.log(`📍 Iniciando conversa contínua para: ${pair.firstChipName} <-> ${pair.secondChipName}`);
       
-      // Função recursiva para manter conversas ativas
-      const scheduleNextMessage = async () => {
+      // Função recursiva para manter conversas ininterruptas
+      const keepConversationGoing = async () => {
+        // Verificar se deve continuar
+        const savedConfig = localStorage.getItem('ox-enhanced-maturador-config');
+        if (!savedConfig) return;
+        
+        const config = JSON.parse(savedConfig);
+        if (!config.isRunning) {
+          console.log(`⏹️ Maturador parado, encerrando conversa do par ${pairId}`);
+          return;
+        }
+        
+        const currentPair = config.selectedPairs?.find((p: any) => p.id === pairId);
+        if (!currentPair?.isActive || currentPair.status === 'paused') {
+          console.log(`⏸️ Par ${pairId} pausado ou inativo, encerrando conversa`);
+          return;
+        }
+        
         try {
-          // Verificar se ainda está ativo antes de processar
-          const currentPair = chipPairs.find(p => p.id === pairId);
-          if (!currentPair?.isActive || currentPair.status === 'paused') {
-            console.log(`⏸️ Par ${pairId} pausado ou inativo`);
-            return;
-          }
-          
           console.log(`💬 Processando mensagem do par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
           await processChipPairConversation(pair);
           
-          // Agendar próxima mensagem após delay de 1-3 minutos
-          const nextDelay = (60 + Math.random() * 120) * 1000;
-          console.log(`⏰ Próxima mensagem em ${nextDelay/1000}s para par ${pairId}`);
+          // Delay curto e natural entre mensagens (5-15 segundos)
+          const nextDelay = (5 + Math.random() * 10) * 1000;
+          console.log(`⏰ Próxima mensagem em ${(nextDelay/1000).toFixed(1)}s`);
           
+          // Continuar a conversa automaticamente
           const timeout = setTimeout(() => {
-            scheduleNextMessage();
+            keepConversationGoing();
           }, nextDelay);
           
           intervalRefs.current.set(pairId, timeout as any);
           
         } catch (error) {
           console.error(`❌ Erro no par ${pairId}:`, error);
-          // Mesmo com erro, reagendar para tentar novamente
-          const retryDelay = 30000; // 30 segundos
+          
+          // Em caso de erro, aguardar um pouco mais antes de tentar novamente
+          const retryDelay = 15000; // 15 segundos
+          console.log(`🔄 Tentando novamente em ${retryDelay/1000}s`);
+          
           const timeout = setTimeout(() => {
-            scheduleNextMessage();
+            keepConversationGoing();
           }, retryDelay);
+          
           intervalRefs.current.set(pairId, timeout as any);
         }
       };
       
-      // Iniciar primeira mensagem com delay aleatório inicial
-      const initialDelay = Math.random() * 10000; // 0-10 segundos
-      console.log(`🚀 Iniciando par ${pairId} em ${initialDelay/1000}s`);
-      setTimeout(() => {
-        scheduleNextMessage();
+      // Iniciar conversa imediatamente com pequeno delay inicial
+      const initialDelay = Math.random() * 5000; // 0-5 segundos
+      console.log(`🚀 Iniciando conversa do par ${pairId} em ${(initialDelay/1000).toFixed(1)}s`);
+      
+      const initialTimeout = setTimeout(() => {
+        keepConversationGoing();
       }, initialDelay);
+      
+      intervalRefs.current.set(pairId, initialTimeout as any);
     });
 
-    console.log('✅ Total de pares configurados:', activePairs.length);
+    console.log('✅ Total de pares em conversa contínua:', activePairs.length);
 
     toast({
       title: "Maturador Iniciado",
-      description: `Sistema ativado para ${activePairs.length} pares`,
+      description: `${activePairs.length} ${activePairs.length === 1 ? 'par está' : 'pares estão'} conversando continuamente`,
     });
-  }, [chipPairs, processChipPairConversation, toast]);
+  }, [chipPairs, processChipPairConversation, toast, connections, syncWithEvolutionAPI]);
 
   // Parar maturador
   const stopMaturador = useCallback(() => {
-    console.log('Parando maturador...');
+    console.log('=== PARANDO MATURADOR ===');
     setIsRunning(false);
     
-    // Limpar todos os intervalos
-    intervalRefs.current.forEach(interval => {
-      clearInterval(interval);
+    // Atualizar localStorage para sinalizar parada
+    const savedConfig = localStorage.getItem('ox-enhanced-maturador-config');
+    if (savedConfig) {
+      const config = JSON.parse(savedConfig);
+      config.isRunning = false;
+      localStorage.setItem('ox-enhanced-maturador-config', JSON.stringify(config));
+    }
+    
+    // Limpar todos os intervalos/timeouts
+    intervalRefs.current.forEach((timeout) => {
+      clearTimeout(timeout);
     });
     intervalRefs.current.clear();
+    
+    console.log('✅ Todas as conversas interrompidas');
 
     toast({
       title: "Maturador Parado",
