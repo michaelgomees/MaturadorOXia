@@ -164,6 +164,7 @@ export const EnhancedMaturadorTab: React.FC = () => {
           onClick={handleStartMaturador}
           variant={isRunning ? "destructive" : "default"}
           className="flex items-center gap-2"
+          disabled={chipPairs.filter(pair => pair.isActive).length === 0}
         >
           {isRunning ? (
             <>
@@ -177,6 +178,12 @@ export const EnhancedMaturadorTab: React.FC = () => {
             </>
           )}
         </Button>
+        
+        {chipPairs.filter(pair => pair.isActive).length === 0 && !isRunning && (
+          <Badge variant="secondary" className="text-xs">
+            Ative pelo menos uma dupla para iniciar
+          </Badge>
+        )}
       </div>
 
       {/* Cards de Status */}

@@ -13,7 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { 
   Play, Pause, Square, Users, MessageCircle, ArrowRight, 
-  Settings, Activity, Wifi, Bot, FileText, Eraser, Clock 
+  Settings, Activity, Wifi, Bot, Clock 
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useConnections } from "@/contexts/ConnectionsContext";
@@ -21,7 +21,6 @@ import { useMaturadorEngine } from "@/hooks/useMaturadorEngine";
 import { useChipMaturation } from "@/hooks/useChipMaturation";
 import { useMaturadorPairs } from "@/hooks/useMaturadorPairs";
 import { usePrompts } from "@/hooks/usePrompts";
-import { MaturationSettings } from "./MaturationSettings";
 
 interface ChipPair {
   id: string;
@@ -304,61 +303,69 @@ export const MaturadorTab = () => {
       </div>
 
       {/* Configuration Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Adicionar Nova Dupla */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Configurar Nova Dupla</CardTitle>
-            <CardDescription>Selecione duas conexões ativas</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Configurar Nova Dupla</CardTitle>
+          <CardDescription>Selecione duas conexões ativas para iniciar maturação</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Primeiro Chip</Label>
+              <Select value={newPair.chip1} onValueChange={(value) => setNewPair(prev => ({ ...prev, chip1: value }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {whatsappConnections.filter(conn => conn.status === 'active').map(conn => (
+                    <SelectItem key={conn.id} value={conn.name}>
+                      <div className="flex items-center gap-2">
+                        <Wifi className="w-3 h-3 text-green-500" />{conn.name}
+                        <Badge variant="outline" className="text-xs">WhatsApp</Badge>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Segundo Chip</Label>
+              <Select value={newPair.chip2} onValueChange={(value) => setNewPair(prev => ({ ...prev, chip2: value }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {getAvailableChipsForSecond(newPair.chip1).map(conn => (
+                    <SelectItem key={conn.id} value={conn.name}>
+                      <div className="flex items-center gap-2">
+                        <Wifi className="w-3 h-3 text-green-500" />{conn.name}
+                        <Badge variant="outline" className="text-xs">WhatsApp</Badge>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <Bot className="w-5 h-5 text-primary mt-0.5" />
               <div>
-                <Label>Primeiro Chip</Label>
-                <Select value={newPair.chip1} onValueChange={(value) => setNewPair(prev => ({ ...prev, chip1: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {whatsappConnections.filter(conn => conn.status === 'active').map(conn => (
-                      <SelectItem key={conn.id} value={conn.name}>
-                        <div className="flex items-center gap-2">
-                          <Wifi className="w-3 h-3 text-green-500" />{conn.name}
-                          <Badge variant="outline" className="text-xs">WhatsApp</Badge>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Segundo Chip</Label>
-                <Select value={newPair.chip2} onValueChange={(value) => setNewPair(prev => ({ ...prev, chip2: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getAvailableChipsForSecond(newPair.chip1).map(conn => (
-                      <SelectItem key={conn.id} value={conn.name}>
-                        <div className="flex items-center gap-2">
-                          <Wifi className="w-3 h-3 text-green-500" />{conn.name}
-                          <Badge variant="outline" className="text-xs">WhatsApp</Badge>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <h4 className="font-semibold mb-1">Prompts Individuais</h4>
+                <p className="text-sm text-muted-foreground">
+                  Cada chip usará seu próprio prompt configurado na aba "Prompts de IA".
+                  Configure os prompts para criar personalidades únicas.
+                </p>
               </div>
             </div>
-            <Button onClick={handleAddPair} disabled={!newPair.chip1 || !newPair.chip2} className="w-full">
-              <Users className="w-4 h-4 mr-2" />Adicionar Dupla
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Configurações de Humanização */}
-        <MaturationSettings />
-      </div>
+          </div>
+          
+          <Button onClick={handleAddPair} disabled={!newPair.chip1 || !newPair.chip2} className="w-full">
+            <Users className="w-4 h-4 mr-2" />Adicionar Dupla
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Lista de Duplas */}
       <Card>
@@ -401,29 +408,10 @@ export const MaturadorTab = () => {
                           
                           {/* Linha 3: Controles */}
                           <div className="flex items-center justify-between">
-                            <Select 
-                              defaultValue="global"
-                              onValueChange={(value) => {
-                                console.log(`Prompt selecionado para par ${pair.id}: ${value}`);
-                                // TODO: Implementar salvamento do prompt selecionado
-                                toast({
-                                  title: "Prompt Selecionado", 
-                                  description: `Prompt ${value === 'global' ? 'global' : 'personalizado'} será usado nesta dupla.`,
-                                });
-                              }}
-                            >
-                              <SelectTrigger className="w-40">
-                                <SelectValue placeholder="Prompt" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="global">🌐 Prompt Global</SelectItem>
-                                {prompts.filter(p => p.is_active).map(prompt => (
-                                  <SelectItem key={prompt.id} value={prompt.id}>
-                                    📝 {prompt.nome}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="text-sm text-muted-foreground flex items-center gap-2">
+                              <Bot className="w-4 h-4" />
+                              Cada chip usa seu prompt individual
+                            </div>
                             
                             <div className="flex gap-2">
                               <Button 
