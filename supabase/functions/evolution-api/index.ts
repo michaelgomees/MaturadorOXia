@@ -189,29 +189,7 @@ serve(async (req) => {
       const cleanApiKey = apiKey.trim();
 
       try {
-        // Quick test: Can we fetch instances at all?
-        const testResponse = await fetch(`${endpoint}/instance/fetchInstances`, {
-          method: 'GET',
-          headers: {
-            'apikey': cleanApiKey,
-            'Accept': 'application/json'
-          }
-        });
-        
-        if (!testResponse.ok) {
-          return new Response(
-            JSON.stringify({ 
-              success: false, 
-              error: `Credenciais inválidas (${testResponse.status}). Verifique endpoint e API key.`
-            }),
-            { 
-              status: testResponse.status, 
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-            }
-          );
-        }
-        
-        // Check if instance exists
+        // Check if instance exists - if yes, just return it
         const checkResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
           method: 'GET',
           headers: {
@@ -221,80 +199,93 @@ serve(async (req) => {
         });
 
         let instanceExists = false;
+        let qrCode = null;
 
         if (checkResponse.ok) {
           const instances = await checkResponse.json();
           if (Array.isArray(instances) && instances.length > 0) {
             instanceExists = true;
-          }
-        }
+            console.log('✅ Instance already exists');
+            
+            // Try to get QR code
+            const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+              method: 'GET',
+              headers: {
+                'apikey': cleanApiKey,
+                'Accept': 'application/json'
+              }
+            });
 
-        // Only create if instance doesn't exist
-        if (!instanceExists) {
-          console.log(`📞 Criando nova instância: ${instanceName}`)
-          console.log(`📡 URL de criação: ${endpoint}/instance/create`);
-          
-          const requestBody = {
-            instanceName: instanceName,
-            qrcode: true,
-            integration: "WHATSAPP-BAILEYS"
-          };
-          
-          console.log('📦 Payload:', requestBody);
-          console.log('🔐 Tentando criar instância...');
-          
-          // Try to create instance
-          let createResponse = await fetch(`${endpoint}/instance/create`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': cleanApiKey,
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify(requestBody)
-          });
-        
-          console.log('📥 Create response status:', createResponse.status);
-
-          // If we get 401 or 409 (conflict), the instance might already exist
-          if (createResponse.status === 401 || createResponse.status === 409) {
-            const errorText = await createResponse.text();
-            console.log('⚠️ Create returned error, assuming instance exists:', errorText);
-            // Don't fail - just continue to fetch QR code
-          } else if (!createResponse.ok) {
-            const errorText = await createResponse.text();
-            console.error('❌ Erro da Evolution API (status ' + createResponse.status + '):', errorText);
-          
-            let errorData;
-            try {
-              errorData = JSON.parse(errorText);
-            } catch {
-              errorData = { message: errorText };
+            if (qrResponse.ok) {
+              const qrData = await qrResponse.json();
+              qrCode = qrData.base64 || qrData.qrcode || null;
             }
             
+            // Return success immediately since instance exists
             return new Response(
-              JSON.stringify({ 
-                success: false, 
-                error: `Erro ao criar instância (${createResponse.status}): ${errorData.message || errorText.substring(0, 200)}`,
-                details: errorData,
-                endpoint: endpoint,
-                statusCode: createResponse.status
+              JSON.stringify({
+                success: true,
+                qrCode: qrCode,
+                instanceName: instanceName,
+                message: 'Instance already exists'
               }),
               { 
-                status: createResponse.status, 
+                status: 200, 
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
               }
-            )
-          } else {
-            const createData = await createResponse.json()
-            console.log('✅ Instância criada com sucesso:', createData)
+            );
           }
-
-          // Aguardar um pouco para a instância ficar pronta
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        } else {
-          console.log('ℹ️ Instância já existe, pulando criação');
         }
+
+        // Only try to create if instance doesn't exist
+        console.log('📞 Instance not found, attempting to create...');
+        
+        const requestBody = {
+          instanceName: instanceName,
+          qrcode: true,
+          integration: "WHATSAPP-BAILEYS"
+        };
+        
+        const createResponse = await fetch(`${endpoint}/instance/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': cleanApiKey,
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!createResponse.ok) {
+          const errorText = await createResponse.text();
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            errorData = { message: errorText };
+          }
+          
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: 'Falha ao criar instância. Sua API key pode não ter permissões de escrita.',
+              details: {
+                status: createResponse.status,
+                error: errorData.message || errorText
+              }
+            }),
+            { 
+              status: createResponse.status, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          )
+        }
+
+        const createData = await createResponse.json();
+        console.log('✅ Instance created');
+        
+        // Wait for instance to be ready
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Get QR code
         const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
