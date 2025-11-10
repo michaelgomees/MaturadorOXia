@@ -31,8 +31,23 @@ export const OpenAIConfigCard = () => {
 
     setIsLoading(true);
     try {
-      // Simular teste de conexão - em produção, faria uma chamada real
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Teste REAL da conexão com OpenAI
+      console.log('🔍 Testando conexão OpenAI...');
+      
+      const testResponse = await fetch('https://api.openai.com/v1/models', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          ...(organization ? { 'OpenAI-Organization': organization } : {})
+        }
+      });
+
+      if (!testResponse.ok) {
+        const errorData = await testResponse.json();
+        throw new Error(errorData.error?.message || 'Falha ao conectar com OpenAI');
+      }
+
+      console.log('✅ Conexão OpenAI bem-sucedida!');
       
       // Salvar/atualizar configuração
       const configData = {
@@ -60,9 +75,10 @@ export const OpenAIConfigCard = () => {
       });
       
     } catch (error) {
+      console.error('❌ Erro ao testar OpenAI:', error);
       toast({
         title: "❌ Falha na Conexão",
-        description: "Não foi possível conectar com a API da OpenAI. Verifique sua chave.",
+        description: error instanceof Error ? error.message : "Não foi possível conectar com a API da OpenAI. Verifique sua chave.",
         variant: "destructive"
       });
     } finally {

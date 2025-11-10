@@ -8,11 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Link, CheckCircle, XCircle, RefreshCw, Save, Plus, QrCode, Bot, Brain, Sparkles, Network, Eye, EyeOff } from "lucide-react";
+import { Link, CheckCircle, XCircle, RefreshCw, Save, Network } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { ConnectionDashboard } from "./ConnectionDashboard";
-import { useConnections } from "@/contexts/ConnectionsContext";
-import { QRCodeModal } from "@/components/QRCodeModal";
+import { OpenAIConfigCard } from "@/components/OpenAIConfigCard";
 
 interface EvolutionAPI {
   endpoint: string;
@@ -63,12 +61,7 @@ export const APIsTab = () => {
     status: 'disconnected'
   });
   
-  const [isCreatingConnection, setIsCreatingConnection] = useState(false);
-  const [newConnectionName, setNewConnectionName] = useState('');
-  const [showApiKeys, setShowApiKeys] = useState<Record<string, boolean>>({});
-  const [showQRModal, setShowQRModal] = useState<string | null>(null);
   const { toast } = useToast();
-  const { connections, addConnection, updateConnection, deleteConnection, syncWithEvolutionAPI } = useConnections();
 
   // Carregar dados do localStorage
   useEffect(() => {
@@ -106,8 +99,6 @@ export const APIsTab = () => {
     localStorage.setItem('ox-ngrok-config', JSON.stringify(newConfig));
   };
 
-  // Função removida - usando contexto
-
   const handleSaveAPI = () => {
     if (!evolutionAPI.endpoint || !evolutionAPI.apiKey) {
       toast({
@@ -139,19 +130,64 @@ export const APIsTab = () => {
       return;
     }
 
-    // Simular teste de conexão
-    const updatedAPI = {
-      ...evolutionAPI,
-      status: 'connected' as const,
-      lastTest: new Date().toISOString()
-    };
-    
-    saveEvolutionAPI(updatedAPI);
-    
     toast({
-      title: "API testada",
-      description: "Conexão com Evolution API estabelecida com sucesso."
+      title: "Testando conexão...",
+      description: "Verificando conexão com a Evolution API."
     });
+
+    try {
+      console.log('🔍 Testando conexão Evolution API...');
+      
+      // Garantir que o endpoint tenha protocolo
+      let endpoint = evolutionAPI.endpoint;
+      if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+        endpoint = `https://${endpoint}`;
+      }
+
+      // Teste REAL - buscar instâncias
+      const testResponse = await fetch(`${endpoint}/instance/fetchInstances`, {
+        method: 'GET',
+        headers: {
+          'apikey': evolutionAPI.apiKey,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!testResponse.ok) {
+        const errorData = await testResponse.text();
+        console.error('❌ Erro na resposta:', errorData);
+        throw new Error(`Erro ${testResponse.status}: ${errorData}`);
+      }
+
+      const responseData = await testResponse.json();
+      console.log('✅ Resposta Evolution API:', responseData);
+      
+      const updatedAPI = {
+        ...evolutionAPI,
+        status: 'connected' as const,
+        lastTest: new Date().toISOString()
+      };
+      
+      saveEvolutionAPI(updatedAPI);
+      toast({
+        title: "✅ Conexão bem-sucedida!",
+        description: "Evolution API está respondendo corretamente."
+      });
+    } catch (error) {
+      console.error('❌ Erro ao testar Evolution API:', error);
+      const updatedAPI = {
+        ...evolutionAPI,
+        status: 'error' as const,
+        lastTest: new Date().toISOString()
+      };
+      
+      saveEvolutionAPI(updatedAPI);
+      toast({
+        title: "❌ Erro na conexão",
+        description: error instanceof Error ? error.message : "Não foi possível conectar com a Evolution API.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleSaveAIConfig = () => {
@@ -159,29 +195,6 @@ export const APIsTab = () => {
     toast({
       title: "Configuração salva",
       description: "Configurações de IA foram salvas com sucesso."
-    });
-  };
-
-  const handleTestAIProvider = async (provider: 'openai' | 'anthropic' | 'google') => {
-    const apiKey = provider === 'openai' ? aiConfig.openai_api_key :
-                   provider === 'anthropic' ? aiConfig.anthropic_api_key :
-                   aiConfig.google_api_key;
-
-    if (!apiKey) {
-      toast({
-        title: "Erro",
-        description: `Chave de API do ${provider.toUpperCase()} não configurada.`,
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Simular teste de API
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    toast({
-      title: "API testada",
-      description: `Conexão com ${provider.toUpperCase()} API validada com sucesso.`
     });
   };
 
@@ -205,127 +218,6 @@ export const APIsTab = () => {
       title: "Ngrok configurado",
       description: "Configuração do ngrok salva com sucesso."
     });
-  };
-
-  const toggleApiKeyVisibility = (field: string) => {
-    setShowApiKeys(prev => ({
-      ...prev,
-      [field]: !prev[field]
-    }));
-  };
-
-  const handleCreateConnection = async () => {
-    if (!newConnectionName.trim()) {
-      toast({
-        title: "Erro",
-        description: "Nome da conexão é obrigatório.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      const newConnection = await addConnection({
-        name: newConnectionName,
-        status: 'connecting',
-        isActive: false,
-        conversationsCount: 0,
-        aiModel: 'ChatGPT'
-      });
-
-      setNewConnectionName('');
-      setIsCreatingConnection(false);
-      
-      toast({
-        title: "Conexão criada!",
-        description: `Criando instância na Evolution API...`
-      });
-
-      // Abrir modal de QR code automaticamente
-      setTimeout(() => {
-        handleShowQR(newConnection.id);
-      }, 1000);
-    } catch (error) {
-      console.error('Erro ao criar conexão:', error);
-      toast({
-        title: "Erro ao criar conexão",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleToggleConnection = async (id: string) => {
-    const connection = connections.find(c => c.id === id);
-    if (connection) {
-      const newStatus = connection.isActive ? 'inactive' : 'active';
-      await updateConnection(id, {
-        status: newStatus,
-        isActive: !connection.isActive
-      });
-      
-      toast({
-        title: `Conexão ${newStatus === 'active' ? 'ativada' : 'desativada'}`,
-        description: `${connection.name} foi ${newStatus === 'active' ? 'ativada' : 'desativada'}.`
-      });
-    }
-  };
-
-  const handleDeleteConnection = async (id: string) => {
-    const connection = connections.find(c => c.id === id);
-    if (connection && window.confirm(`Tem certeza que deseja excluir a conexão "${connection.name}"?`)) {
-      try {
-        await deleteConnection(id);
-        toast({
-          title: "Conexão removida",
-          description: "Conexão deletada com sucesso."
-        });
-      } catch (error) {
-        toast({
-          title: "Erro",
-          description: "Erro ao deletar conexão.",
-          variant: "destructive"
-        });
-      }
-    }
-  };
-
-  const handleReconfigureConnection = async (id: string) => {
-    const connection = connections.find(c => c.id === id);
-    if (!connection) return;
-
-    try {
-      // Atualizar para status connecting
-      await updateConnection(id, { status: 'connecting' });
-      
-      // Gerar novo evolutionInstanceName se não tiver
-      const instanceName = connection.evolutionInstanceName || connection.name.toLowerCase().replace(/\s+/g, '_');
-      
-      // Atualizar com o instanceName primeiro
-      await updateConnection(id, {
-        evolutionInstanceName: instanceName
-      });
-
-      // Tentar sincronizar com Evolution API para puxar dados do perfil
-      await syncWithEvolutionAPI(id);
-      
-      toast({
-        title: "Conexão Sincronizada",
-        description: `${connection.name} foi sincronizada com sucesso.`
-      });
-    } catch (error) {
-      console.error('Erro ao sincronizar conexão:', error);
-      await updateConnection(id, { status: 'inactive' });
-      toast({
-        title: "Erro na Sincronização",
-        description: `Não foi possível sincronizar ${connection.name}. Verifique as configurações da Evolution API.`,
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleShowQR = (connectionId: string) => {
-    setShowQRModal(connectionId);
   };
 
   const getStatusIcon = (status: EvolutionAPI['status']) => {
@@ -422,327 +314,8 @@ export const APIsTab = () => {
         </CardContent>
       </Card>
 
-      {/* QR Code Modal */}
-      {showQRModal && (() => {
-        const connection = connections.find(c => c.id === showQRModal);
-        return connection ? (
-          <QRCodeModal
-            open={!!showQRModal}
-            onOpenChange={(open) => !open && setShowQRModal(null)}
-            chipName={connection.name}
-            chipPhone={connection.phone || ''}
-          />
-        ) : null;
-      })()}
-
-      {/* Connections Management */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Conexões WhatsApp</CardTitle>
-              <CardDescription>
-                Gerencie conexões que usam a configuração global da Evolution API
-              </CardDescription>
-            </div>
-             <Button 
-               onClick={() => setIsCreatingConnection(true)}
-             >
-              <Plus className="w-4 h-4 mr-2" />
-              Nova Conexão
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* Create Connection Form */}
-          {isCreatingConnection && (
-            <div className="space-y-4 p-4 border rounded-lg mb-4">
-              <div className="space-y-2">
-                <Label htmlFor="connectionName">Nome da Conexão</Label>
-                <Input
-                  id="connectionName"
-                  placeholder="Ex: WhatsApp Principal"
-                  value={newConnectionName}
-                  onChange={(e) => setNewConnectionName(e.target.value)}
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsCreatingConnection(false)}>
-                  Cancelar
-                </Button>
-                <Button onClick={handleCreateConnection}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Criar Conexão
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Connections List */}
-          <div className="space-y-4">
-            {connections.length === 0 ? (
-              <div className="text-center py-8">
-                <Link className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="font-semibold mb-2">Nenhuma conexão configurada</h3>
-                <p className="text-sm text-muted-foreground">
-                  {evolutionAPI.status === 'connected' 
-                    ? "Crie sua primeira conexão WhatsApp"
-                    : "Configure a Evolution API primeiro para obter QR Codes"
-                  }
-                </p>
-              </div>
-            ) : (
-              connections.map((connection) => (
-                <div key={connection.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <h4 className="font-medium">{connection.name}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {connection.phone} • {connection.conversationsCount} conversas
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Última atividade: {new Date(connection.lastActive).toLocaleString('pt-BR')}
-                        </p>
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <Badge variant={connection.status === 'active' ? 'default' : connection.status === 'connecting' ? 'secondary' : 'outline'}>
-                          {connection.status === 'active' ? 'Ativo' : 
-                           connection.status === 'connecting' ? 'Conectando' : 
-                           connection.status === 'error' ? 'Erro' : 'Inativo'}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {connection.aiModel}
-                        </Badge>
-                      </div>
-                    </div>
-                  
-                    <div className="flex items-center gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => handleShowQR(connection.id)}
-                      >
-                        <QrCode className="w-4 h-4 mr-2" />
-                        Ver QR Code
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleReconfigureConnection(connection.id)}
-                        disabled={connection.status === 'connecting'}
-                      >
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        Sincronizar
-                      </Button>
-                      <Switch
-                        checked={connection.isActive}
-                        onCheckedChange={() => handleToggleConnection(connection.id)}
-                        disabled={connection.status === 'connecting'}
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteConnection(connection.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        Remover
-                      </Button>
-                    </div>
-                </div>
-              ))
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* AI Providers Configuration */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Brain className="w-5 h-5" />
-            Provedores de IA
-          </CardTitle>
-          <CardDescription>
-            Configure as chaves de API dos provedores de inteligência artificial
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* OpenAI Configuration */}
-          <div className="space-y-4 p-4 border rounded-lg">
-            <div className="flex items-center gap-2">
-              <Bot className="w-4 h-4" />
-              <h3 className="font-semibold">OpenAI (ChatGPT)</h3>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="openai-key">Chave de API</Label>
-                <div className="relative">
-                  <Input
-                    id="openai-key"
-                    type={showApiKeys.openai ? "text" : "password"}
-                    placeholder="sk-proj-..."
-                    value={aiConfig.openai_api_key}
-                    onChange={(e) => setAiConfig(prev => ({ ...prev, openai_api_key: e.target.value }))}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6"
-                    onClick={() => toggleApiKeyVisibility('openai')}
-                  >
-                    {showApiKeys.openai ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="openai-org">Organização (Opcional)</Label>
-                <Input
-                  id="openai-org"
-                  placeholder="org-..."
-                  value={aiConfig.openai_organization}
-                  onChange={(e) => setAiConfig(prev => ({ ...prev, openai_organization: e.target.value }))}
-                />
-              </div>
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => handleTestAIProvider('openai')}
-              disabled={!aiConfig.openai_api_key}
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Testar OpenAI
-            </Button>
-          </div>
-
-          {/* Claude Configuration */}
-          <div className="space-y-4 p-4 border rounded-lg">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
-              <h3 className="font-semibold">Anthropic (Claude)</h3>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="claude-key">Chave de API</Label>
-              <div className="relative">
-                <Input
-                  id="claude-key"
-                  type={showApiKeys.claude ? "text" : "password"}
-                  placeholder="sk-ant-..."
-                  value={aiConfig.anthropic_api_key}
-                  onChange={(e) => setAiConfig(prev => ({ ...prev, anthropic_api_key: e.target.value }))}
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6"
-                  onClick={() => toggleApiKeyVisibility('claude')}
-                >
-                  {showApiKeys.claude ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                </Button>
-              </div>
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => handleTestAIProvider('anthropic')}
-              disabled={!aiConfig.anthropic_api_key}
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Testar Claude
-            </Button>
-          </div>
-
-          {/* Google AI Configuration */}
-          <div className="space-y-4 p-4 border rounded-lg">
-            <div className="flex items-center gap-2">
-              <Bot className="w-4 h-4 text-blue-500" />
-              <h3 className="font-semibold">Google AI (Gemini)</h3>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="google-key">Chave de API</Label>
-              <div className="relative">
-                <Input
-                  id="google-key"
-                  type={showApiKeys.google ? "text" : "password"}
-                  placeholder="AIza..."
-                  value={aiConfig.google_api_key}
-                  onChange={(e) => setAiConfig(prev => ({ ...prev, google_api_key: e.target.value }))}
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6"
-                  onClick={() => toggleApiKeyVisibility('google')}
-                >
-                  {showApiKeys.google ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                </Button>
-              </div>
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => handleTestAIProvider('google')}
-              disabled={!aiConfig.google_api_key}
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Testar Gemini
-            </Button>
-          </div>
-
-          {/* Default Settings */}
-          <div className="space-y-4 p-4 border rounded-lg">
-            <h3 className="font-semibold">Configurações Padrão</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="default-model">Modelo Padrão</Label>
-                <Select 
-                  value={aiConfig.default_model} 
-                  onValueChange={(value) => setAiConfig(prev => ({ ...prev, default_model: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="gpt-5-2025-08-07">GPT-5</SelectItem>
-                    <SelectItem value="gpt-4.1-2025-04-14">GPT-4.1</SelectItem>
-                    <SelectItem value="claude-opus-4-20250514">Claude 4 Opus</SelectItem>
-                    <SelectItem value="claude-sonnet-4-20250514">Claude 4 Sonnet</SelectItem>
-                    <SelectItem value="gemini-pro">Gemini Pro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="max-tokens">Max Tokens</Label>
-                <Input
-                  id="max-tokens"
-                  type="number"
-                  value={aiConfig.max_tokens}
-                  onChange={(e) => setAiConfig(prev => ({ ...prev, max_tokens: parseInt(e.target.value) }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="temperature">Temperature</Label>
-                <Input
-                  id="temperature"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="1"
-                  value={aiConfig.temperature}
-                  onChange={(e) => setAiConfig(prev => ({ ...prev, temperature: parseFloat(e.target.value) }))}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end">
-            <Button onClick={handleSaveAIConfig}>
-              <Save className="w-4 h-4 mr-2" />
-              Salvar Configurações de IA
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* OpenAI Configuration */}
+      <OpenAIConfigCard />
 
       {/* Ngrok Configuration */}
       <Card>
@@ -759,23 +332,13 @@ export const APIsTab = () => {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="ngrok-token">Token de Autenticação</Label>
-              <div className="relative">
-                <Input
-                  id="ngrok-token"
-                  type={showApiKeys.ngrok ? "text" : "password"}
-                  placeholder="2abc..."
-                  value={ngrokConfig.auth_token}
-                  onChange={(e) => setNgrokConfig(prev => ({ ...prev, auth_token: e.target.value }))}
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6"
-                  onClick={() => toggleApiKeyVisibility('ngrok')}
-                >
-                  {showApiKeys.ngrok ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                </Button>
-              </div>
+              <Input
+                id="ngrok-token"
+                type="password"
+                placeholder="2abc..."
+                value={ngrokConfig.auth_token}
+                onChange={(e) => setNgrokConfig(prev => ({ ...prev, auth_token: e.target.value }))}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="ngrok-endpoint">Endpoint (Opcional)</Label>

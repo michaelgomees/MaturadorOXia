@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Bot, MessageCircle, Zap, Settings, BarChart3, QrCode, Link, Brain, GitBranch, Users } from "lucide-react";
+import { Plus, Bot, MessageCircle, Zap, Settings, BarChart3, QrCode, Link, Brain, GitBranch, Users, Phone } from "lucide-react";
 import { Header } from "@/components/Header";
 import { ChipCard } from "@/components/ChipCard";
 import { StatsCard } from "@/components/StatsCard";
@@ -15,6 +15,7 @@ import { useConnections } from "@/contexts/ConnectionsContext";
 import { useAutoSync } from "@/hooks/useAutoSync";
 import { useChipMaturation } from "@/hooks/useChipMaturation";
 import { APIsTab } from "@/components/APIsTab";
+import { ConnectionsTab } from "@/components/ConnectionsTab";
 import { PromptsTab } from "@/components/PromptsTab";
 import { DadosTab } from "@/components/DadosTab";
 import { MaturadorTab } from "@/components/MaturadorTab";
@@ -57,10 +58,14 @@ const Index = () => {
       <main className="container mx-auto px-6 py-8 space-y-8">
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <Bot className="w-4 h-4" />
               Dashboard
+            </TabsTrigger>
+            <TabsTrigger value="conexoes" className="flex items-center gap-2">
+              <Phone className="w-4 h-4" />
+              Conexões
             </TabsTrigger>
             <TabsTrigger value="apis" className="flex items-center gap-2">
               <Link className="w-4 h-4" />
@@ -290,6 +295,10 @@ const Index = () => {
                 conecte seu projeto ao Supabase usando nossa integração nativa.
               </p>
             </section>
+          </TabsContent>
+
+          <TabsContent value="conexoes" className="mt-8">
+            <ConnectionsTab />
           </TabsContent>
 
           <TabsContent value="apis" className="mt-8">
