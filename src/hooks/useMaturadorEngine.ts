@@ -35,6 +35,7 @@ export const useMaturadorEngine = () => {
   const [messages, setMessages] = useState<MaturadorMessage[]>([]);
   const [chipPairs, setChipPairs] = useState<ChipPair[]>([]);
   const intervalRefs = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const processingPairs = useRef<Set<string>>(new Set()); // Controle de pares em processamento
   const { toast } = useToast();
   const { connections, getConnection, syncWithEvolutionAPI } = useConnections();
 
@@ -259,6 +260,15 @@ export const useMaturadorEngine = () => {
       console.log(`=== PROCESSANDO CONVERSA DO PAR ===`);
       console.log(`Par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
 
+      // Verificar se este par já está sendo processado
+      if (processingPairs.current.has(pair.id)) {
+        console.log(`⏸️ Par ${pair.firstChipName} <-> ${pair.secondChipName} já está em processamento, aguardando...`);
+        return;
+      }
+
+      // Marcar par como em processamento
+      processingPairs.current.add(pair.id);
+
       // Buscar histórico de conversa deste par do estado atual
       const pairHistory = messages.filter(msg => msg.chipPairId === pair.id);
       
@@ -362,8 +372,9 @@ export const useMaturadorEngine = () => {
 
         console.log(`✅ Mensagem salva: ${respondingChip.name} → ${receivingChip.name}`);
         
-        // Aguardar um pouco para garantir que o estado foi atualizado
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Aguardar mais tempo para garantir que o estado foi totalmente atualizado
+        // Isso evita que o mesmo chip envie múltiplas mensagens seguidas
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
         
       } catch (error: any) {
@@ -497,9 +508,9 @@ export const useMaturadorEngine = () => {
         console.log(`💬 Processando mensagem do par ${pairId}...`);
         await processChipPairConversation(pair);
         
-        // Delay mais natural entre mensagens (8-15 segundos) para conversa realista
-        // Isso dá tempo para a mensagem ser processada e evita que o mesmo chip envie múltiplas vezes
-        const nextDelay = (8 + Math.random() * 7) * 1000;
+        // Delay humanizado entre mensagens (12-20 segundos) para conversa mais natural
+        // Tempo suficiente para processar e garantir alternância correta
+        const nextDelay = (12 + Math.random() * 8) * 1000;
         console.log(`⏰ Próxima mensagem do par ${pairId} em ${(nextDelay/1000).toFixed(1)}s`);
         
         // Agendar próxima mensagem para continuar indefinidamente
@@ -606,7 +617,7 @@ export const useMaturadorEngine = () => {
         console.log(`💬 Processando mensagem do par ${pairId}...`);
         await processChipPairConversation(pair);
         
-        const nextDelay = (8 + Math.random() * 7) * 1000;
+        const nextDelay = (12 + Math.random() * 8) * 1000;
         console.log(`⏰ Próxima mensagem do par ${pairId} em ${(nextDelay/1000).toFixed(1)}s`);
         
         // Agendar próxima mensagem para continuar indefinidamente
