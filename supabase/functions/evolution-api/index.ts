@@ -195,29 +195,77 @@ serve(async (req) => {
       const cleanApiKey = apiKey.trim();
 
       console.log('🌐 Endpoint completo:', endpoint);
-      console.log('🔑 API Key (limpa):', cleanApiKey);
-      console.log('🔑 Tamanho:', cleanApiKey.length);
+      console.log('🔑 API Key recebida:', cleanApiKey);
+      console.log('🔑 Tamanho da key:', cleanApiKey.length);
 
       try {
         console.log(`📞 Criando instância: ${instanceName}`)
         console.log(`📡 URL de criação: ${endpoint}/instance/create`);
         
-        // Criar a instância na Evolution API
-        const createResponse = await fetch(`${endpoint}/instance/create`, {
+        const requestBody = {
+          instanceName: instanceName,
+          qrcode: true,
+          integration: "WHATSAPP-BAILEYS"
+        };
+        
+        console.log('📦 Payload:', requestBody);
+        console.log('🔐 Testando diferentes formatos de autenticação...');
+        
+        // Tentar criar com header 'apikey'
+        console.log('Tentativa 1: header apikey');
+        let createResponse = await fetch(`${endpoint}/instance/create`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'apikey': cleanApiKey,
             'Accept': 'application/json'
           },
-          body: JSON.stringify({
-            instanceName: instanceName,
-            qrcode: true,
-            integration: "WHATSAPP-BAILEYS"
-          })
-        })
+          body: JSON.stringify(requestBody)
+        });
 
-        console.log('📥 Status da resposta:', createResponse.status);
+        // Se falhou com 401, tentar com 'x-api-key'
+        if (createResponse.status === 401) {
+          console.log('❌ Falhou com apikey, tentando x-api-key');
+          createResponse = await fetch(`${endpoint}/instance/create`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': cleanApiKey,
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+          });
+        }
+
+        // Se falhou com 401, tentar com 'Authorization'
+        if (createResponse.status === 401) {
+          console.log('❌ Falhou com x-api-key, tentando Authorization Bearer');
+          createResponse = await fetch(`${endpoint}/instance/create`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${cleanApiKey}`,
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+          });
+        }
+
+        // Se falhou com 401, tentar com 'Api-Key'
+        if (createResponse.status === 401) {
+          console.log('❌ Falhou com Authorization, tentando Api-Key');
+          createResponse = await fetch(`${endpoint}/instance/create`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Api-Key': cleanApiKey,
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+          });
+        }
+        
+        console.log('📥 Status final da resposta:', createResponse.status);
 
         if (!createResponse.ok) {
           const errorText = await createResponse.text();
