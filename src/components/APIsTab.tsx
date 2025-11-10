@@ -101,49 +101,64 @@ export const APIsTab = () => {
   };
 
   const handleSaveAPI = () => {
-    // API já configurada nos secrets, apenas atualizar status local
+    if (!evolutionAPI.endpoint || !evolutionAPI.apiKey) {
+      toast({
+        title: "Erro",
+        description: "Preencha o endpoint e a chave de API.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     saveEvolutionAPI({
       ...evolutionAPI,
       lastTest: new Date().toISOString()
     });
     
     toast({
-      title: "Status atualizado",
-      description: "API Evolution está configurada nos secrets do sistema."
+      title: "Configuração salva",
+      description: "Evolution API configurada com sucesso."
     });
   };
 
   const handleTestAPI = async () => {
+    if (!evolutionAPI.endpoint || !evolutionAPI.apiKey) {
+      toast({
+        title: "Erro",
+        description: "Configure endpoint e chave de API primeiro.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     toast({
       title: "Testando conexão...",
-      description: "Verificando conexão com a Evolution API. Aguarde..."
+      description: "Verificando conexão com a Evolution API..."
     });
 
     try {
-      console.log('🔍 Testando conexão Evolution API via edge function...');
-      console.log('📡 Invocando test-evolution...');
+      let endpoint = evolutionAPI.endpoint;
+      if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+        endpoint = `https://${endpoint}`;
+      }
+
+      console.log('🔍 Testando:', endpoint);
       
-      // Usar edge function para testar usando os secrets
-      const { data: testData, error: testError } = await supabase.functions.invoke('test-evolution', {
-        body: {} // Sem parâmetros, vai usar os secrets do Supabase
+      const response = await fetch(`${endpoint}/instance/fetchInstances`, {
+        method: 'GET',
+        headers: {
+          'apikey': evolutionAPI.apiKey.trim(),
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
       });
 
-      console.log('📥 Resposta recebida:', { testData, testError });
-
-      if (testError) {
-        console.error('❌ Erro do Supabase Functions:', testError);
-        throw new Error(`Erro ao invocar função: ${testError.message}`);
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}: ${await response.text()}`);
       }
 
-      if (!testData?.success) {
-        const errorMsg = testData?.error || 'Falha ao conectar com a Evolution API';
-        console.error('❌ Erro da Evolution API:', errorMsg);
-        throw new Error(errorMsg);
-      }
-
-      console.log('✅ Resposta Evolution API:', testData);
-      console.log(`✅ Endpoint: ${testData.endpoint}`);
-      console.log(`✅ Instâncias encontradas: ${testData.instanceCount || 0}`);
+      const data = await response.json();
+      console.log('✅ Sucesso:', data);
       
       const updatedAPI = {
         ...evolutionAPI,
@@ -154,10 +169,10 @@ export const APIsTab = () => {
       saveEvolutionAPI(updatedAPI);
       toast({
         title: "✅ Conexão bem-sucedida!",
-        description: `Evolution API conectada com sucesso! ${testData.instanceCount || 0} instância(s) encontrada(s).`
+        description: `Encontradas ${Array.isArray(data) ? data.length : 0} instância(s).`
       });
     } catch (error) {
-      console.error('❌ Erro completo:', error);
+      console.error('❌ Erro:', error);
       const updatedAPI = {
         ...evolutionAPI,
         status: 'error' as const,
@@ -165,11 +180,9 @@ export const APIsTab = () => {
       };
       
       saveEvolutionAPI(updatedAPI);
-      
-      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido ao conectar";
       toast({
         title: "❌ Erro na conexão",
-        description: errorMessage,
+        description: error instanceof Error ? error.message : "Erro ao conectar",
         variant: "destructive"
       });
     }
@@ -248,24 +261,43 @@ export const APIsTab = () => {
                 Evolution API (Global)
               </CardTitle>
               <CardDescription>
-                API Evolution já está configurada nos secrets do sistema
+                Configure a API Evolution usada em todas as conexões
               </CardDescription>
             </div>
             {getStatusBadge(evolutionAPI.status)}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="bg-muted/50 p-4 rounded-lg">
-            <p className="text-sm text-muted-foreground">
-              ✅ A Evolution API está configurada de forma segura nos secrets do Supabase.
-              As credenciais não são expostas no código.
-            </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="endpoint">Endpoint Evolution</Label>
+              <Input
+                id="endpoint"
+                placeholder="api.oxautomacoes.com.br"
+                value={evolutionAPI.endpoint}
+                onChange={(e) => setEvolutionAPI(prev => ({ ...prev, endpoint: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="apiKey">Chave de API</Label>
+              <Input
+                id="apiKey"
+                type="password"
+                placeholder="Sua chave de API do Evolution"
+                value={evolutionAPI.apiKey}
+                onChange={(e) => setEvolutionAPI(prev => ({ ...prev, apiKey: e.target.value }))}
+              />
+            </div>
           </div>
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={handleTestAPI}>
               <RefreshCw className="w-4 h-4 mr-2" />
               Testar Conexão
+            </Button>
+            <Button onClick={handleSaveAPI}>
+              <Save className="w-4 h-4 mr-2" />
+              Salvar Configuração
             </Button>
           </div>
 
