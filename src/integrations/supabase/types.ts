@@ -128,6 +128,39 @@ export type Database = {
         }
         Relationships: []
       }
+      saas_mensagens_maturacao: {
+        Row: {
+          chip_pair_id: string
+          content: string
+          created_at: string
+          id: string
+          receiver_name: string
+          sender_name: string
+          timestamp: string
+          usuario_id: string
+        }
+        Insert: {
+          chip_pair_id: string
+          content: string
+          created_at?: string
+          id?: string
+          receiver_name: string
+          sender_name: string
+          timestamp?: string
+          usuario_id: string
+        }
+        Update: {
+          chip_pair_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          receiver_name?: string
+          sender_name?: string
+          timestamp?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
       saas_pares_maturacao: {
         Row: {
           created_at: string
