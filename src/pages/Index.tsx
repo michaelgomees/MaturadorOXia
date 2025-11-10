@@ -19,6 +19,7 @@ import { ConnectionsTab } from "@/components/ConnectionsTab";
 import { PromptsTab } from "@/components/PromptsTab";
 import { DadosTab } from "@/components/DadosTab";
 import { MaturadorTab } from "@/components/MaturadorTab";
+import { ChipConversationPanel } from "@/components/ChipConversationPanel";
 import { ProtectedRoute, useAuth } from "@/contexts/AuthContext";
 
 // Dados reais - sem demonstração
@@ -79,7 +80,7 @@ const Index = () => {
       <main className="container mx-auto px-6 py-8 space-y-8">
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <Bot className="w-4 h-4" />
               Dashboard
@@ -103,6 +104,10 @@ const Index = () => {
             <TabsTrigger value="maturador" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
               Maturador
+            </TabsTrigger>
+            <TabsTrigger value="conversas" className="flex items-center gap-2">
+              <MessageCircle className="w-4 h-4" />
+              Conversas
             </TabsTrigger>
           </TabsList>
 
@@ -336,6 +341,10 @@ const Index = () => {
 
           <TabsContent value="maturador" className="mt-8">
             <MaturadorTab />
+          </TabsContent>
+
+          <TabsContent value="conversas" className="mt-8">
+            <ChipConversationPanel />
           </TabsContent>
         </Tabs>
       </main>

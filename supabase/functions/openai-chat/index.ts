@@ -82,8 +82,6 @@ serve(async (req) => {
       throw new Error('Prompt is required');
     }
 
-    // Remover lógica de mensagem "Maturando desde" - isso deve aparecer apenas no painel
-
     // Sistema prompt usando prompt específico do chip
     const systemPrompt = `Você é ${chipName}.
 
@@ -100,16 +98,17 @@ REGRAS CRÍTICAS DE RESPOSTA:
 - NUNCA inclua o seu nome (${chipName}) no início ou final da mensagem
 - NUNCA inclua "Nome:" ou "Pessoa:" antes da mensagem
 - Responda DIRETAMENTE como se estivesse digitando no WhatsApp
-- Seja breve e objetivo, como em conversas reais de mensagem`;
+- Seja breve e objetivo, como em conversas reais de mensagem
+- Continue naturalmente a conversa anterior, mantendo contexto e coerência`;
 
-    // Preparar mensagens para OpenAI
+    // Preparar mensagens para OpenAI com histórico completo
     const messages = [
       {
         role: 'system',
         content: systemPrompt
       },
-      // Apenas histórico recente para manter contexto
-      ...conversationHistory.slice(-5).map((msg: any) => ({
+      // Usar todo o histórico disponível para manter contexto completo
+      ...conversationHistory.map((msg: any) => ({
         role: msg.isFromThisChip ? 'assistant' : 'user',
         content: msg.content
       })),

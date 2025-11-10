@@ -191,11 +191,12 @@ export const useMaturadorEngine = () => {
     try {
       console.log(`🤖 Gerando mensagem para ${chipName} (primeira: ${isFirstMessage})`);
       
+      // Enviar histórico completo das últimas 20 mensagens para manter contexto
       const { data, error } = await supabase.functions.invoke('openai-chat', {
         body: {
           prompt,
           chipName,
-          conversationHistory: conversationHistory.slice(-3).map(msg => ({
+          conversationHistory: conversationHistory.slice(-20).map(msg => ({
             content: msg.content,
             isFromThisChip: msg.fromChipName === chipName
           })),
@@ -517,6 +518,40 @@ export const useMaturadorEngine = () => {
     };
   }, [chipPairs, messages, isRunning]);
 
+  // Limpar histórico de um par específico
+  const clearPairHistory = useCallback((pairId: string) => {
+    const updatedMessages = messages.filter(msg => msg.chipPairId !== pairId);
+    setMessages(updatedMessages);
+    
+    // Resetar contador do par
+    const updatedPairs = chipPairs.map(p => 
+      p.id === pairId ? { ...p, messagesCount: 0 } : p
+    );
+    setChipPairs(updatedPairs);
+    
+    saveData(updatedMessages, updatedPairs);
+    
+    toast({
+      title: "Histórico Limpo",
+      description: "O histórico deste par foi removido",
+    });
+  }, [messages, chipPairs, saveData, toast]);
+
+  // Limpar todo o histórico
+  const clearAllHistory = useCallback(() => {
+    setMessages([]);
+    
+    const updatedPairs = chipPairs.map(p => ({ ...p, messagesCount: 0 }));
+    setChipPairs(updatedPairs);
+    
+    saveData([], updatedPairs);
+    
+    toast({
+      title: "Histórico Completo Limpo",
+      description: "Todas as conversas foram removidas",
+    });
+  }, [chipPairs, saveData, toast]);
+
   return {
     isRunning,
     messages,
@@ -527,6 +562,8 @@ export const useMaturadorEngine = () => {
     stopMaturador,
     getPairMessages,
     getStats,
-    processChipPairConversation
+    processChipPairConversation,
+    clearPairHistory,
+    clearAllHistory
   };
 };
