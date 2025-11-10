@@ -189,8 +189,8 @@ serve(async (req) => {
       const cleanApiKey = apiKey.trim();
 
       try {
-        // SIMPLIFIED APPROACH: Don't try to create, just fetch existing instance and QR
-        console.log('📋 Fetching existing instance:', instanceName);
+        // Primeiro, verificar se a instância já existe
+        console.log('📋 Verificando se instância existe:', instanceName);
         
         const checkResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
           method: 'GET',
@@ -200,39 +200,62 @@ serve(async (req) => {
           }
         });
 
-        if (!checkResponse.ok) {
-          return new Response(
-            JSON.stringify({ 
-              success: false, 
-              error: `Não foi possível buscar instância. Verifique suas credenciais.`
-            }),
-            { 
-              status: checkResponse.status, 
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-            }
-          );
+        let instanceExists = false;
+        if (checkResponse.ok) {
+          const instances = await checkResponse.json();
+          instanceExists = Array.isArray(instances) && instances.length > 0;
         }
 
-        const instances = await checkResponse.json();
-        
-        if (!Array.isArray(instances) || instances.length === 0) {
-          return new Response(
-            JSON.stringify({ 
-              success: false, 
-              error: `Instância '${instanceName}' não encontrada na Evolution API. Crie a instância manualmente primeiro.`,
-              instanceName: instanceName
-            }),
-            { 
-              status: 404, 
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-            }
-          );
+        // Se não existir, criar a instância
+        if (!instanceExists) {
+          console.log('➕ Criando nova instância na Evolution API...');
+          
+          const createPayload = {
+            instanceName: instanceName,
+            token: cleanApiKey,
+            qrcode: true,
+            integration: 'WHATSAPP-BAILEYS'
+          };
+
+          console.log('📤 Payload de criação:', createPayload);
+
+          const createResponse = await fetch(`${endpoint}/instance/create`, {
+            method: 'POST',
+            headers: {
+              'apikey': cleanApiKey,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(createPayload)
+          });
+
+          const createData = await createResponse.json();
+          console.log('📥 Resposta da criação:', createData);
+
+          if (!createResponse.ok) {
+            console.error('❌ Erro ao criar instância:', createData);
+            return new Response(
+              JSON.stringify({ 
+                success: false, 
+                error: `Erro ao criar instância: ${createData.message || 'Erro desconhecido'}`,
+                details: createData
+              }),
+              { 
+                status: createResponse.status, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              }
+            );
+          }
+
+          console.log('✅ Instância criada com sucesso!');
+        } else {
+          console.log('ℹ️ Instância já existe, buscando informações...');
         }
 
-        console.log('✅ Instance found, fetching QR code...');
-        
-        // Get QR code
+        // Buscar QR code
+        console.log('🔄 Buscando QR code...');
         let qrCode = null;
+        
         try {
           const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
             method: 'GET',
@@ -244,18 +267,20 @@ serve(async (req) => {
 
           if (qrResponse.ok) {
             const qrData = await qrResponse.json();
-            qrCode = qrData.base64 || qrData.qrcode;
+            console.log('📱 QR Data:', qrData);
+            qrCode = qrData.base64 || qrData.qrcode || qrData.code;
           }
         } catch (e) {
-          console.log('QR fetch failed, will use fallback');
+          console.log('⚠️ Erro ao buscar QR, usando fallback');
         }
 
-        // Return success with QR code
+        // Retornar sucesso com QR code
         return new Response(
           JSON.stringify({
             success: true,
             qrCode: qrCode,
-            instanceName: instanceName
+            instanceName: instanceName,
+            created: !instanceExists
           }),
           { 
             status: 200, 
