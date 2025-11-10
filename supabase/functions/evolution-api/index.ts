@@ -339,6 +339,8 @@ serve(async (req) => {
       const instanceName = url.searchParams.get('instanceName')
       const action = url.searchParams.get('action') || 'qrcode'
       
+      console.log('📥 GET Request:', { instanceName, action });
+      
       if (!instanceName) {
         return new Response(
           JSON.stringify({ success: false, error: 'instanceName parameter is required' }),
@@ -352,6 +354,8 @@ serve(async (req) => {
       // Usar dados dos secrets configurados
       const apiKey = Deno.env.get('EVOLUTION_API_KEY')
       let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT')
+      
+      console.log('🔑 Credentials check:', { hasApiKey: !!apiKey, hasEndpoint: !!endpoint });
       
       if (!apiKey || !endpoint) {
         return new Response(
@@ -374,6 +378,8 @@ serve(async (req) => {
       const cleanApiKey = apiKey.trim();
       
       try {
+        console.log('🔄 Fetching instance from Evolution API:', `${endpoint}/instance/fetchInstances?instanceName=${instanceName}`);
+        
         // Simplified: Just fetch instance and return basic info + QR if available
         const instanceResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
           method: 'GET',
@@ -383,11 +389,101 @@ serve(async (req) => {
           }
         })
 
+        console.log('📥 Evolution API response status:', instanceResponse.status);
+
         if (!instanceResponse.ok) {
+          const errorData = await instanceResponse.text();
+          console.error('❌ Failed to fetch instance:', { status: instanceResponse.status, error: errorData });
+          
+          // Se a instância não existe (404), vamos criar ela
+          if (instanceResponse.status === 404) {
+            console.log('🔨 Instance not found, creating new instance...');
+            
+            const createPayload = {
+              instanceName: instanceName,
+              token: cleanApiKey,
+              qrcode: true,
+              integration: 'WHATSAPP-BAILEYS'
+            };
+
+            console.log('📤 Creating instance with payload:', createPayload);
+
+            const createResponse = await fetch(`${endpoint}/instance/create`, {
+              method: 'POST',
+              headers: {
+                'apikey': cleanApiKey,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify(createPayload)
+            });
+
+            const createData = await createResponse.json();
+            console.log('📥 Create response:', { status: createResponse.status, data: createData });
+
+            if (!createResponse.ok) {
+              console.error('❌ Failed to create instance:', createData);
+              return new Response(
+                JSON.stringify({ 
+                  success: false, 
+                  error: `Failed to create instance: ${createData.message || 'Unknown error'}`,
+                  details: createData
+                }),
+                { 
+                  status: createResponse.status, 
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                }
+              );
+            }
+
+            // Tentar buscar QR code
+            try {
+              const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+                method: 'GET',
+                headers: {
+                  'apikey': cleanApiKey,
+                  'Accept': 'application/json'
+                }
+              });
+
+              if (qrResponse.ok) {
+                const qrData = await qrResponse.json();
+                console.log('📱 QR Data:', qrData);
+                return new Response(
+                  JSON.stringify({
+                    success: true,
+                    qrCode: qrData.base64 || qrData.qrcode || qrData.code,
+                    instanceName: instanceName,
+                    created: true
+                  }),
+                  { 
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                  }
+                );
+              }
+            } catch (e) {
+              console.log('⚠️ Could not fetch QR code:', e);
+            }
+
+            // Retornar sucesso mesmo sem QR code
+            return new Response(
+              JSON.stringify({
+                success: true,
+                instanceName: instanceName,
+                created: true,
+                message: 'Instance created, waiting for connection'
+              }),
+              { 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              }
+            );
+          }
+          
           return new Response(
             JSON.stringify({ 
               success: false, 
-              error: `Failed to fetch instance: ${instanceResponse.status}` 
+              error: `Failed to fetch instance: ${instanceResponse.status}`,
+              details: errorData
             }),
             { 
               status: instanceResponse.status, 
