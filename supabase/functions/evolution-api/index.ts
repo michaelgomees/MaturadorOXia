@@ -291,10 +291,9 @@ serve(async (req) => {
           };
           
           console.log('📦 Payload:', requestBody);
-          console.log('🔐 Testando diferentes formatos de autenticação...');
+          console.log('🔐 Tentando criar instância...');
           
-          // Tentar criar com header 'apikey'
-          console.log('Tentativa 1: header apikey');
+          // Try to create instance
           let createResponse = await fetch(`${endpoint}/instance/create`, {
             method: 'POST',
             headers: {
@@ -304,57 +303,17 @@ serve(async (req) => {
             },
             body: JSON.stringify(requestBody)
           });
-
-          // Se falhou com 401, tentar com 'x-api-key'
-          if (createResponse.status === 401) {
-            console.log('❌ Falhou com apikey, tentando x-api-key');
-            createResponse = await fetch(`${endpoint}/instance/create`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': cleanApiKey,
-                'Accept': 'application/json'
-              },
-              body: JSON.stringify(requestBody)
-            });
-          }
-
-          // Se falhou com 401, tentar com 'Authorization'
-          if (createResponse.status === 401) {
-            console.log('❌ Falhou com x-api-key, tentando Authorization Bearer');
-            createResponse = await fetch(`${endpoint}/instance/create`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${cleanApiKey}`,
-                'Accept': 'application/json'
-              },
-              body: JSON.stringify(requestBody)
-            });
-          }
-
-          // Se falhou com 401, tentar com 'Api-Key'
-          if (createResponse.status === 401) {
-            console.log('❌ Falhou com Authorization, tentando Api-Key');
-            createResponse = await fetch(`${endpoint}/instance/create`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Api-Key': cleanApiKey,
-                'Accept': 'application/json'
-              },
-              body: JSON.stringify(requestBody)
-            });
-          }
         
-          console.log('📥 Status final da resposta:', createResponse.status);
-          console.log('📥 Headers da resposta:', Object.fromEntries(createResponse.headers.entries()));
+          console.log('📥 Create response status:', createResponse.status);
 
-          if (!createResponse.ok) {
+          // If we get 401 or 409 (conflict), the instance might already exist
+          if (createResponse.status === 401 || createResponse.status === 409) {
+            const errorText = await createResponse.text();
+            console.log('⚠️ Create returned error, assuming instance exists:', errorText);
+            // Don't fail - just continue to fetch QR code
+          } else if (!createResponse.ok) {
             const errorText = await createResponse.text();
             console.error('❌ Erro da Evolution API (status ' + createResponse.status + '):', errorText);
-            console.error('❌ URL tentada:', `${endpoint}/instance/create`);
-            console.error('❌ Payload enviado:', JSON.stringify(requestBody));
           
             let errorData;
             try {
@@ -376,10 +335,10 @@ serve(async (req) => {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
               }
             )
+          } else {
+            const createData = await createResponse.json()
+            console.log('✅ Instância criada com sucesso:', createData)
           }
-
-          const createData = await createResponse.json()
-          console.log('✅ Instância criada com sucesso:', createData)
 
           // Aguardar um pouco para a instância ficar pronta
           await new Promise(resolve => setTimeout(resolve, 2000));
