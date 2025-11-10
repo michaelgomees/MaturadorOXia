@@ -259,11 +259,13 @@ export const useMaturadorEngine = () => {
       console.log(`=== PROCESSANDO CONVERSA DO PAR ===`);
       console.log(`Par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
 
-      // Buscar histórico de conversa deste par
+      // Buscar histórico de conversa deste par do estado atual
       const pairHistory = messages.filter(msg => msg.chipPairId === pair.id);
       
-      // Determinar qual chip deve responder (alternar)
+      // Determinar qual chip deve responder (alternar estritamente)
       const lastMessage = pairHistory[pairHistory.length - 1];
+      console.log('📋 Última mensagem:', lastMessage ? `${lastMessage.fromChipName} disse: "${lastMessage.content.substring(0, 50)}..."` : 'Nenhuma');
+      
       const respondingChip = !lastMessage || lastMessage.fromChipId === pair.secondChipId
         ? { id: pair.firstChipId, name: pair.firstChipName }
         : { id: pair.secondChipId, name: pair.secondChipName };
@@ -288,7 +290,7 @@ export const useMaturadorEngine = () => {
         throw new Error(`Configure um prompt para ${respondingChip.name} na aba "Prompts de IA"`);
       }
       
-      console.log(`🎯 Chip respondendo: ${respondingChip.name}`);
+      console.log(`🎯 Chip respondendo: ${respondingChip.name} (próximo será ${receivingChip.name})`);
       console.log(`📝 Prompt do chip (completo): ${chipPrompt}`);
       
       // Gerar mensagem humanizada usando o prompt do chip
@@ -334,7 +336,7 @@ export const useMaturadorEngine = () => {
           aiModel: 'gpt-4o-mini'
         };
 
-        // Atualizar estado
+        // Atualizar estado - garantir que a mensagem seja adicionada antes de continuar
         setMessages(prev => {
           const updated = [newMessage, ...prev];
           return updated;
@@ -357,6 +359,12 @@ export const useMaturadorEngine = () => {
           
           return updated;
         });
+
+        console.log(`✅ Mensagem salva: ${respondingChip.name} → ${receivingChip.name}`);
+        
+        // Aguardar um pouco para garantir que o estado foi atualizado
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         
       } catch (error: any) {
         console.error('❌ Erro ao enviar mensagem real:', error);
@@ -485,18 +493,19 @@ export const useMaturadorEngine = () => {
             return;
           }
           
-          // Processar mensagem
-          console.log(`💬 Processando mensagem do par ${pairId}...`);
-          await processChipPairConversation(pair);
-          
-          // Delay curto entre mensagens (3-7 segundos) para manter conversa fluida
-          const nextDelay = (3 + Math.random() * 4) * 1000;
-          console.log(`⏰ Próxima mensagem do par ${pairId} em ${(nextDelay/1000).toFixed(1)}s`);
-          
-          // Agendar próxima mensagem IMEDIATAMENTE para continuar indefinidamente
-          const timeout = setTimeout(() => {
-            keepConversationGoing(); // Chamada recursiva para continuar indefinidamente
-          }, nextDelay);
+        // Processar mensagem
+        console.log(`💬 Processando mensagem do par ${pairId}...`);
+        await processChipPairConversation(pair);
+        
+        // Delay mais natural entre mensagens (8-15 segundos) para conversa realista
+        // Isso dá tempo para a mensagem ser processada e evita que o mesmo chip envie múltiplas vezes
+        const nextDelay = (8 + Math.random() * 7) * 1000;
+        console.log(`⏰ Próxima mensagem do par ${pairId} em ${(nextDelay/1000).toFixed(1)}s`);
+        
+        // Agendar próxima mensagem para continuar indefinidamente
+        const timeout = setTimeout(() => {
+          keepConversationGoing(); // Chamada recursiva para continuar indefinidamente
+        }, nextDelay);
           
           intervalRefs.current.set(pairId, timeout as any);
           
@@ -597,8 +606,7 @@ export const useMaturadorEngine = () => {
         console.log(`💬 Processando mensagem do par ${pairId}...`);
         await processChipPairConversation(pair);
         
-        // Delay curto entre mensagens (3-7 segundos) para manter conversa fluida
-        const nextDelay = (3 + Math.random() * 4) * 1000;
+        const nextDelay = (8 + Math.random() * 7) * 1000;
         console.log(`⏰ Próxima mensagem do par ${pairId} em ${(nextDelay/1000).toFixed(1)}s`);
         
         // Agendar próxima mensagem para continuar indefinidamente
