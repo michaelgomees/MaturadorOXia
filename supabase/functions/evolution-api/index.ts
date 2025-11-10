@@ -154,12 +154,6 @@ serve(async (req) => {
       // Caso contrário, é criação de instância
       const { instanceName, connectionName, evolutionEndpoint, evolutionApiKey }: CreateInstanceRequest = requestBody
       
-      console.log('🔍 CREATE INSTANCE REQUEST:');
-      console.log('  - instanceName:', instanceName);
-      console.log('  - connectionName:', connectionName);
-      console.log('  - evolutionEndpoint from body:', evolutionEndpoint || 'NOT PROVIDED');
-      console.log('  - evolutionApiKey from body:', evolutionApiKey ? 'PROVIDED (length: ' + evolutionApiKey.length + ')' : 'NOT PROVIDED');
-      
       if (!instanceName || !connectionName) {
         return new Response(
           JSON.stringify({ success: false, error: 'instanceName and connectionName are required' }),
@@ -174,28 +168,11 @@ serve(async (req) => {
       const apiKey = evolutionApiKey || Deno.env.get('EVOLUTION_API_KEY')
       let endpoint = evolutionEndpoint || Deno.env.get('EVOLUTION_API_ENDPOINT')
       
-      console.log('🔐 CREDENTIALS CHECK:');
-      console.log('  - Using API Key from:', evolutionApiKey ? 'REQUEST BODY' : 'ENV VARS');
-      console.log('  - Using Endpoint from:', evolutionEndpoint ? 'REQUEST BODY' : 'ENV VARS');
-      console.log('  - API Key present:', apiKey ? 'YES (length: ' + apiKey.length + ')' : 'NO');
-      console.log('  - Endpoint present:', endpoint ? 'YES (' + endpoint + ')' : 'NO');
-      
       if (!apiKey || !endpoint) {
-        console.error('❌ CREDENTIALS MISSING!');
-        console.error('  - API Key:', apiKey ? 'present' : 'MISSING');
-        console.error('  - Endpoint:', endpoint ? 'present' : 'MISSING');
         return new Response(
           JSON.stringify({ 
             success: false, 
-            error: 'Evolution API não configurada. Vá para a aba APIs e configure o endpoint e API key primeiro.',
-            details: {
-              hasApiKey: !!apiKey,
-              hasEndpoint: !!endpoint,
-              receivedFromBody: {
-                endpoint: !!evolutionEndpoint,
-                apiKey: !!evolutionApiKey
-              }
-            }
+            error: 'Evolution API não configurada. Configure na aba APIs primeiro.'
           }),
           { 
             status: 500, 
@@ -209,20 +186,10 @@ serve(async (req) => {
         endpoint = `https://${endpoint}`;
       }
       
-      // Limpar API Key de espaços em branco
       const cleanApiKey = apiKey.trim();
 
-      console.log('🌐 Endpoint completo:', endpoint);
-      console.log('🔑 API Key recebida (primeiros 8 chars):', cleanApiKey.substring(0, 8) + '...');
-      console.log('🔑 Tamanho da key:', cleanApiKey.length);
-      console.log('🔑 evolutionEndpoint passado:', evolutionEndpoint ? 'SIM' : 'NÃO');
-      console.log('🔑 evolutionApiKey passado:', evolutionApiKey ? 'SIM' : 'NÃO');
-
       try {
-        console.log(`📞 Verificando se instância ${instanceName} já existe...`);
-        
-        // First, test if credentials work at all by fetching instances list
-        console.log('🧪 Testing credentials with fetchInstances...');
+        // Quick test: Can we fetch instances at all?
         const testResponse = await fetch(`${endpoint}/instance/fetchInstances`, {
           method: 'GET',
           headers: {
@@ -231,20 +198,11 @@ serve(async (req) => {
           }
         });
         
-        console.log('🧪 Test response status:', testResponse.status);
-        
         if (!testResponse.ok) {
-          const errorText = await testResponse.text();
-          console.error('❌ Credentials test FAILED:', errorText);
           return new Response(
             JSON.stringify({ 
               success: false, 
-              error: `Credenciais inválidas. Status: ${testResponse.status}. Verifique o endpoint e API key na aba APIs.`,
-              details: {
-                status: testResponse.status,
-                endpoint: endpoint,
-                response: errorText
-              }
+              error: `Credenciais inválidas (${testResponse.status}). Verifique endpoint e API key.`
             }),
             { 
               status: testResponse.status, 
@@ -253,9 +211,7 @@ serve(async (req) => {
           );
         }
         
-        console.log('✅ Credentials test PASSED');
-        
-        // Now check if our specific instance already exists
+        // Check if instance exists
         const checkResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
           method: 'GET',
           headers: {
@@ -265,17 +221,11 @@ serve(async (req) => {
         });
 
         let instanceExists = false;
-        let existingInstance = null;
 
         if (checkResponse.ok) {
           const instances = await checkResponse.json();
-          console.log('📋 Instances found:', instances);
           if (Array.isArray(instances) && instances.length > 0) {
             instanceExists = true;
-            existingInstance = instances[0];
-            console.log('✅ Instância já existe:', existingInstance);
-          } else {
-            console.log('ℹ️ Instância não existe ainda');
           }
         }
 
@@ -415,7 +365,7 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ 
             success: false, 
-            error: 'Evolution API credentials not configured. Please configure EVOLUTION_API_KEY and EVOLUTION_API_ENDPOINT in Supabase secrets.' 
+            error: 'Evolution API credentials not configured' 
           }),
           { 
             status: 500, 
@@ -429,12 +379,10 @@ serve(async (req) => {
         endpoint = `https://${endpoint}`;
       }
       
-      // Limpar API Key de espaços em branco  
       const cleanApiKey = apiKey.trim();
       
       try {
-        // Buscar dados da instância
-        console.log(`Fetching instance data from: ${endpoint}/instance/fetchInstances?instanceName=${instanceName}`)
+        // Simplified: Just fetch instance and return basic info + QR if available
         const instanceResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
           method: 'GET',
           headers: {
@@ -444,95 +392,53 @@ serve(async (req) => {
         })
 
         if (!instanceResponse.ok) {
-          throw new Error(`Evolution API instance fetch failed: ${instanceResponse.status}`)
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: `Failed to fetch instance: ${instanceResponse.status}` 
+            }),
+            { 
+              status: instanceResponse.status, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          )
         }
 
         const instanceData = await instanceResponse.json()
-        console.log('Instance data received:', instanceData)
         
         if (!instanceData || instanceData.length === 0) {
-          throw new Error('Instance not found')
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: 'Instance not found' 
+            }),
+            { 
+              status: 404, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          )
         }
 
         const instance = instanceData[0]
-        let qrCodeData = null
-        let profileData = {}
-
-        // Se a instância tem QR Code, usar ele
-        if (instance.instance && instance.instance.qrcode) {
-          qrCodeData = instance.instance.qrcode
-        }
-
-        // Se a instância está conectada (verificar connectionStatus)
-        if (instance.connectionStatus === 'open') {
-          console.log('✅ WhatsApp conectado - extraindo dados do perfil...');
-          
-          // Extrair dados que já estão disponíveis na resposta da instância
-          if (instance.ownerJid) {
-            profileData.phoneNumber = instance.ownerJid.replace('@s.whatsapp.net', '');
-            console.log('📞 Número extraído do ownerJid:', profileData.phoneNumber);
-          }
-          
-          if (instance.profileName) {
-            profileData.displayName = instance.profileName;
-            console.log('👤 Nome extraído:', profileData.displayName);
-          }
-          
-          if (instance.profilePicUrl) {
-            profileData.profilePicture = instance.profilePicUrl;
-            console.log('🖼️ Foto extraída:', profileData.profilePicture);
-          }
-
-          // Tentar buscar foto do perfil adicional se não tiver
-          if (!profileData.profilePicture) {
-            try {
-              console.log(`Fetching profile from: ${endpoint}/chat/whatsappProfile/${instanceName}`)
-              const profileResponse = await fetch(`${endpoint}/chat/whatsappProfile/${instanceName}`, {
-                headers: {
-                  'apikey': cleanApiKey,
-                  'Accept': 'application/json'
-                }
-              })
-
-              if (profileResponse.ok) {
-                const profileInfo = await profileResponse.json()
-                console.log('Profile data received:', profileInfo)
-                
-                if (profileInfo && profileInfo.picture) {
-                  profileData.profilePicture = profileInfo.picture;
-                  console.log('🖼️ Foto adicional obtida:', profileData.profilePicture);
-                }
-              }
-            } catch (profileError) {
-              console.log('Error fetching additional profile:', profileError)
-            }
-          }
-        } else if (instance.connectionStatus === 'connecting') {
-          console.log('🔄 WhatsApp conectando...');
-        } else if (instance.disconnectionReasonCode) {
-          console.log('⚠️ WhatsApp desconectado. Motivo:', instance.disconnectionReasonCode);
-          
-          // Mesmo desconectado, se temos dados de perfil, vamos retorná-los
-          if (instance.ownerJid) {
-            profileData.phoneNumber = instance.ownerJid.replace('@s.whatsapp.net', '');
-            console.log('📞 Número extraído (desconectado):', profileData.phoneNumber);
-          }
-          
-          if (instance.profileName) {
-            profileData.displayName = instance.profileName;
-            console.log('👤 Nome extraído (desconectado):', profileData.displayName);
-          }
-          
-          if (instance.profilePicUrl) {
-            profileData.profilePicture = instance.profilePicUrl;
-            console.log('🖼️ Foto extraída (desconectado):', profileData.profilePicture);
+        
+        // Build simple response
+        const response: any = {
+          success: true,
+          instanceName: instanceName,
+          instance: {
+            connectionStatus: instance.connectionStatus,
+            ownerJid: instance.ownerJid,
+            profileName: instance.profileName,
+            profilePicUrl: instance.profilePicUrl,
+            disconnectionReasonCode: instance.disconnectionReasonCode
           }
         }
 
-        // Se não tem QR code e não está conectado, tentar obter QR
-        if (!qrCodeData && instance.connectionStatus !== 'open') {
-          // Get QR code from Evolution API
-          console.log(`Fetching QR from: ${endpoint}/instance/connect/${instanceName}`)
+        // Add QR code if not connected
+        if (instance.connectionStatus !== 'open' && instance.instance?.qrcode) {
+          response.qrCode = instance.instance.qrcode
+        } else if (instance.connectionStatus !== 'open') {
+          // Try to get QR code
           try {
             const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
               method: 'GET',
@@ -541,51 +447,41 @@ serve(async (req) => {
                 'Accept': 'application/json'
               }
             })
-
+            
             if (qrResponse.ok) {
               const qrData = await qrResponse.json()
-              qrCodeData = qrData.base64 || qrData.qrcode
+              response.qrCode = qrData.base64 || qrData.qrcode || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=evolution-qr-${instanceName}-${Date.now()}`
             }
-          } catch (qrError) {
-            console.log('Error fetching QR code:', qrError)
+          } catch (e) {
+            // Ignore QR fetch errors
+            response.qrCode = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=evolution-qr-${instanceName}-${Date.now()}`
           }
         }
 
-        const response = {
-          success: true,
-          qrCode: qrCodeData,
-          instance: instance,
-          instanceName: instanceName,
-          phoneNumber: profileData.phoneNumber,
-          displayName: profileData.displayName,
-          profilePicture: profileData.profilePicture
+        // Add profile data if connected
+        if (instance.connectionStatus === 'open') {
+          response.phoneNumber = instance.ownerJid?.replace('@s.whatsapp.net', '')
+          response.displayName = instance.profileName
+          response.profilePicture = instance.profilePicUrl
         }
 
         return new Response(
           JSON.stringify(response),
           { 
-            status: 200, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
           }
         )
 
-      } catch (apiError) {
-        console.error('Evolution API error:', apiError)
-        
-        // Fallback QR code
-        const qrCodeData = `evolution-qr-${instanceName}-${Date.now()}`
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData)}`
-        
-        const response: EvolutionAPIResponse = {
-          success: true,
-          qrCode: qrCodeUrl,
-          instanceName: instanceName
-        }
-
+      } catch (error) {
+        console.error('GET error:', error)
         return new Response(
-          JSON.stringify(response),
+          JSON.stringify({ 
+            success: false, 
+            error: 'Internal server error',
+            message: error.message
+          }),
           { 
-            status: 200, 
+            status: 500, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
           }
         )
