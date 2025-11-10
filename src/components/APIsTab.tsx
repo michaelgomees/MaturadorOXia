@@ -38,7 +38,11 @@ interface NgrokConfig {
 
 // Interface removida - usando a do contexto
 
-export const APIsTab = () => {
+interface APIsTabProps {
+  isAdmin?: boolean;
+}
+
+export const APIsTab = ({ isAdmin = false }: APIsTabProps) => {
   const [evolutionAPI, setEvolutionAPI] = useState<EvolutionAPI>({
     endpoint: '',
     apiKey: '',
@@ -253,66 +257,68 @@ export const APIsTab = () => {
         </div>
       </div>
 
-      {/* Evolution API Configuration */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                {getStatusIcon(evolutionAPI.status)}
-                Evolution API (Global)
-              </CardTitle>
-              <CardDescription>
-                Configure a API Evolution usada em todas as conexões
-              </CardDescription>
-            </div>
-            {getStatusBadge(evolutionAPI.status)}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="endpoint">Endpoint Evolution</Label>
-              <Input
-                id="endpoint"
-                placeholder="api.oxautomacoes.com.br"
-                value={evolutionAPI.endpoint}
-                onChange={(e) => setEvolutionAPI(prev => ({ ...prev, endpoint: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="apiKey">Chave de API</Label>
-              <Input
-                id="apiKey"
-                type="password"
-                placeholder="Sua chave de API do Evolution"
-                value={evolutionAPI.apiKey}
-                onChange={(e) => setEvolutionAPI(prev => ({ ...prev, apiKey: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={handleTestAPI}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Testar Conexão
-            </Button>
-            <Button onClick={handleSaveAPI}>
-              <Save className="w-4 h-4 mr-2" />
-              Salvar Configuração
-            </Button>
-          </div>
-
-          {evolutionAPI.lastTest && (
-            <>
-              <Separator />
-              <div className="text-xs text-muted-foreground">
-                Último teste: {new Date(evolutionAPI.lastTest).toLocaleString('pt-BR')}
+      {/* Evolution API Configuration - Apenas para Admin */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  {getStatusIcon(evolutionAPI.status)}
+                  Evolution API (Global)
+                </CardTitle>
+                <CardDescription>
+                  Configure a API Evolution usada em todas as conexões
+                </CardDescription>
               </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+              {getStatusBadge(evolutionAPI.status)}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="endpoint">Endpoint Evolution</Label>
+                <Input
+                  id="endpoint"
+                  placeholder="api.oxautomacoes.com.br"
+                  value={evolutionAPI.endpoint}
+                  onChange={(e) => setEvolutionAPI(prev => ({ ...prev, endpoint: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="apiKey">Chave de API</Label>
+                <Input
+                  id="apiKey"
+                  type="password"
+                  placeholder="Sua chave de API do Evolution"
+                  value={evolutionAPI.apiKey}
+                  onChange={(e) => setEvolutionAPI(prev => ({ ...prev, apiKey: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={handleTestAPI}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Testar Conexão
+              </Button>
+              <Button onClick={handleSaveAPI}>
+                <Save className="w-4 h-4 mr-2" />
+                Salvar Configuração
+              </Button>
+            </div>
+
+            {evolutionAPI.lastTest && (
+              <>
+                <Separator />
+                <div className="text-xs text-muted-foreground">
+                  Último teste: {new Date(evolutionAPI.lastTest).toLocaleString('pt-BR')}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* OpenAI Configuration */}
       <OpenAIConfigCard />

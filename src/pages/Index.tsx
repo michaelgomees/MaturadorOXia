@@ -79,7 +79,7 @@ const Index = () => {
       <main className="container mx-auto px-6 py-8 space-y-8">
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-6' : 'grid-cols-5'}`}>
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <Bot className="w-4 h-4" />
               Dashboard
@@ -88,12 +88,10 @@ const Index = () => {
               <Phone className="w-4 h-4" />
               Conexões
             </TabsTrigger>
-            {isAdmin && (
-              <TabsTrigger value="apis" className="flex items-center gap-2">
-                <Link className="w-4 h-4" />
-                APIs
-              </TabsTrigger>
-            )}
+            <TabsTrigger value="apis" className="flex items-center gap-2">
+              <Link className="w-4 h-4" />
+              APIs
+            </TabsTrigger>
             <TabsTrigger value="ai-config" className="flex items-center gap-2">
               <Brain className="w-4 h-4" />
               Prompts de IA
@@ -324,11 +322,9 @@ const Index = () => {
             <ConnectionsTab />
           </TabsContent>
 
-          {isAdmin && (
-            <TabsContent value="apis" className="mt-8">
-              <APIsTab />
-            </TabsContent>
-          )}
+          <TabsContent value="apis" className="mt-8">
+            <APIsTab isAdmin={isAdmin} />
+          </TabsContent>
 
           <TabsContent value="ai-config" className="mt-8">
             <PromptsTab />
