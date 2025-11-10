@@ -68,31 +68,12 @@ export const ConnectionsTab = () => {
 
       console.log('✅ Conexão criada no banco:', newConnection);
 
-      // Criar instância na Evolution API PASSANDO AS CREDENCIAIS
-      console.log('📞 Criando instância na Evolution API:', instanceName);
-      
-      const { data: functionData, error: functionError } = await supabase.functions.invoke('evolution-api', {
-        body: {
-          instanceName: instanceName,
-          connectionName: newConnectionName,
-          evolutionEndpoint: evolutionConfig.endpoint,
-          evolutionApiKey: evolutionConfig.apiKey
-        }
-      });
-
-      if (functionError) {
-        console.error('❌ Erro ao criar instância:', functionError);
-        throw new Error(functionError.message);
-      }
-
-      console.log('✅ Instância criada na Evolution API:', functionData);
-
       setNewConnectionName('');
       setIsCreatingConnection(false);
       
       toast({
         title: "✅ Conexão criada!",
-        description: `Instância criada na Evolution API. Gerando QR Code...`
+        description: `A conexão foi salva. Sincronizando com Evolution API...`
       });
 
       // Abrir modal de QR code automaticamente
