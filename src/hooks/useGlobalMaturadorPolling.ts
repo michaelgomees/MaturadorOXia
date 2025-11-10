@@ -52,10 +52,10 @@ export const useGlobalMaturadorPolling = () => {
       // Chamar imediatamente
       callForceMaturation();
 
-      // Configurar intervalo de 90 segundos (1.5 minutos)
+      // Configurar intervalo de 20 segundos para conversas fluidas
       pollingIntervalRef.current = setInterval(() => {
         callForceMaturation();
-      }, 90000);
+      }, 20000);
     };
 
     const callForceMaturation = async () => {
@@ -76,8 +76,8 @@ export const useGlobalMaturadorPolling = () => {
     // Verificar pares ativos inicialmente
     checkAndPoll();
 
-    // Verificar a cada 30 segundos se há pares ativos (para iniciar/parar polling)
-    const checkInterval = setInterval(checkAndPoll, 30000);
+    // Verificar a cada 60 segundos se há pares ativos (para iniciar/parar polling)
+    const checkInterval = setInterval(checkAndPoll, 60000);
 
     // Cleanup
     return () => {
