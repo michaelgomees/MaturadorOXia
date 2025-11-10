@@ -250,11 +250,24 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     try {
       console.log(`Creating Evolution API instance: ${connection.evolutionInstanceName}`);
       
+      // Buscar credenciais da Evolution API do localStorage
+      const savedAPI = localStorage.getItem('ox-evolution-api');
+      if (!savedAPI) {
+        throw new Error('Evolution API não configurada. Configure na aba APIs primeiro.');
+      }
+
+      const evolutionConfig = JSON.parse(savedAPI);
+      if (!evolutionConfig.endpoint || !evolutionConfig.apiKey) {
+        throw new Error('Credenciais da Evolution API incompletas.');
+      }
+      
       // Chamar Edge Function para criar instância na Evolution API
       const { data, error } = await supabase.functions.invoke('evolution-api', {
         body: {
           instanceName: connection.evolutionInstanceName,
-          connectionName: connection.name
+          connectionName: connection.name,
+          evolutionEndpoint: evolutionConfig.endpoint,
+          evolutionApiKey: evolutionConfig.apiKey
         }
       });
 
