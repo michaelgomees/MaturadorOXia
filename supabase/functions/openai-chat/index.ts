@@ -82,10 +82,11 @@ serve(async (req) => {
       throw new Error('Prompt is required');
     }
 
-    // Sistema prompt usando APENAS o prompt específico do chip
-    const systemPrompt = `${prompt}
-
-IMPORTANTE: Você está conversando pelo WhatsApp. Seja natural, breve (máximo 2-3 linhas) e humano. Use emojis ocasionalmente. Continue a conversa mantendo contexto. NUNCA inclua seu nome, timestamps ou formatações especiais na mensagem.`;
+    // SEMPRE usar EXATAMENTE o prompt fornecido pelo chip, sem modificações ou adições
+    const systemPrompt = prompt;
+    
+    console.log(`📝 Usando prompt EXATO do chip ${chipName} (${prompt.length} chars)`);
+    console.log(`Prompt completo: ${prompt}`);
 
     // Preparar mensagens para OpenAI com histórico completo
     const messages = [

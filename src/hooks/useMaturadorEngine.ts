@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from './use-toast';
 import { useConnections } from '@/contexts/ConnectionsContext';
@@ -36,30 +36,49 @@ export const useMaturadorEngine = () => {
   const [chipPairs, setChipPairs] = useState<ChipPair[]>([]);
   const intervalRefs = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const { toast } = useToast();
-  const { connections, getConnection, /* add sync */ syncWithEvolutionAPI } = useConnections();
+  const { connections, getConnection, syncWithEvolutionAPI } = useConnections();
 
-  // Carregar dados do localStorage
-  const loadData = useCallback(() => {
-    const savedMessages = localStorage.getItem('ox-maturador-messages');
-    const savedPairs = localStorage.getItem('ox-enhanced-maturador-config');
-    
-    if (savedMessages) {
-      const data = JSON.parse(savedMessages);
-      setMessages(data.map((msg: any) => ({
-        ...msg,
-        timestamp: new Date(msg.timestamp)
-      })));
-    }
-
-    if (savedPairs) {
-      const config = JSON.parse(savedPairs);
-      if (config.selectedPairs) {
-        setChipPairs(config.selectedPairs.map((pair: any) => ({
-          ...pair,
-          lastActivity: pair.lastActivity ? new Date(pair.lastActivity) : new Date()
+  // Carregar pares do Supabase ao invés de localStorage
+  const loadData = useCallback(async () => {
+    try {
+      // Carregar mensagens do localStorage
+      const savedMessages = localStorage.getItem('ox-maturador-messages');
+      if (savedMessages) {
+        const data = JSON.parse(savedMessages);
+        setMessages(data.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
         })));
-        setIsRunning(config.isRunning || false);
       }
+
+      // Carregar pares do Supabase
+      const { data: dbPairs, error } = await supabase
+        .from('saas_pares_maturacao')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (dbPairs && dbPairs.length > 0) {
+        const mappedPairs: ChipPair[] = dbPairs.map((pair: any) => ({
+          id: pair.id,
+          firstChipId: pair.nome_chip1,
+          firstChipName: pair.nome_chip1,
+          secondChipId: pair.nome_chip2,
+          secondChipName: pair.nome_chip2,
+          isActive: pair.is_active,
+          messagesCount: pair.messages_count || 0,
+          lastActivity: pair.last_activity ? new Date(pair.last_activity) : new Date(),
+          status: pair.status || 'stopped',
+          useInstancePrompt: pair.use_instance_prompt || false,
+          instancePrompt: pair.instance_prompt
+        }));
+        
+        setChipPairs(mappedPairs);
+        console.log(`✅ ${mappedPairs.length} pares carregados do Supabase`);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
     }
   }, []);
 
@@ -255,10 +274,22 @@ export const useMaturadorEngine = () => {
 
       // Buscar prompt específico do chip que vai responder
       const respondingConnection = connections.find(c => c.name === respondingChip.name);
-      const chipPrompt = respondingConnection?.prompt || 'Você é um assistente amigável e prestativo. Responda de forma natural, breve e humanizada. Use emojis ocasionalmente para dar mais naturalidade às conversas.';
+      
+      if (!respondingConnection) {
+        console.error(`❌ Conexão não encontrada para ${respondingChip.name}`);
+        throw new Error(`Conexão ${respondingChip.name} não encontrada`);
+      }
+      
+      // SEMPRE usar o prompt da conexão, sem fallback
+      const chipPrompt = respondingConnection.prompt;
+      
+      if (!chipPrompt || chipPrompt.trim() === '') {
+        console.error(`❌ Prompt não definido para ${respondingChip.name}`);
+        throw new Error(`Configure um prompt para ${respondingChip.name} na aba "Prompts de IA"`);
+      }
       
       console.log(`🎯 Chip respondendo: ${respondingChip.name}`);
-      console.log(`📝 Prompt do chip (primeiros 150 chars): ${chipPrompt.substring(0, 150)}...`);
+      console.log(`📝 Prompt do chip (completo): ${chipPrompt}`);
       
       // Gerar mensagem humanizada usando o prompt do chip
       const messageContent = await generateMessage(
@@ -358,12 +389,30 @@ export const useMaturadorEngine = () => {
   // Iniciar maturador
   const startMaturador = useCallback(async () => {
     console.log('=== INICIANDO MATURADOR ===');
-    console.log('Total de pares:', chipPairs.length);
     
-    const activePairs = chipPairs.filter(pair => pair.isActive && pair.status !== 'paused');
-    console.log('Pares ativos encontrados:', activePairs.length);
+    // Recarregar pares do Supabase antes de iniciar
+    await loadData();
     
-    if (activePairs.length === 0) {
+    // Aguardar um pouco para garantir que o estado foi atualizado
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Buscar pares ativos diretamente do Supabase
+    const { data: dbPairs, error } = await supabase
+      .from('saas_pares_maturacao')
+      .select('*')
+      .eq('is_active', true);
+
+    if (error) {
+      console.error('Erro ao carregar pares:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os pares de maturação",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!dbPairs || dbPairs.length === 0) {
       console.warn('⚠️ Nenhum par ativo encontrado!');
       toast({
         title: "Nenhum par ativo",
@@ -372,6 +421,30 @@ export const useMaturadorEngine = () => {
       });
       return;
     }
+
+    const activePairs: ChipPair[] = dbPairs.map((pair: any) => ({
+      id: pair.id,
+      firstChipId: pair.nome_chip1,
+      firstChipName: pair.nome_chip1,
+      secondChipId: pair.nome_chip2,
+      secondChipName: pair.nome_chip2,
+      isActive: pair.is_active,
+      messagesCount: pair.messages_count || 0,
+      lastActivity: pair.last_activity ? new Date(pair.last_activity) : new Date(),
+      status: pair.status || 'running',
+      useInstancePrompt: pair.use_instance_prompt || false,
+      instancePrompt: pair.instance_prompt
+    }));
+
+    console.log(`✅ ${activePairs.length} pares ativos carregados do Supabase`);
+    
+    // Atualizar status dos pares para 'running' no Supabase
+    await Promise.all(activePairs.map(pair => 
+      supabase
+        .from('saas_pares_maturacao')
+        .update({ status: 'running' })
+        .eq('id', pair.id)
+    ));
     
     // Sincronizar conexões antes de iniciar
     try {
@@ -390,14 +463,7 @@ export const useMaturadorEngine = () => {
     }
 
     setIsRunning(true);
-    
-    // Atualizar localStorage para sinalizar que está rodando
-    const savedConfig = localStorage.getItem('ox-enhanced-maturador-config');
-    if (savedConfig) {
-      const config = JSON.parse(savedConfig);
-      config.isRunning = true;
-      localStorage.setItem('ox-enhanced-maturador-config', JSON.stringify(config));
-    }
+    setChipPairs(activePairs);
     
     // Iniciar conversa contínua para cada par
     activePairs.forEach(pair => {
@@ -407,21 +473,20 @@ export const useMaturadorEngine = () => {
       // Função recursiva para manter conversas ininterruptas
       const keepConversationGoing = async () => {
         try {
-          // Verificar se deve continuar
-          const savedConfig = localStorage.getItem('ox-enhanced-maturador-config');
-          if (!savedConfig) {
-            console.log(`⏹️ Config não encontrada, parando par ${pairId}`);
-            return;
-          }
-          
-          const config = JSON.parse(savedConfig);
-          if (!config.isRunning) {
+          // Verificar se o maturador ainda está rodando
+          if (!isRunning) {
             console.log(`⏹️ Maturador parado, encerrando conversa do par ${pairId}`);
             return;
           }
           
-          const currentPair = config.selectedPairs?.find((p: any) => p.id === pairId);
-          if (!currentPair?.isActive || currentPair.status === 'paused') {
+          // Verificar status do par no Supabase
+          const { data: currentPair } = await supabase
+            .from('saas_pares_maturacao')
+            .select('*')
+            .eq('id', pairId)
+            .single();
+          
+          if (!currentPair || !currentPair.is_active || currentPair.status === 'paused') {
             console.log(`⏸️ Par ${pairId} pausado ou inativo`);
             return;
           }
@@ -430,13 +495,13 @@ export const useMaturadorEngine = () => {
           console.log(`💬 Processando mensagem do par ${pairId}...`);
           await processChipPairConversation(pair);
           
-          // Delay curto entre mensagens (5-10 segundos) para manter conversa fluida
-          const nextDelay = (5 + Math.random() * 5) * 1000;
+          // Delay curto entre mensagens (3-7 segundos) para manter conversa fluida
+          const nextDelay = (3 + Math.random() * 4) * 1000;
           console.log(`⏰ Próxima mensagem do par ${pairId} em ${(nextDelay/1000).toFixed(1)}s`);
           
-          // Agendar próxima mensagem
+          // Agendar próxima mensagem IMEDIATAMENTE (sem verificar isRunning novamente)
           const timeout = setTimeout(() => {
-            keepConversationGoing();
+            keepConversationGoing(); // Chamada recursiva para continuar indefinidamente
           }, nextDelay);
           
           intervalRefs.current.set(pairId, timeout as any);
@@ -444,12 +509,12 @@ export const useMaturadorEngine = () => {
         } catch (error) {
           console.error(`❌ Erro no par ${pairId}:`, error);
           
-          // Em caso de erro, aguardar mais tempo antes de tentar novamente
-          const retryDelay = 30000; // 30 segundos
+          // Em caso de erro, aguardar menos tempo antes de tentar novamente
+          const retryDelay = 10000; // 10 segundos
           console.log(`🔄 Tentando novamente o par ${pairId} em ${retryDelay/1000}s`);
           
           const timeout = setTimeout(() => {
-            keepConversationGoing();
+            keepConversationGoing(); // Continuar tentando mesmo após erro
           }, retryDelay);
           
           intervalRefs.current.set(pairId, timeout as any);
@@ -467,20 +532,18 @@ export const useMaturadorEngine = () => {
       title: "Maturador Iniciado",
       description: `${activePairs.length} ${activePairs.length === 1 ? 'par está' : 'pares estão'} conversando continuamente`,
     });
-  }, [chipPairs, processChipPairConversation, toast, connections, syncWithEvolutionAPI]);
+  }, [isRunning, processChipPairConversation, toast, connections, syncWithEvolutionAPI, loadData]);
 
   // Parar maturador
-  const stopMaturador = useCallback(() => {
+  const stopMaturador = useCallback(async () => {
     console.log('=== PARANDO MATURADOR ===');
     setIsRunning(false);
     
-    // Atualizar localStorage para sinalizar parada
-    const savedConfig = localStorage.getItem('ox-enhanced-maturador-config');
-    if (savedConfig) {
-      const config = JSON.parse(savedConfig);
-      config.isRunning = false;
-      localStorage.setItem('ox-enhanced-maturador-config', JSON.stringify(config));
-    }
+    // Atualizar status de todos os pares no Supabase
+    await supabase
+      .from('saas_pares_maturacao')
+      .update({ status: 'paused' })
+      .eq('is_active', true);
     
     // Limpar todos os intervalos/timeouts
     intervalRefs.current.forEach((timeout) => {
@@ -653,6 +716,11 @@ export const useMaturadorEngine = () => {
       description: "Todas as conversas foram removidas",
     });
   }, [chipPairs, saveData, toast]);
+
+  // Carregar dados ao montar o componente
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   return {
     isRunning,
