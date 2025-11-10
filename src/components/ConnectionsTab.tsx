@@ -27,6 +27,27 @@ export const ConnectionsTab = () => {
       return;
     }
 
+    // Verificar se a Evolution API está configurada
+    const savedAPI = localStorage.getItem('ox-evolution-api');
+    if (!savedAPI) {
+      toast({
+        title: "Erro",
+        description: "Configure a Evolution API primeiro na aba APIs.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const evolutionConfig = JSON.parse(savedAPI);
+    if (!evolutionConfig.endpoint || !evolutionConfig.apiKey) {
+      toast({
+        title: "Erro",
+        description: "Configure endpoint e API Key na aba APIs.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsCreatingConnection(true);
 
     try {
@@ -47,13 +68,15 @@ export const ConnectionsTab = () => {
 
       console.log('✅ Conexão criada no banco:', newConnection);
 
-      // Criar instância na Evolution API
+      // Criar instância na Evolution API PASSANDO AS CREDENCIAIS
       console.log('📞 Criando instância na Evolution API:', instanceName);
       
       const { data: functionData, error: functionError } = await supabase.functions.invoke('evolution-api', {
         body: {
           instanceName: instanceName,
-          connectionName: newConnectionName
+          connectionName: newConnectionName,
+          evolutionEndpoint: evolutionConfig.endpoint,
+          evolutionApiKey: evolutionConfig.apiKey
         }
       });
 

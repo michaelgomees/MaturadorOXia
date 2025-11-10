@@ -164,9 +164,9 @@ serve(async (req) => {
         )
       }
 
-      // Usar dados dos secrets configurados
-      const apiKey = Deno.env.get('EVOLUTION_API_KEY')
-      let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT')
+      // Usar credenciais passadas OU dos secrets
+      const apiKey = evolutionApiKey || Deno.env.get('EVOLUTION_API_KEY')
+      let endpoint = evolutionEndpoint || Deno.env.get('EVOLUTION_API_ENDPOINT')
       
       console.log('🔐 Verificando secrets...');
       console.log('API Key presente:', apiKey ? 'SIM' : 'NÃO');
