@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,7 @@ import { ConnectionsTab } from "@/components/ConnectionsTab";
 import { PromptsTab } from "@/components/PromptsTab";
 import { DadosTab } from "@/components/DadosTab";
 import { MaturadorTab } from "@/components/MaturadorTab";
-import { ProtectedRoute } from "@/contexts/AuthContext";
+import { ProtectedRoute, useAuth } from "@/contexts/AuthContext";
 
 // Dados reais - sem demonstração
 
@@ -30,12 +30,33 @@ const Index = () => {
   const [selectedChipForQR, setSelectedChipForQR] = useState<{name: string, phone: string} | null>(null);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [analyticsModalOpen, setAnalyticsModalOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { toast } = useToast();
   const { connections, activeConnectionsCount } = useConnections();
+  const { user } = useAuth();
   
   // Usar hooks de sincronização automática e maturação
   useAutoSync();
   const { startChipConversation } = useChipMaturation();
+
+  // Verificar se usuário é admin
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (!user) return;
+      
+      // Lista de emails admin (você pode adicionar mais emails aqui)
+      const adminEmails = [
+        'admin@oxautomacoes.com.br',
+        'contato@oxautomacoes.com.br'
+      ];
+      
+      // Verificar se o email do usuário está na lista de admins
+      const isUserAdmin = adminEmails.includes(user.email || '');
+      setIsAdmin(isUserAdmin);
+    };
+    
+    checkAdminStatus();
+  }, [user]);
 
   const handleGenerateQRCode = (chipName: string, chipPhone: string) => {
     setSelectedChipForQR({ name: chipName, phone: chipPhone });
@@ -58,7 +79,7 @@ const Index = () => {
       <main className="container mx-auto px-6 py-8 space-y-8">
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-6' : 'grid-cols-5'}`}>
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <Bot className="w-4 h-4" />
               Dashboard
@@ -67,10 +88,12 @@ const Index = () => {
               <Phone className="w-4 h-4" />
               Conexões
             </TabsTrigger>
-            <TabsTrigger value="apis" className="flex items-center gap-2">
-              <Link className="w-4 h-4" />
-              APIs
-            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="apis" className="flex items-center gap-2">
+                <Link className="w-4 h-4" />
+                APIs
+              </TabsTrigger>
+            )}
             <TabsTrigger value="ai-config" className="flex items-center gap-2">
               <Brain className="w-4 h-4" />
               Prompts de IA
@@ -301,9 +324,11 @@ const Index = () => {
             <ConnectionsTab />
           </TabsContent>
 
-          <TabsContent value="apis" className="mt-8">
-            <APIsTab />
-          </TabsContent>
+          {isAdmin && (
+            <TabsContent value="apis" className="mt-8">
+              <APIsTab />
+            </TabsContent>
+          )}
 
           <TabsContent value="ai-config" className="mt-8">
             <PromptsTab />

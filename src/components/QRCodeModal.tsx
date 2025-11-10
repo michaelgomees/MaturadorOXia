@@ -74,10 +74,11 @@ export const QRCodeModal = ({ open, onOpenChange, chipName, chipPhone }: QRCodeM
       } else if (data.instance?.connectionStatus === 'open') {
         // Já está conectado
         setQrStatus("connected");
-        toast({
-          title: "WhatsApp conectado!",
-          description: `${chipName} já está conectado ao WhatsApp.`,
-        });
+        
+        // Fechar modal automaticamente após 1 segundo
+        setTimeout(() => {
+          onOpenChange(false);
+        }, 1000);
       } else {
         throw new Error('QR Code não disponível');
       }
@@ -116,10 +117,11 @@ export const QRCodeModal = ({ open, onOpenChange, chipName, chipPhone }: QRCodeM
         }
         
         setQrStatus("connected");
-        toast({
-          title: "WhatsApp conectado!",
-          description: `${chipName} foi conectado com sucesso ao WhatsApp.`,
-        });
+        
+        // Fechar modal automaticamente após 1.5 segundos
+        setTimeout(() => {
+          onOpenChange(false);
+        }, 1500);
       }
     } catch (error) {
       console.error('Erro ao verificar status:', error);
