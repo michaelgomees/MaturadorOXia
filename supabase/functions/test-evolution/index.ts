@@ -11,14 +11,16 @@ serve(async (req) => {
   }
 
   try {
-    const { endpoint, apiKey } = await req.json();
+    // Buscar credenciais dos secrets do Supabase
+    const endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT');
+    const apiKey = Deno.env.get('EVOLUTION_API_KEY');
 
     if (!endpoint || !apiKey) {
       return new Response(JSON.stringify({ 
         success: false, 
-        error: 'Endpoint e API Key são obrigatórios' 
+        error: 'Evolution API não configurada nos secrets. Configure EVOLUTION_API_ENDPOINT e EVOLUTION_API_KEY.' 
       }), {
-        status: 400,
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }

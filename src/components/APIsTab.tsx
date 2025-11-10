@@ -101,36 +101,19 @@ export const APIsTab = () => {
   };
 
   const handleSaveAPI = () => {
-    if (!evolutionAPI.endpoint || !evolutionAPI.apiKey) {
-      toast({
-        title: "Erro",
-        description: "Endpoint e chave de API são obrigatórios.",
-        variant: "destructive"
-      });
-      return;
-    }
-
+    // API já configurada nos secrets, apenas atualizar status local
     saveEvolutionAPI({
       ...evolutionAPI,
       lastTest: new Date().toISOString()
     });
     
     toast({
-      title: "API configurada",
-      description: "Configuração da Evolution API salva com sucesso."
+      title: "Status atualizado",
+      description: "API Evolution está configurada nos secrets do sistema."
     });
   };
 
   const handleTestAPI = async () => {
-    if (!evolutionAPI.endpoint || !evolutionAPI.apiKey) {
-      toast({
-        title: "Erro",
-        description: "Configure endpoint e chave de API primeiro.",
-        variant: "destructive"
-      });
-      return;
-    }
-
     toast({
       title: "Testando conexão...",
       description: "Verificando conexão com a Evolution API."
@@ -139,12 +122,9 @@ export const APIsTab = () => {
     try {
       console.log('🔍 Testando conexão Evolution API...');
       
-      // Usar edge function para testar (evita CORS)
+      // Usar edge function para testar usando os secrets
       const { data: testData, error: testError } = await supabase.functions.invoke('test-evolution', {
-        body: { 
-          endpoint: evolutionAPI.endpoint,
-          apiKey: evolutionAPI.apiKey
-        }
+        body: {} // Sem parâmetros, vai usar os secrets
       });
 
       if (testError || !testData?.success) {
@@ -254,43 +234,24 @@ export const APIsTab = () => {
                 Evolution API (Global)
               </CardTitle>
               <CardDescription>
-                Configuração global da Evolution API usada em todas as conexões
+                API Evolution já está configurada nos secrets do sistema
               </CardDescription>
             </div>
             {getStatusBadge(evolutionAPI.status)}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="endpoint">Endpoint Evolution</Label>
-              <Input
-                id="endpoint"
-                placeholder="https://evolution-api.exemplo.com"
-                value={evolutionAPI.endpoint}
-                onChange={(e) => setEvolutionAPI(prev => ({ ...prev, endpoint: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="apiKey">Chave de API</Label>
-              <Input
-                id="apiKey"
-                type="password"
-                placeholder="Sua chave de API do Evolution"
-                value={evolutionAPI.apiKey}
-                onChange={(e) => setEvolutionAPI(prev => ({ ...prev, apiKey: e.target.value }))}
-              />
-            </div>
+          <div className="bg-muted/50 p-4 rounded-lg">
+            <p className="text-sm text-muted-foreground">
+              ✅ A Evolution API está configurada de forma segura nos secrets do Supabase.
+              As credenciais não são expostas no código.
+            </p>
           </div>
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={handleTestAPI}>
               <RefreshCw className="w-4 h-4 mr-2" />
               Testar Conexão
-            </Button>
-            <Button onClick={handleSaveAPI}>
-              <Save className="w-4 h-4 mr-2" />
-              Salvar Configuração
             </Button>
           </div>
 
