@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Link, CheckCircle, XCircle, RefreshCw, Save, Network } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { OpenAIConfigCard } from "@/components/OpenAIConfigCard";
+import { supabase } from "@/integrations/supabase/client";
 
 interface EvolutionAPI {
   endpoint: string;
@@ -138,29 +139,19 @@ export const APIsTab = () => {
     try {
       console.log('🔍 Testando conexão Evolution API...');
       
-      // Garantir que o endpoint tenha protocolo
-      let endpoint = evolutionAPI.endpoint;
-      if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
-        endpoint = `https://${endpoint}`;
-      }
-
-      // Teste REAL - buscar instâncias
-      const testResponse = await fetch(`${endpoint}/instance/fetchInstances`, {
-        method: 'GET',
-        headers: {
-          'apikey': evolutionAPI.apiKey,
-          'Content-Type': 'application/json'
+      // Usar edge function para testar (evita CORS)
+      const { data: testData, error: testError } = await supabase.functions.invoke('test-evolution', {
+        body: { 
+          endpoint: evolutionAPI.endpoint,
+          apiKey: evolutionAPI.apiKey
         }
       });
 
-      if (!testResponse.ok) {
-        const errorData = await testResponse.text();
-        console.error('❌ Erro na resposta:', errorData);
-        throw new Error(`Erro ${testResponse.status}: ${errorData}`);
+      if (testError || !testData?.success) {
+        throw new Error(testData?.error || testError?.message || 'Falha ao conectar');
       }
 
-      const responseData = await testResponse.json();
-      console.log('✅ Resposta Evolution API:', responseData);
+      console.log('✅ Resposta Evolution API:', testData.data);
       
       const updatedAPI = {
         ...evolutionAPI,

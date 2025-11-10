@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Eye, EyeOff, RefreshCw, CheckCircle, XCircle, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAPIConfigs } from "@/hooks/useAPIConfigs";
+import { supabase } from "@/integrations/supabase/client";
 
 export const OpenAIConfigCard = () => {
   const [apiKey, setApiKey] = useState("");
@@ -31,20 +32,15 @@ export const OpenAIConfigCard = () => {
 
     setIsLoading(true);
     try {
-      // Teste REAL da conexão com OpenAI
       console.log('🔍 Testando conexão OpenAI...');
       
-      const testResponse = await fetch('https://api.openai.com/v1/models', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          ...(organization ? { 'OpenAI-Organization': organization } : {})
-        }
+      // Usar edge function para testar (evita CORS)
+      const { data: testData, error: testError } = await supabase.functions.invoke('test-openai', {
+        body: { apiKey, organization }
       });
 
-      if (!testResponse.ok) {
-        const errorData = await testResponse.json();
-        throw new Error(errorData.error?.message || 'Falha ao conectar com OpenAI');
+      if (testError || !testData?.success) {
+        throw new Error(testData?.error || testError?.message || 'Falha ao conectar');
       }
 
       console.log('✅ Conexão OpenAI bem-sucedida!');
