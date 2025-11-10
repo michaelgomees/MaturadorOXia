@@ -271,7 +271,7 @@ export const useMaturadorEngine = () => {
       console.log(`✅ Mensagem gerada (${messageContent.length} chars): ${messageContent.substring(0, 100)}...`);
 
       // Aplicar delay humanizado antes do envio (simular digitação)
-      const typingDelay = Math.random() * 3000 + 2000; // 2-5 segundos de "digitação"
+      const typingDelay = Math.random() * 2000 + 1000; // 1-3 segundos
       console.log(`⌨️ Simulando digitação por ${(typingDelay/1000).toFixed(1)}s...`);
       await new Promise(resolve => setTimeout(resolve, typingDelay));
 
@@ -430,8 +430,8 @@ export const useMaturadorEngine = () => {
           console.log(`💬 Processando mensagem do par ${pairId}...`);
           await processChipPairConversation(pair);
           
-          // Delay natural entre mensagens (10-20 segundos)
-          const nextDelay = (10 + Math.random() * 10) * 1000;
+          // Delay curto entre mensagens (5-10 segundos) para manter conversa fluida
+          const nextDelay = (5 + Math.random() * 5) * 1000;
           console.log(`⏰ Próxima mensagem do par ${pairId} em ${(nextDelay/1000).toFixed(1)}s`);
           
           // Agendar próxima mensagem

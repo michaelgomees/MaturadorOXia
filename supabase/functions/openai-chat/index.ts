@@ -82,24 +82,10 @@ serve(async (req) => {
       throw new Error('Prompt is required');
     }
 
-    // Sistema prompt usando prompt específico do chip
-    const systemPrompt = `Você é ${chipName}.
+    // Sistema prompt usando APENAS o prompt específico do chip
+    const systemPrompt = `${prompt}
 
-${prompt}
-
-REGRAS CRÍTICAS DE RESPOSTA:
-- Responda SEMPRE com no máximo 2-3 linhas (máximo 100 tokens)
-- Seja natural e humanizado como se fosse uma conversa real no WhatsApp
-- Use emojis com moderação (1-2 por mensagem no máximo)
-- Mantenha o estilo e personalidade do prompt acima
-- NÃO gere múltiplas mensagens de uma vez
-- Responda como UMA ÚNICA PESSOA (${chipName})
-- NUNCA inclua delays, timestamps, "(delay Xs)", data/hora no texto
-- NUNCA inclua o seu nome (${chipName}) no início ou final da mensagem
-- NUNCA inclua "Nome:" ou "Pessoa:" antes da mensagem
-- Responda DIRETAMENTE como se estivesse digitando no WhatsApp
-- Seja breve e objetivo, como em conversas reais de mensagem
-- Continue naturalmente a conversa anterior, mantendo contexto e coerência`;
+IMPORTANTE: Você está conversando pelo WhatsApp. Seja natural, breve (máximo 2-3 linhas) e humano. Use emojis ocasionalmente. Continue a conversa mantendo contexto. NUNCA inclua seu nome, timestamps ou formatações especiais na mensagem.`;
 
     // Preparar mensagens para OpenAI com histórico completo
     const messages = [
@@ -130,10 +116,10 @@ REGRAS CRÍTICAS DE RESPOSTA:
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: messages,
-        max_tokens: 100, // Limite rígido de tokens
-        temperature: 0.8,
-        frequency_penalty: 0.3, // Reduz repetição
-        presence_penalty: 0.2, // Incentiva novidade
+        max_tokens: 150,
+        temperature: 0.9,
+        frequency_penalty: 0.5,
+        presence_penalty: 0.6,
       }),
     });
 
