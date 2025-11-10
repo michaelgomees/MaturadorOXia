@@ -6,8 +6,12 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // SEMPRE responder OPTIONS primeiro
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      status: 200,
+      headers: corsHeaders 
+    });
   }
 
   try {
@@ -20,11 +24,15 @@ serve(async (req) => {
     console.log('API Key encontrada:', apiKey ? 'SIM' : 'NÃO');
 
     if (!endpoint || !apiKey) {
+      console.error('❌ SECRETS NÃO CONFIGURADOS!');
+      console.error('EVOLUTION_API_ENDPOINT:', endpoint);
+      console.error('EVOLUTION_API_KEY presente:', !!apiKey);
+      
       return new Response(JSON.stringify({ 
         success: false, 
-        error: 'Evolution API não configurada nos secrets. Verifique se EVOLUTION_API_ENDPOINT e EVOLUTION_API_KEY foram salvos corretamente.' 
+        error: 'Evolution API não configurada. Configure EVOLUTION_API_ENDPOINT e EVOLUTION_API_KEY nos secrets do Supabase.' 
       }), {
-        status: 500,
+        status: 200, // Retornar 200 para evitar erro de CORS
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
@@ -52,13 +60,17 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Erro na resposta:', errorText);
+      console.error('❌ Erro na resposta Evolution API:');
+      console.error('Status:', response.status);
+      console.error('Resposta:', errorText);
+      
       return new Response(JSON.stringify({
         success: false,
         error: `Erro ${response.status}: Não foi possível conectar à Evolution API. Verifique se o endpoint (${endpoint}) está correto e se a API Key é válida.`,
-        details: errorText.substring(0, 300)
+        details: errorText.substring(0, 300),
+        endpoint: endpoint
       }), {
-        status: response.status,
+        status: 200, // Retornar 200 para evitar erro de CORS
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
@@ -77,13 +89,16 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('❌ Erro ao testar conexão:', error);
+    console.error('❌ ERRO CRÍTICO ao testar conexão:');
+    console.error('Mensagem:', error.message);
+    console.error('Stack:', error.stack);
+    
     return new Response(JSON.stringify({
       success: false,
       error: `Erro de conexão: ${error.message}. Verifique se o endpoint está acessível.`,
       details: error.stack
     }), {
-      status: 500,
+      status: 200, // Retornar 200 para evitar erro de CORS
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
