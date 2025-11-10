@@ -270,39 +270,6 @@ export const ChipCard = ({ chip, isSelected, onSelect, onGenerateQR, onChipUpdat
           </div>
         )}
 
-        {/* Indicador de Maturação */}
-        {chipMonitoring && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Thermometer className="w-3 h-3" />
-                <span className="text-xs text-muted-foreground">Maturação</span>
-              </div>
-              <span className="text-xs font-medium">{Math.round(chipMonitoring.maturationPercentage)}%</span>
-            </div>
-            <Progress value={chipMonitoring.maturationPercentage} className="h-2" />
-            <div className="flex items-center justify-between">
-              <Badge 
-                variant="secondary" 
-                className={maturationStatusConfig[chipMonitoring.maturationStatus].color}
-              >
-                {maturationStatusConfig[chipMonitoring.maturationStatus].label}
-              </Badge>
-              <div className="flex items-center gap-1">
-                <div className={`w-2 h-2 rounded-full ${
-                  chipMonitoring.connectionStatus === 'online' ? 'bg-primary animate-pulse' : 
-                  chipMonitoring.connectionStatus === 'testing' ? 'bg-accent animate-spin' :
-                  'bg-muted-foreground'
-                }`} />
-                <span className="text-xs text-muted-foreground">
-                  {chipMonitoring.connectionStatus === 'online' ? 'Online' : 
-                   chipMonitoring.connectionStatus === 'testing' ? 'Testando' : 'Offline'}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* AI Model */}
         <div className="flex items-center gap-2">
           <Bot className="w-3 h-3" />
