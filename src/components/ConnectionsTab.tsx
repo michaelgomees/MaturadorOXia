@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, QrCode, RefreshCw, Trash2, Phone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useConnections } from "@/contexts/ConnectionsContext";
@@ -205,62 +206,64 @@ export const ConnectionsTab = () => {
               <p className="text-sm">Crie sua primeira conexão acima.</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {connections.map((connection) => (
-                <div 
-                  key={connection.id}
-                  className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 flex-1">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold">{connection.name}</h3>
-                          {getStatusBadge(connection.status)}
-                        </div>
-                        <div className="text-sm text-muted-foreground space-y-1">
-                          {connection.phone && (
-                            <p className="flex items-center gap-2">
-                              <Phone className="w-3 h-3" />
-                              {connection.phone}
-                            </p>
-                          )}
-                          <p>Instância: {connection.evolutionInstanceName || 'N/A'}</p>
-                          <p>Conversas: {connection.conversationsCount}</p>
-                          <p>Modelo IA: {connection.aiModel}</p>
+            <ScrollArea className="h-[600px] pr-4">
+              <div className="space-y-4">
+                {connections.map((connection) => (
+                  <div 
+                    key={connection.id}
+                    className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-semibold">{connection.name}</h3>
+                            {getStatusBadge(connection.status)}
+                          </div>
+                          <div className="text-sm text-muted-foreground space-y-1">
+                            {connection.phone && (
+                              <p className="flex items-center gap-2">
+                                <Phone className="w-3 h-3" />
+                                {connection.phone}
+                              </p>
+                            )}
+                            <p>Instância: {connection.evolutionInstanceName || 'N/A'}</p>
+                            <p>Conversas: {connection.conversationsCount}</p>
+                            <p>Modelo IA: {connection.aiModel}</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => handleShowQR(connection.id)}
-                      >
-                        <QrCode className="w-4 h-4 mr-2" />
-                        QR Code
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => handleSyncConnection(connection.id)}
-                      >
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        Sincronizar
-                      </Button>
-                      <Button 
-                        variant="destructive" 
-                        size="sm" 
-                        onClick={() => handleDeleteConnection(connection.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleShowQR(connection.id)}
+                        >
+                          <QrCode className="w-4 h-4 mr-2" />
+                          QR Code
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleSyncConnection(connection.id)}
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Sincronizar
+                        </Button>
+                        <Button 
+                          variant="destructive" 
+                          size="sm" 
+                          onClick={() => handleDeleteConnection(connection.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </ScrollArea>
           )}
         </CardContent>
       </Card>

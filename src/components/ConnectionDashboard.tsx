@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Phone, User, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { WhatsAppConnection } from "@/contexts/ConnectionsContext";
 
@@ -35,59 +36,61 @@ export const ConnectionDashboard = ({ connections }: ConnectionDashboardProps) =
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">Dashboard de Conexões</h3>
       
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {connections.map((connection) => (
-          <Card key={connection.id} className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Avatar className="w-10 h-10">
-                    <AvatarImage 
-                      src={connection.avatar} 
-                      alt={connection.displayName || connection.name}
-                    />
-                    <AvatarFallback>
-                      <User className="w-5 h-5" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <CardTitle className="text-base">
-                      {connection.displayName || connection.name}
-                    </CardTitle>
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      {getStatusIcon(connection.status)}
-                      {connection.evolutionInstanceName}
+      <ScrollArea className="h-[600px] pr-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {connections.map((connection) => (
+            <Card key={connection.id} className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="w-10 h-10">
+                      <AvatarImage 
+                        src={connection.avatar} 
+                        alt={connection.displayName || connection.name}
+                      />
+                      <AvatarFallback>
+                        <User className="w-5 h-5" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <CardTitle className="text-base">
+                        {connection.displayName || connection.name}
+                      </CardTitle>
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        {getStatusIcon(connection.status)}
+                        {connection.evolutionInstanceName}
+                      </div>
                     </div>
                   </div>
+                  {getStatusBadge(connection.status)}
                 </div>
-                {getStatusBadge(connection.status)}
-              </div>
-            </CardHeader>
-            
-            <CardContent className="space-y-3">
-              {connection.phone && (
-                <div className="flex items-center gap-2 text-sm">
-                  <Phone className="w-4 h-4 text-muted-foreground" />
-                  <span>{connection.phone}</span>
-                </div>
-              )}
+              </CardHeader>
               
-              {connection.lastActive && (
-                <div className="text-xs text-muted-foreground">
-                  Última atividade: {new Date(connection.lastActive).toLocaleString('pt-BR')}
-                </div>
-              )}
-              
-              {connection.status === 'active' && (
-                <div className="flex items-center gap-2 text-xs text-green-600">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  Online
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              <CardContent className="space-y-3">
+                {connection.phone && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Phone className="w-4 h-4 text-muted-foreground" />
+                    <span>{connection.phone}</span>
+                  </div>
+                )}
+                
+                {connection.lastActive && (
+                  <div className="text-xs text-muted-foreground">
+                    Última atividade: {new Date(connection.lastActive).toLocaleString('pt-BR')}
+                  </div>
+                )}
+                
+                {connection.status === 'active' && (
+                  <div className="flex items-center gap-2 text-xs text-green-600">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    Online
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </ScrollArea>
       
       {connections.length === 0 && (
         <Card className="border-dashed">
