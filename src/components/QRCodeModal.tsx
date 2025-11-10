@@ -108,7 +108,7 @@ export const QRCodeModal = ({ open, onOpenChange, chipName, chipPhone }: QRCodeM
 
       const data = await response.json();
 
-      if (data.success && data.instance?.connectionStatus === 'open') {
+      if (data.success && data.instance?.connectionStatus === 'open' && !data.instance.disconnectionReasonCode) {
         // Parar polling
         if (pollingInterval) {
           clearInterval(pollingInterval);

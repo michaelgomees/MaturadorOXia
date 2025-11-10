@@ -12,7 +12,7 @@ import { Link, CheckCircle, XCircle, RefreshCw, Save, Plus, QrCode, Bot, Brain, 
 import { useToast } from "@/hooks/use-toast";
 import { ConnectionDashboard } from "./ConnectionDashboard";
 import { useConnections } from "@/contexts/ConnectionsContext";
-import { QRCodeViewModal } from "@/components/QRCodeViewModal";
+import { QRCodeModal } from "@/components/QRCodeModal";
 
 interface EvolutionAPI {
   endpoint: string;
@@ -237,9 +237,14 @@ export const APIsTab = () => {
       setIsCreatingConnection(false);
       
       toast({
-        title: "Conexão criada com sucesso!",
-        description: `Conexão "${newConnectionName}" foi criada. O QR Code será gerado automaticamente.`
+        title: "Conexão criada!",
+        description: `Criando instância na Evolution API...`
       });
+
+      // Abrir modal de QR code automaticamente
+      setTimeout(() => {
+        handleShowQR(newConnection.id);
+      }, 1000);
     } catch (error) {
       console.error('Erro ao criar conexão:', error);
       toast({
@@ -418,13 +423,17 @@ export const APIsTab = () => {
       </Card>
 
       {/* QR Code Modal */}
-      {showQRModal && (
-        <QRCodeViewModal
-          open={!!showQRModal}
-          onOpenChange={() => setShowQRModal(null)}
-          connectionId={showQRModal}
-        />
-      )}
+      {showQRModal && (() => {
+        const connection = connections.find(c => c.id === showQRModal);
+        return connection ? (
+          <QRCodeModal
+            open={!!showQRModal}
+            onOpenChange={(open) => !open && setShowQRModal(null)}
+            chipName={connection.name}
+            chipPhone={connection.phone || ''}
+          />
+        ) : null;
+      })()}
 
       {/* Connections Management */}
       <Card>
@@ -508,17 +517,10 @@ export const APIsTab = () => {
                     </div>
                   
                     <div className="flex items-center gap-2">
-                      {connection.qrCode && (
-                        <Button variant="outline" size="sm" onClick={() => handleShowQR(connection.id)}>
-                          <QrCode className="w-4 h-4 mr-2" />
-                          Ver QR
-                        </Button>
-                      )}
                       <Button 
                         variant="outline" 
                         size="sm" 
                         onClick={() => handleShowQR(connection.id)}
-                        disabled={connection.status === 'active' && !connection.qrCode}
                       >
                         <QrCode className="w-4 h-4 mr-2" />
                         Ver QR Code
