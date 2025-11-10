@@ -84,47 +84,27 @@ serve(async (req) => {
           continue;
         }
 
-        // Buscar histórico de mensagens do par (últimas 10)
-        const { data: messageHistory, error: histError } = await supabase
-          .from('saas_mensagens_maturacao')
-          .select('*')
-          .eq('chip_pair_id', pair.id)
-          .order('timestamp', { ascending: false })
-          .limit(10);
-
-        if (histError) {
-          console.error(`❌ Erro ao buscar histórico do par ${pair.id}:`, histError);
-        }
-
         // Determinar qual chip deve responder
         // Se não há histórico, chip1 começa; senão, alterna baseado na última mensagem
         let respondingChip = chip1;
         let receivingChip = chip2;
 
-        if (messageHistory && messageHistory.length > 0) {
-          const lastMessage = messageHistory[0];
-          if (lastMessage.sender_name === chip1.nome) {
-            respondingChip = chip2;
-            receivingChip = chip1;
-          }
-        }
+        // Sempre alternar entre os chips (sem verificar histórico no banco)
+        // Por padrão, chip1 começa, mas isso pode ser expandido com lógica local se necessário
+        respondingChip = chip1;
+        receivingChip = chip2;
 
         console.log(`💬 ${respondingChip.nome} vai responder para ${receivingChip.nome}`);
 
-        // Preparar histórico para o prompt no formato correto
-        const conversationHistory = (messageHistory || [])
-          .reverse()
-          .map((msg: any) => ({
-            isFromThisChip: msg.sender_name === respondingChip.nome,
-            content: msg.content
-          }));
+        // Preparar histórico vazio (sem banco de dados)
+        const conversationHistory: any[] = [];
 
         // Determinar o prompt a usar
         const systemPrompt = pair.use_instance_prompt && pair.instance_prompt
           ? pair.instance_prompt
           : respondingChip.prompt;
 
-        const isFirstMessage = !messageHistory || messageHistory.length === 0;
+        const isFirstMessage = true; // Sempre primeira mensagem sem histórico
 
         // Chamar OpenAI para gerar resposta
         const { data: aiResponse, error: aiError } = await supabase.functions.invoke('openai-chat', {
@@ -145,24 +125,7 @@ serve(async (req) => {
         const responseText = aiResponse.message;
         console.log(`✅ Resposta gerada: ${responseText.substring(0, 50)}...`);
 
-        // Salvar mensagem no banco
-        const { error: saveError } = await supabase
-          .from('saas_mensagens_maturacao')
-          .insert({
-            chip_pair_id: pair.id,
-            sender_name: respondingChip.nome,
-            receiver_name: receivingChip.nome,
-            content: responseText,
-            timestamp: new Date().toISOString(),
-            usuario_id: pair.usuario_id
-          });
-
-        if (saveError) {
-          console.error(`❌ Erro ao salvar mensagem do par ${pair.id}:`, saveError);
-          continue;
-        }
-
-        // Atualizar última atividade do par
+        // Atualizar última atividade do par (SEM SALVAR MENSAGEM)
         await supabase
           .from('saas_pares_maturacao')
           .update({ 

@@ -19,7 +19,6 @@ import { ConnectionsTab } from "@/components/ConnectionsTab";
 import { PromptsTab } from "@/components/PromptsTab";
 import { DadosTab } from "@/components/DadosTab";
 import { MaturadorTab } from "@/components/MaturadorTab";
-import { ChipConversationPanel } from "@/components/ChipConversationPanel";
 import { ProtectedRoute, useAuth } from "@/contexts/AuthContext";
 
 // Dados reais - sem demonstração
@@ -80,7 +79,7 @@ const Index = () => {
       <main className="container mx-auto px-6 py-8 space-y-8">
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <Bot className="w-4 h-4" />
               Dashboard
@@ -104,10 +103,6 @@ const Index = () => {
             <TabsTrigger value="maturador" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
               Maturador
-            </TabsTrigger>
-            <TabsTrigger value="conversas" className="flex items-center gap-2">
-              <MessageCircle className="w-4 h-4" />
-              Conversas
             </TabsTrigger>
           </TabsList>
 
@@ -174,29 +169,6 @@ const Index = () => {
                 icon={<Settings className="w-5 h-5 text-primary" />}
               />
             </section>
-
-            {/* Sistema de Maturação */}
-            {activeConnectionsCount >= 2 && (
-              <section className="bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-lg p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="text-2xl">🎯</div>
-                  <h3 className="text-lg font-semibold">Sistema de Maturação Ativo</h3>
-                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse ml-2"></div>
-                </div>
-                <p className="text-muted-foreground mb-4">
-                  Você tem {activeConnectionsCount} chips ativos. O sistema está gerando conversas automáticas entre eles para desenvolver personalidades únicas e aprimorar as respostas da IA.
-                </p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-primary">
-                    <span>Conversas automáticas em andamento</span>
-                  </div>
-                  <Button onClick={startChipConversation} size="sm" variant="outline">
-                    <Bot className="w-4 h-4 mr-2" />
-                    Forçar Conversa
-                  </Button>
-                </div>
-              </section>
-            )}
 
             <section className="space-y-6">
               <div className="flex items-center justify-between">
@@ -341,10 +313,6 @@ const Index = () => {
 
           <TabsContent value="maturador" className="mt-8">
             <MaturadorTab />
-          </TabsContent>
-
-          <TabsContent value="conversas" className="mt-8">
-            <ChipConversationPanel />
           </TabsContent>
         </Tabs>
       </main>

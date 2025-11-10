@@ -12,7 +12,6 @@ import {
 import { MoreVertical, Play, Pause, Settings, MessageCircle, Bot, QrCode, Wifi, History, Thermometer, TrendingUp } from "lucide-react";
 import { useState, useEffect } from "react";
 import { ChipConfigModal } from "./ChipConfigModal";
-import { ConversationsModal } from "./ConversationsModal";
 import { ConnectionTestModal } from "./ConnectionTestModal";
 import { ChipHistoryModal } from "./ChipHistoryModal";
 import { useToast } from "@/hooks/use-toast";
@@ -89,7 +88,6 @@ const aiModelColors = {
 
 export const ChipCard = ({ chip, isSelected, onSelect, onGenerateQR, onChipUpdated }: ChipCardProps) => {
   const [configModalOpen, setConfigModalOpen] = useState(false);
-  const [conversationsModalOpen, setConversationsModalOpen] = useState(false);
   const [connectionTestModalOpen, setConnectionTestModalOpen] = useState(false);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const { toast } = useToast();
@@ -229,10 +227,6 @@ export const ChipCard = ({ chip, isSelected, onSelect, onGenerateQR, onChipUpdat
                 <Settings className="mr-2 h-4 w-4" />
                 Configurar
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setConversationsModalOpen(true); }}>
-                <MessageCircle className="mr-2 h-4 w-4" />
-                Conversas
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleToggleStatus(); }}>
                 {chip.status === "active" ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
                 {chip.status === "active" ? "Pausar" : "Ativar"}
@@ -313,13 +307,6 @@ export const ChipCard = ({ chip, isSelected, onSelect, onGenerateQR, onChipUpdat
       <ChipConfigModal 
         open={configModalOpen}
         onOpenChange={setConfigModalOpen}
-        chipId={chip.id}
-        chipName={chip.name}
-      />
-      
-      <ConversationsModal 
-        open={conversationsModalOpen}
-        onOpenChange={setConversationsModalOpen}
         chipId={chip.id}
         chipName={chip.name}
       />
