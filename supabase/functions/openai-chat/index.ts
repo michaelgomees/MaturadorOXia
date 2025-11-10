@@ -82,11 +82,18 @@ serve(async (req) => {
       throw new Error('Prompt is required');
     }
 
-    // SEMPRE usar EXATAMENTE o prompt fornecido pelo chip, SEM NENHUMA modificação
+    // SEMPRE usar EXATAMENTE o prompt fornecido pelo chip, MAS adicionar restrição crítica de linhas
     // Este prompt já vem com todas as instruções de personalidade e comportamento
-    const systemPrompt = prompt;
+    const systemPrompt = `${prompt}
+
+REGRA CRÍTICA E OBRIGATÓRIA:
+- Suas respostas DEVEM ter NO MÁXIMO 3 LINHAS
+- Seja extremamente conciso e direto
+- Mensagens curtas são essenciais para manter a conversa natural
+- NUNCA ultrapasse 3 linhas, mesmo que precise cortar sua resposta`;
     
     console.log(`📝 Usando prompt EXATO do chip ${chipName} (${prompt.length} chars)`);
+
 
     // Preparar mensagens para OpenAI com histórico completo
     const messages = [
@@ -117,7 +124,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: messages,
-        max_tokens: 150,
+        max_tokens: 80, // Reduzido para forçar mensagens curtas
         temperature: 0.9,
         frequency_penalty: 0.5,
         presence_penalty: 0.6,
