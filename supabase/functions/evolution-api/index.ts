@@ -188,11 +188,16 @@ serve(async (req) => {
       }
 
       console.log('🌐 Endpoint completo:', endpoint);
-      console.log('🔑 API Key (primeiros 10 chars):', apiKey.substring(0, 10) + '...');
+      console.log('🔑 API Key completa:', apiKey); // Log completo temporário para debug
+      console.log('🔑 Tamanho da API Key:', apiKey.length);
 
       try {
         console.log(`📞 Criando instância: ${instanceName}`)
         console.log(`📡 URL de criação: ${endpoint}/instance/create`);
+        console.log('📋 Headers que serão enviados:', {
+          'Content-Type': 'application/json',
+          'apikey': apiKey
+        });
         
         // Criar a instância na Evolution API
         const createResponse = await fetch(`${endpoint}/instance/create`, {

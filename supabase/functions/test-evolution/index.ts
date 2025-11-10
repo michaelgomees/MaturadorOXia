@@ -43,10 +43,15 @@ serve(async (req) => {
     }
 
     console.log('🔍 Testando conexão com:', endpoint);
-    console.log('🔑 Usando API Key:', apiKey.substring(0, 10) + '...');
+    console.log('🔑 API Key completa:', apiKey); // Log completo temporário para debug
+    console.log('🔑 Tamanho da API Key:', apiKey.length);
     
     const testUrl = `${endpoint}/instance/fetchInstances`;
-    console.log('📡 URL completa:', testUrl);
+    console.log('📡 URL completa de teste:', testUrl);
+    console.log('📋 Headers enviados:', {
+      'apikey': apiKey,
+      'Content-Type': 'application/json'
+    });
 
     const response = await fetch(testUrl, {
       method: 'GET',
