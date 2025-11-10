@@ -189,7 +189,9 @@ serve(async (req) => {
       const cleanApiKey = apiKey.trim();
 
       try {
-        // Check if instance exists - if yes, just return it
+        // SIMPLIFIED APPROACH: Don't try to create, just fetch existing instance and QR
+        console.log('📋 Fetching existing instance:', instanceName);
+        
         const checkResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
           method: 'GET',
           headers: {
@@ -198,123 +200,68 @@ serve(async (req) => {
           }
         });
 
-        let instanceExists = false;
-        let qrCode = null;
-
-        if (checkResponse.ok) {
-          const instances = await checkResponse.json();
-          if (Array.isArray(instances) && instances.length > 0) {
-            instanceExists = true;
-            console.log('✅ Instance already exists');
-            
-            // Try to get QR code
-            const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
-              method: 'GET',
-              headers: {
-                'apikey': cleanApiKey,
-                'Accept': 'application/json'
-              }
-            });
-
-            if (qrResponse.ok) {
-              const qrData = await qrResponse.json();
-              qrCode = qrData.base64 || qrData.qrcode || null;
-            }
-            
-            // Return success immediately since instance exists
-            return new Response(
-              JSON.stringify({
-                success: true,
-                qrCode: qrCode,
-                instanceName: instanceName,
-                message: 'Instance already exists'
-              }),
-              { 
-                status: 200, 
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-              }
-            );
-          }
-        }
-
-        // Only try to create if instance doesn't exist
-        console.log('📞 Instance not found, attempting to create...');
-        
-        const requestBody = {
-          instanceName: instanceName,
-          qrcode: true,
-          integration: "WHATSAPP-BAILEYS"
-        };
-        
-        const createResponse = await fetch(`${endpoint}/instance/create`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': cleanApiKey,
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify(requestBody)
-        });
-
-        if (!createResponse.ok) {
-          const errorText = await createResponse.text();
-          let errorData;
-          try {
-            errorData = JSON.parse(errorText);
-          } catch {
-            errorData = { message: errorText };
-          }
-          
+        if (!checkResponse.ok) {
           return new Response(
             JSON.stringify({ 
               success: false, 
-              error: 'Falha ao criar instância. Sua API key pode não ter permissões de escrita.',
-              details: {
-                status: createResponse.status,
-                error: errorData.message || errorText
-              }
+              error: `Não foi possível buscar instância. Verifique suas credenciais.`
             }),
             { 
-              status: createResponse.status, 
+              status: checkResponse.status, 
               headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
             }
-          )
+          );
         }
 
-        const createData = await createResponse.json();
-        console.log('✅ Instance created');
+        const instances = await checkResponse.json();
         
-        // Wait for instance to be ready
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        if (!Array.isArray(instances) || instances.length === 0) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: `Instância '${instanceName}' não encontrada na Evolution API. Crie a instância manualmente primeiro.`,
+              instanceName: instanceName
+            }),
+            { 
+              status: 404, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+        }
 
+        console.log('✅ Instance found, fetching QR code...');
+        
         // Get QR code
-        const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
-          method: 'GET',
-          headers: {
-            'apikey': cleanApiKey,
-            'Accept': 'application/json'
+        let qrCode = null;
+        try {
+          const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+            method: 'GET',
+            headers: {
+              'apikey': cleanApiKey,
+              'Accept': 'application/json'
+            }
+          });
+
+          if (qrResponse.ok) {
+            const qrData = await qrResponse.json();
+            qrCode = qrData.base64 || qrData.qrcode;
           }
-        })
-
-        let qrCode = null
-        if (qrResponse.ok) {
-          const qrData = await qrResponse.json()
-          qrCode = qrData.base64 || qrData.qrcode
+        } catch (e) {
+          console.log('QR fetch failed, will use fallback');
         }
 
-        const response: EvolutionAPIResponse = {
-          success: true,
-          qrCode: qrCode,
-          instanceName: instanceName
-        }
-
+        // Return success with QR code
         return new Response(
-          JSON.stringify(response),
+          JSON.stringify({
+            success: true,
+            qrCode: qrCode,
+            instanceName: instanceName
+          }),
           { 
             status: 200, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
           }
-        )
+        );
 
       } catch (error) {
         console.error('❌ Erro de rede ao conectar com Evolution API:', error);
