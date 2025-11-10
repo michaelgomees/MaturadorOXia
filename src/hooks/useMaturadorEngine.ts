@@ -36,7 +36,6 @@ export const useMaturadorEngine = () => {
   const [chipPairs, setChipPairs] = useState<ChipPair[]>([]);
   const intervalRefs = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const processingPairs = useRef<Set<string>>(new Set()); // Controle de pares em processamento
-  const backendIntervalRef = useRef<NodeJS.Timeout | null>(null); // Intervalo global do backend
   const { toast } = useToast();
   const { connections, getConnection, syncWithEvolutionAPI } = useConnections();
 
@@ -743,61 +742,6 @@ export const useMaturadorEngine = () => {
       description: "Todas as conversas foram removidas",
     });
   }, [chipPairs, saveData, toast]);
-
-  // Função para chamar o backend e forçar conversas
-  const forceMaturationFromBackend = async () => {
-    try {
-      console.log('🔄 Chamando backend para forçar maturação...');
-      const { data, error } = await supabase.functions.invoke('force-maturation');
-      
-      if (error) {
-        console.error('❌ Erro ao chamar force-maturation:', error);
-        return;
-      }
-      
-      console.log('✅ Backend respondeu:', data);
-      
-      // Recarregar mensagens após o backend processar
-      await loadData();
-      
-    } catch (error) {
-      console.error('❌ Erro ao forçar maturação pelo backend:', error);
-    }
-  };
-
-  // Iniciar polling do backend quando houver pares ativos
-  useEffect(() => {
-    const hasActivePairs = chipPairs.some(pair => pair.status === 'running');
-    
-    if (hasActivePairs && !backendIntervalRef.current) {
-      console.log('🚀 Iniciando polling do backend (a cada 90 segundos)');
-      
-      // Chamar imediatamente na primeira vez
-      forceMaturationFromBackend();
-      
-      // Depois chamar a cada 90 segundos (1min30s) com variação de ±15s
-      const interval = setInterval(() => {
-        const randomDelay = Math.random() * 30000; // 0-30 segundos de variação
-        setTimeout(() => {
-          forceMaturationFromBackend();
-        }, randomDelay);
-      }, 90000);
-      
-      backendIntervalRef.current = interval;
-      
-    } else if (!hasActivePairs && backendIntervalRef.current) {
-      console.log('⏸️ Parando polling do backend (nenhum par ativo)');
-      clearInterval(backendIntervalRef.current);
-      backendIntervalRef.current = null;
-    }
-    
-    return () => {
-      if (backendIntervalRef.current) {
-        clearInterval(backendIntervalRef.current);
-        backendIntervalRef.current = null;
-      }
-    };
-  }, [chipPairs]);
 
   // Carregar dados ao montar o componente
   useEffect(() => {
