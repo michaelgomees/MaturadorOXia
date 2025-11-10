@@ -41,23 +41,24 @@ serve(async (req) => {
     if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
       endpoint = `https://${endpoint}`;
     }
+    
+    // Limpar API Key de espaços em branco
+    const cleanApiKey = apiKey.trim();
 
     console.log('🔍 Testando conexão com:', endpoint);
-    console.log('🔑 API Key completa:', apiKey); // Log completo temporário para debug
-    console.log('🔑 Tamanho da API Key:', apiKey.length);
+    console.log('🔑 API Key (limpa):', cleanApiKey);
+    console.log('🔑 Tamanho:', cleanApiKey.length);
     
     const testUrl = `${endpoint}/instance/fetchInstances`;
     console.log('📡 URL completa de teste:', testUrl);
-    console.log('📋 Headers enviados:', {
-      'apikey': apiKey,
-      'Content-Type': 'application/json'
-    });
 
+    // Testar com o header que a Evolution API espera
     const response = await fetch(testUrl, {
       method: 'GET',
       headers: {
-        'apikey': apiKey,
-        'Content-Type': 'application/json'
+        'apikey': cleanApiKey,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       }
     });
 

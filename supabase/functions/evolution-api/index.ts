@@ -29,10 +29,13 @@ async function handleSendMessage(request: SendMessageRequest) {
     });
   }
 
-  // Garantir que o endpoint tenha o protocolo HTTPS
+  // Garantir protocolo
   if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
     endpoint = `https://${endpoint}`;
   }
+  
+  // Limpar API Key
+  const cleanApiKey = apiKey.trim();
 
   try {
     // Construir payload para a Evolution API
@@ -51,7 +54,8 @@ async function handleSendMessage(request: SendMessageRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': apiKey
+        'apikey': cleanApiKey,
+        'Accept': 'application/json'
       },
       body: JSON.stringify(payload)
     });
@@ -186,25 +190,25 @@ serve(async (req) => {
       if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
         endpoint = `https://${endpoint}`;
       }
+      
+      // Limpar API Key de espaços em branco
+      const cleanApiKey = apiKey.trim();
 
       console.log('🌐 Endpoint completo:', endpoint);
-      console.log('🔑 API Key completa:', apiKey); // Log completo temporário para debug
-      console.log('🔑 Tamanho da API Key:', apiKey.length);
+      console.log('🔑 API Key (limpa):', cleanApiKey);
+      console.log('🔑 Tamanho:', cleanApiKey.length);
 
       try {
         console.log(`📞 Criando instância: ${instanceName}`)
         console.log(`📡 URL de criação: ${endpoint}/instance/create`);
-        console.log('📋 Headers que serão enviados:', {
-          'Content-Type': 'application/json',
-          'apikey': apiKey
-        });
         
         // Criar a instância na Evolution API
         const createResponse = await fetch(`${endpoint}/instance/create`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': apiKey
+            'apikey': cleanApiKey,
+            'Accept': 'application/json'
           },
           body: JSON.stringify({
             instanceName: instanceName,
@@ -251,7 +255,8 @@ serve(async (req) => {
         const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
           method: 'GET',
           headers: {
-            'apikey': apiKey
+            'apikey': cleanApiKey,
+            'Accept': 'application/json'
           }
         })
 
@@ -329,13 +334,17 @@ serve(async (req) => {
         endpoint = `https://${endpoint}`;
       }
       
+      // Limpar API Key de espaços em branco  
+      const cleanApiKey = apiKey.trim();
+      
       try {
         // Buscar dados da instância
         console.log(`Fetching instance data from: ${endpoint}/instance/fetchInstances?instanceName=${instanceName}`)
         const instanceResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
           method: 'GET',
           headers: {
-            'apikey': apiKey
+            'apikey': cleanApiKey,
+            'Accept': 'application/json'
           }
         })
 
@@ -385,7 +394,8 @@ serve(async (req) => {
               console.log(`Fetching profile from: ${endpoint}/chat/whatsappProfile/${instanceName}`)
               const profileResponse = await fetch(`${endpoint}/chat/whatsappProfile/${instanceName}`, {
                 headers: {
-                  'apikey': apiKey
+                  'apikey': cleanApiKey,
+                  'Accept': 'application/json'
                 }
               })
 
@@ -432,7 +442,8 @@ serve(async (req) => {
             const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
               method: 'GET',
               headers: {
-                'apikey': apiKey
+                'apikey': cleanApiKey,
+                'Accept': 'application/json'
               }
             })
 
