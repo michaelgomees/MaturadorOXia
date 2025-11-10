@@ -496,6 +496,108 @@ export const useMaturadorEngine = () => {
     });
   }, [toast]);
 
+  // Iniciar par individual
+  const startPair = useCallback(async (pairId: string) => {
+    const pair = chipPairs.find(p => p.id === pairId);
+    if (!pair) return;
+
+    console.log(`🚀 Iniciando par individual: ${pair.firstChipName} <-> ${pair.secondChipName}`);
+    
+    // Atualizar status do par
+    const updatedPairs = chipPairs.map(p => 
+      p.id === pairId 
+        ? { ...p, status: 'running' as const, isActive: true }
+        : p
+    );
+    setChipPairs(updatedPairs);
+    saveData(messages, updatedPairs);
+
+    // Função recursiva para manter conversas ininterruptas
+    const keepConversationGoing = async () => {
+      try {
+        // Verificar se deve continuar
+        const savedConfig = localStorage.getItem('ox-enhanced-maturador-config');
+        if (!savedConfig) {
+          console.log(`⏹️ Config não encontrada, parando par ${pairId}`);
+          return;
+        }
+        
+        const config = JSON.parse(savedConfig);
+        const currentPair = config.selectedPairs?.find((p: any) => p.id === pairId);
+        if (!currentPair?.isActive || currentPair.status !== 'running') {
+          console.log(`⏸️ Par ${pairId} pausado ou inativo`);
+          return;
+        }
+        
+        // Processar mensagem
+        console.log(`💬 Processando mensagem do par ${pairId}...`);
+        await processChipPairConversation(pair);
+        
+        // Delay curto entre mensagens (5-10 segundos) para manter conversa fluida
+        const nextDelay = (5 + Math.random() * 5) * 1000;
+        console.log(`⏰ Próxima mensagem do par ${pairId} em ${(nextDelay/1000).toFixed(1)}s`);
+        
+        // Agendar próxima mensagem
+        const timeout = setTimeout(() => {
+          keepConversationGoing();
+        }, nextDelay);
+        
+        intervalRefs.current.set(pairId, timeout as any);
+        
+      } catch (error) {
+        console.error(`❌ Erro no par ${pairId}:`, error);
+        
+        // Em caso de erro, aguardar mais tempo antes de tentar novamente
+        const retryDelay = 30000; // 30 segundos
+        console.log(`🔄 Tentando novamente o par ${pairId} em ${retryDelay/1000}s`);
+        
+        const timeout = setTimeout(() => {
+          keepConversationGoing();
+        }, retryDelay);
+        
+        intervalRefs.current.set(pairId, timeout as any);
+      }
+    };
+    
+    // Iniciar conversa imediatamente
+    console.log(`▶️ Iniciando primeira mensagem do par ${pairId}...`);
+    keepConversationGoing();
+
+    toast({
+      title: "Par Iniciado",
+      description: `${pair.firstChipName} ↔ ${pair.secondChipName}`,
+    });
+  }, [chipPairs, messages, processChipPairConversation, saveData, toast]);
+
+  // Parar par individual
+  const stopPair = useCallback((pairId: string) => {
+    const pair = chipPairs.find(p => p.id === pairId);
+    if (!pair) return;
+
+    console.log(`⏸️ Parando par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
+    
+    // Atualizar status do par
+    const updatedPairs = chipPairs.map(p => 
+      p.id === pairId 
+        ? { ...p, status: 'paused' as const }
+        : p
+    );
+    setChipPairs(updatedPairs);
+    saveData(messages, updatedPairs);
+
+    // Limpar timeout do par
+    const timeout = intervalRefs.current.get(pairId);
+    if (timeout) {
+      clearTimeout(timeout);
+      intervalRefs.current.delete(pairId);
+    }
+
+    toast({
+      title: "Par Pausado",
+      description: `${pair.firstChipName} ↔ ${pair.secondChipName}`,
+    });
+  }, [chipPairs, messages, saveData, toast]);
+
   // Obter mensagens de um par específico
   const getPairMessages = useCallback((pairId: string) => {
     return messages.filter(msg => msg.chipPairId === pairId)
@@ -560,6 +662,8 @@ export const useMaturadorEngine = () => {
     loadData,
     startMaturador,
     stopMaturador,
+    startPair,
+    stopPair,
     getPairMessages,
     getStats,
     processChipPairConversation,

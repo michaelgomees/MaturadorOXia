@@ -17,10 +17,11 @@ export const ChipConversationPanel = () => {
     chipPairs,
     startMaturador,
     stopMaturador,
+    startPair,
+    stopPair,
     getPairMessages,
     clearPairHistory,
     clearAllHistory,
-    processChipPairConversation,
     loadData
   } = useMaturadorEngine();
 
@@ -39,15 +40,15 @@ export const ChipConversationPanel = () => {
     }
   }, [selectedPairId, messages, getPairMessages]);
 
-  const handleForceConversation = async (pair: ChipPair) => {
-    try {
-      await processChipPairConversation(pair);
-    } catch (error) {
-      console.error('Erro ao forçar conversa:', error);
-    }
+  const handleStartPair = async (pairId: string) => {
+    await startPair(pairId);
   };
 
-  const activePairs = chipPairs.filter(p => p.isActive);
+  const handleStopPair = (pairId: string) => {
+    stopPair(pairId);
+  };
+
+  const runningPairs = chipPairs.filter(p => p.status === 'running');
   const selectedPair = chipPairs.find(p => p.id === selectedPairId);
 
   return (
@@ -75,8 +76,8 @@ export const ChipConversationPanel = () => {
               </div>
               <Separator orientation="vertical" className="h-6" />
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">Pares Ativos:</span>
-                <Badge variant="outline">{activePairs.length}</Badge>
+                <span className="text-sm font-medium">Pares Rodando:</span>
+                <Badge variant="outline">{runningPairs.length}</Badge>
               </div>
               <Separator orientation="vertical" className="h-6" />
               <div className="flex items-center gap-2">
@@ -127,16 +128,26 @@ export const ChipConversationPanel = () => {
             
             {selectedPairId !== 'all' && selectedPair && (
               <div className="flex gap-2">
-                <Button
-                  onClick={() => handleForceConversation(selectedPair)}
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  disabled={isRunning}
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Forçar Mensagem
-                </Button>
+                {selectedPair.status === 'running' ? (
+                  <Button
+                    onClick={() => handleStopPair(selectedPairId)}
+                    variant="secondary"
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <PauseCircle className="h-4 w-4" />
+                    Pausar Par
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => handleStartPair(selectedPairId)}
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <PlayCircle className="h-4 w-4" />
+                    Iniciar Par
+                  </Button>
+                )}
                 <Button
                   onClick={() => clearPairHistory(selectedPairId)}
                   variant="outline"
@@ -256,16 +267,26 @@ export const ChipConversationPanel = () => {
                   )}
                   
                   <div className="flex gap-2">
-                    <Button
-                      onClick={() => handleForceConversation(pair)}
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 gap-1"
-                      disabled={!pair.isActive || isRunning}
-                    >
-                      <RefreshCw className="h-3 w-3" />
-                      Forçar
-                    </Button>
+                    {pair.status === 'running' ? (
+                      <Button
+                        onClick={() => handleStopPair(pair.id)}
+                        variant="secondary"
+                        size="sm"
+                        className="flex-1 gap-1"
+                      >
+                        <PauseCircle className="h-3 w-3" />
+                        Pausar
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={() => handleStartPair(pair.id)}
+                        size="sm"
+                        className="flex-1 gap-1"
+                      >
+                        <PlayCircle className="h-3 w-3" />
+                        Iniciar
+                      </Button>
+                    )}
                     <Button
                       onClick={() => setSelectedPairId(pair.id)}
                       variant="outline"
