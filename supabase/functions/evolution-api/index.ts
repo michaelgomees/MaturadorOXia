@@ -201,108 +201,136 @@ serve(async (req) => {
       console.log('🔑 evolutionApiKey passado:', evolutionApiKey ? 'SIM' : 'NÃO');
 
       try {
-        console.log(`📞 Criando instância: ${instanceName}`)
-        console.log(`📡 URL de criação: ${endpoint}/instance/create`);
+        console.log(`📞 Verificando se instância ${instanceName} já existe...`);
         
-        const requestBody = {
-          instanceName: instanceName,
-          qrcode: true,
-          integration: "WHATSAPP-BAILEYS"
-        };
-        
-        console.log('📦 Payload:', requestBody);
-        console.log('🔐 Testando diferentes formatos de autenticação...');
-        
-        // Tentar criar com header 'apikey'
-        console.log('Tentativa 1: header apikey');
-        let createResponse = await fetch(`${endpoint}/instance/create`, {
-          method: 'POST',
+        // First, check if instance already exists
+        const checkResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
+          method: 'GET',
           headers: {
-            'Content-Type': 'application/json',
             'apikey': cleanApiKey,
             'Accept': 'application/json'
-          },
-          body: JSON.stringify(requestBody)
+          }
         });
 
-        // Se falhou com 401, tentar com 'x-api-key'
-        if (createResponse.status === 401) {
-          console.log('❌ Falhou com apikey, tentando x-api-key');
-          createResponse = await fetch(`${endpoint}/instance/create`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-api-key': cleanApiKey,
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify(requestBody)
-          });
-        }
+        let instanceExists = false;
+        let existingInstance = null;
 
-        // Se falhou com 401, tentar com 'Authorization'
-        if (createResponse.status === 401) {
-          console.log('❌ Falhou com x-api-key, tentando Authorization Bearer');
-          createResponse = await fetch(`${endpoint}/instance/create`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${cleanApiKey}`,
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify(requestBody)
-          });
-        }
-
-        // Se falhou com 401, tentar com 'Api-Key'
-        if (createResponse.status === 401) {
-          console.log('❌ Falhou com Authorization, tentando Api-Key');
-          createResponse = await fetch(`${endpoint}/instance/create`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Api-Key': cleanApiKey,
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify(requestBody)
-          });
-        }
-        
-        console.log('📥 Status final da resposta:', createResponse.status);
-        console.log('📥 Headers da resposta:', Object.fromEntries(createResponse.headers.entries()));
-
-        if (!createResponse.ok) {
-          const errorText = await createResponse.text();
-          console.error('❌ Erro da Evolution API (status ' + createResponse.status + '):', errorText);
-          console.error('❌ URL tentada:', `${endpoint}/instance/create`);
-          console.error('❌ Payload enviado:', JSON.stringify(requestBody));
-          
-          let errorData;
-          try {
-            errorData = JSON.parse(errorText);
-          } catch {
-            errorData = { message: errorText };
+        if (checkResponse.ok) {
+          const instances = await checkResponse.json();
+          if (Array.isArray(instances) && instances.length > 0) {
+            instanceExists = true;
+            existingInstance = instances[0];
+            console.log('✅ Instância já existe:', existingInstance);
           }
-          
-          return new Response(
-            JSON.stringify({ 
-              success: false, 
-              error: `Erro ao criar instância (${createResponse.status}): ${errorData.message || errorText.substring(0, 200)}`,
-              details: errorData,
-              endpoint: endpoint,
-              statusCode: createResponse.status
-            }),
-            { 
-              status: createResponse.status, 
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-            }
-          )
         }
 
-        const createData = await createResponse.json()
-        console.log('✅ Instância criada com sucesso:', createData)
+        // Only create if instance doesn't exist
+        if (!instanceExists) {
+          console.log(`📞 Criando nova instância: ${instanceName}`)
+          console.log(`📡 URL de criação: ${endpoint}/instance/create`);
+          
+          const requestBody = {
+            instanceName: instanceName,
+            qrcode: true,
+            integration: "WHATSAPP-BAILEYS"
+          };
+          
+          console.log('📦 Payload:', requestBody);
+          console.log('🔐 Testando diferentes formatos de autenticação...');
+          
+          // Tentar criar com header 'apikey'
+          console.log('Tentativa 1: header apikey');
+          let createResponse = await fetch(`${endpoint}/instance/create`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': cleanApiKey,
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+          });
 
-        // Aguardar um pouco para a instância ficar pronta
-        await new Promise(resolve => setTimeout(resolve, 2000));
+          // Se falhou com 401, tentar com 'x-api-key'
+          if (createResponse.status === 401) {
+            console.log('❌ Falhou com apikey, tentando x-api-key');
+            createResponse = await fetch(`${endpoint}/instance/create`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': cleanApiKey,
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify(requestBody)
+            });
+          }
+
+          // Se falhou com 401, tentar com 'Authorization'
+          if (createResponse.status === 401) {
+            console.log('❌ Falhou com x-api-key, tentando Authorization Bearer');
+            createResponse = await fetch(`${endpoint}/instance/create`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${cleanApiKey}`,
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify(requestBody)
+            });
+          }
+
+          // Se falhou com 401, tentar com 'Api-Key'
+          if (createResponse.status === 401) {
+            console.log('❌ Falhou com Authorization, tentando Api-Key');
+            createResponse = await fetch(`${endpoint}/instance/create`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Api-Key': cleanApiKey,
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify(requestBody)
+            });
+          }
+        
+          console.log('📥 Status final da resposta:', createResponse.status);
+          console.log('📥 Headers da resposta:', Object.fromEntries(createResponse.headers.entries()));
+
+          if (!createResponse.ok) {
+            const errorText = await createResponse.text();
+            console.error('❌ Erro da Evolution API (status ' + createResponse.status + '):', errorText);
+            console.error('❌ URL tentada:', `${endpoint}/instance/create`);
+            console.error('❌ Payload enviado:', JSON.stringify(requestBody));
+          
+            let errorData;
+            try {
+              errorData = JSON.parse(errorText);
+            } catch {
+              errorData = { message: errorText };
+            }
+            
+            return new Response(
+              JSON.stringify({ 
+                success: false, 
+                error: `Erro ao criar instância (${createResponse.status}): ${errorData.message || errorText.substring(0, 200)}`,
+                details: errorData,
+                endpoint: endpoint,
+                statusCode: createResponse.status
+              }),
+              { 
+                status: createResponse.status, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              }
+            )
+          }
+
+          const createData = await createResponse.json()
+          console.log('✅ Instância criada com sucesso:', createData)
+
+          // Aguardar um pouco para a instância ficar pronta
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+          console.log('ℹ️ Instância já existe, pulando criação');
+        }
 
         // Get QR code
         const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
