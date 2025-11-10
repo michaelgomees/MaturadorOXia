@@ -17,8 +17,6 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useConnections } from "@/contexts/ConnectionsContext";
-import { useMaturadorEngine } from "@/hooks/useMaturadorEngine";
-import { useChipMaturation } from "@/hooks/useChipMaturation";
 import { useMaturadorPairs } from "@/hooks/useMaturadorPairs";
 import { usePrompts } from "@/hooks/usePrompts";
 
@@ -43,7 +41,6 @@ interface ActiveConnection {
 }
 
 interface MaturadorConfig {
-  isRunning: boolean;
   selectedPairs: ChipPair[];
   useBasePrompt: boolean;
   customPrompt?: string;
@@ -51,13 +48,10 @@ interface MaturadorConfig {
 
 export const MaturadorTab = () => {
   const { connections: whatsappConnections } = useConnections();
-  const { isRunning, startMaturador, stopMaturador } = useMaturadorEngine();
-  const { startChipConversation } = useChipMaturation();
   const { pairs: dbPairs, createPair, updatePair, deletePair, togglePairActive } = useMaturadorPairs();
   const { prompts } = usePrompts();
   
   const [config, setConfig] = useState<MaturadorConfig>({
-    isRunning: false,
     selectedPairs: [],
     useBasePrompt: true,
     customPrompt: ''
@@ -84,10 +78,9 @@ export const MaturadorTab = () => {
     
     setConfig(prev => ({
       ...prev,
-      selectedPairs: mappedPairs,
-      isRunning: isRunning
+      selectedPairs: mappedPairs
     }));
-  }, [dbPairs, isRunning]);
+  }, [dbPairs]);
 
   const handleAddPair = async () => {
     if (!newPair.chip1 || !newPair.chip2 || newPair.chip1 === newPair.chip2) {
@@ -123,55 +116,64 @@ export const MaturadorTab = () => {
     }
   };
 
-  const handleStartConversation = async () => {
+  const handleStartPair = async (pairId: string) => {
     try {
-      await startChipConversation();
+      await updatePair(pairId, { status: 'running' });
       toast({ 
-        title: "💬 Conversa Forçada!", 
-        description: "Uma nova conversa foi iniciada entre chips ativos." 
+        title: "🎯 Maturação Iniciada!", 
+        description: "A dupla começou a maturar automaticamente." 
       });
     } catch (error) {
       toast({ 
         title: "Erro", 
-        description: "Não foi possível iniciar conversa. Verifique as conexões.", 
+        description: "Não foi possível iniciar a maturação.", 
         variant: "destructive" 
       });
     }
   };
 
-  const handleStartMaturation = async () => {
+  const handleStopPair = async (pairId: string) => {
     try {
-      const activePairs = config.selectedPairs.filter(pair => pair.isActive && pair.status !== 'paused');
-      
-      if (activePairs.length === 0) {
-        toast({ 
-          title: "Aviso", 
-          description: "Nenhuma dupla ativa encontrada. Ative pelo menos uma dupla para iniciar o maturador.", 
-          variant: "destructive" 
-        });
-        return;
-      }
-
-      if (!isConfigValid) {
-        toast({ 
-          title: "Configuração Incompleta", 
-          description: "Configure pelo menos uma dupla ativa antes de iniciar.", 
-          variant: "destructive" 
-        });
-        return;
-      }
-
-      // Iniciar sistema de maturação
-      startMaturador();
-      
+      await updatePair(pairId, { status: 'stopped' });
       toast({ 
-        title: "🎯 Maturador Iniciado!", 
-        description: `Sistema ativado para ${activePairs.length} duplas.` 
+        title: "Maturação Parada", 
+        description: "A dupla parou de maturar." 
       });
     } catch (error) {
       toast({ 
         title: "Erro", 
-        description: "Não foi possível iniciar o maturador. Verifique as conexões.", 
+        description: "Não foi possível parar a maturação.", 
+        variant: "destructive" 
+      });
+    }
+  };
+
+  const handleStartAll = async () => {
+    try {
+      const activePairs = config.selectedPairs.filter(pair => pair.isActive);
+      
+      if (activePairs.length === 0) {
+        toast({ 
+          title: "Aviso", 
+          description: "Nenhuma dupla ativa encontrada.", 
+          variant: "destructive" 
+        });
+        return;
+      }
+
+      // Iniciar todas as duplas ativas
+      for (const pair of activePairs) {
+        await updatePair(pair.id, { status: 'running' });
+      }
+      
+      toast({ 
+        title: "🎯 Todas as Duplas Iniciadas!", 
+        description: `${activePairs.length} duplas começaram a maturar.` 
+      });
+    } catch (error) {
+      toast({ 
+        title: "Erro", 
+        description: "Não foi possível iniciar todas as duplas.", 
         variant: "destructive" 
       });
     }
@@ -215,6 +217,7 @@ export const MaturadorTab = () => {
 
   const loading = false;
   const activePairs = config.selectedPairs.filter(pair => pair.isActive);
+  const runningPairs = config.selectedPairs.filter(pair => pair.status === 'running');
   const totalMessages = config.selectedPairs.reduce((acc, pair) => acc + pair.messagesExchanged, 0);
   const isConfigValid = config.selectedPairs.length > 0;
 
@@ -227,38 +230,6 @@ export const MaturadorTab = () => {
           <p className="text-muted-foreground">
             Configure conversas automáticas entre conexões ativas ({activeConnections.length} disponíveis)
           </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            variant={isRunning ? "destructive" : "default"}
-            onClick={isRunning ? stopMaturador : handleStartMaturation}
-            disabled={activePairs.length === 0 || !isConfigValid}
-            className="flex items-center gap-2"
-          >
-            {isRunning ? (
-              <>
-                <Square className="w-4 h-4" />
-                <span className="text-white">Parar Maturador</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                <span className="text-white">Iniciar Maturador</span>
-              </>
-            )}
-          </Button>
-          <Badge variant={isRunning ? "default" : "secondary"} className="px-3 py-1">
-            {isRunning ? "🟢 Ativo" : "🔴 Inativo"}
-          </Badge>
-          <Button 
-            onClick={handleStartConversation} 
-            variant="outline"
-            className="flex items-center gap-2"
-            disabled={!isConfigValid}
-          >
-            <MessageCircle className="w-4 h-4" />
-            Forçar Conversa
-          </Button>
         </div>
       </div>
 
@@ -295,7 +266,7 @@ export const MaturadorTab = () => {
           <CardContent className="flex items-center p-6">
             <Settings className="w-8 h-8 text-purple-500 mr-3" />
             <div>
-              <p className="text-2xl font-bold">{isRunning ? 'ON' : 'OFF'}</p>
+              <p className="text-2xl font-bold">{runningPairs.length > 0 ? 'ON' : 'OFF'}</p>
               <p className="text-xs text-muted-foreground">Status Sistema</p>
             </div>
           </CardContent>
@@ -370,8 +341,22 @@ export const MaturadorTab = () => {
       {/* Lista de Duplas */}
       <Card>
         <CardHeader>
-          <CardTitle>Duplas Configuradas ({config.selectedPairs.length})</CardTitle>
-          <CardDescription>Gerencie as duplas</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Duplas Configuradas ({config.selectedPairs.length})</CardTitle>
+              <CardDescription>Gerencie as duplas</CardDescription>
+            </div>
+            {config.selectedPairs.length > 0 && (
+              <Button 
+                onClick={handleStartAll}
+                className="flex items-center gap-2"
+                disabled={activePairs.length === 0}
+              >
+                <Play className="w-4 h-4" />
+                Iniciar Todos
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {config.selectedPairs.length === 0 ? (
@@ -414,6 +399,28 @@ export const MaturadorTab = () => {
                             </div>
                             
                             <div className="flex gap-2">
+                              {pair.status === 'running' ? (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  onClick={() => handleStopPair(pair.id)}
+                                  className="flex items-center gap-1"
+                                >
+                                  <Square className="w-4 h-4"/>
+                                  Parar
+                                </Button>
+                              ) : (
+                                <Button 
+                                  variant="default" 
+                                  size="sm" 
+                                  onClick={() => handleStartPair(pair.id)}
+                                  disabled={!pair.isActive}
+                                  className="flex items-center gap-1"
+                                >
+                                  <Play className="w-4 h-4"/>
+                                  Iniciar
+                                </Button>
+                              )}
                               <Button 
                                 variant="outline" 
                                 size="sm" 
