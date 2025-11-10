@@ -111,11 +111,11 @@ serve(async (req) => {
 
         console.log(`💬 ${respondingChip.nome} vai responder para ${receivingChip.nome}`);
 
-        // Preparar histórico para o prompt
+        // Preparar histórico para o prompt no formato correto
         const conversationHistory = (messageHistory || [])
           .reverse()
           .map((msg: any) => ({
-            role: msg.sender_name === respondingChip.nome ? 'assistant' : 'user',
+            isFromThisChip: msg.sender_name === respondingChip.nome,
             content: msg.content
           }));
 
@@ -124,15 +124,16 @@ serve(async (req) => {
           ? pair.instance_prompt
           : respondingChip.prompt;
 
+        const isFirstMessage = !messageHistory || messageHistory.length === 0;
+
         // Chamar OpenAI para gerar resposta
         const { data: aiResponse, error: aiError } = await supabase.functions.invoke('openai-chat', {
           body: {
-            instanceName: respondingChip.evolution_instance_name,
-            chipPrompt: systemPrompt,
+            prompt: systemPrompt,
+            chipName: respondingChip.nome,
             conversationHistory,
-            lastMessage: conversationHistory.length > 0 
-              ? conversationHistory[conversationHistory.length - 1].content 
-              : "Olá! Como você está?"
+            isFirstMessage,
+            responseDelay: 30
           }
         });
 
@@ -141,7 +142,7 @@ serve(async (req) => {
           continue;
         }
 
-        const responseText = aiResponse.response;
+        const responseText = aiResponse.message;
         console.log(`✅ Resposta gerada: ${responseText.substring(0, 50)}...`);
 
         // Salvar mensagem no banco
