@@ -164,11 +164,16 @@ serve(async (req) => {
       const apiKey = Deno.env.get('EVOLUTION_API_KEY')
       let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT')
       
+      console.log('🔐 Verificando secrets...');
+      console.log('API Key presente:', apiKey ? 'SIM' : 'NÃO');
+      console.log('Endpoint presente:', endpoint ? 'SIM' : 'NÃO');
+      
       if (!apiKey || !endpoint) {
+        console.error('❌ Secrets não configurados!');
         return new Response(
           JSON.stringify({ 
             success: false, 
-            error: 'Evolution API credentials not configured. Please configure EVOLUTION_API_KEY and EVOLUTION_API_ENDPOINT in Supabase secrets.' 
+            error: 'Evolution API não configurada. Configure EVOLUTION_API_KEY e EVOLUTION_API_ENDPOINT nos secrets do Supabase.' 
           }),
           { 
             status: 500, 
@@ -182,8 +187,12 @@ serve(async (req) => {
         endpoint = `https://${endpoint}`;
       }
 
+      console.log('🌐 Endpoint completo:', endpoint);
+      console.log('🔑 API Key (primeiros 10 chars):', apiKey.substring(0, 10) + '...');
+
       try {
-        console.log(`Creating instance: ${instanceName}`)
+        console.log(`📞 Criando instância: ${instanceName}`)
+        console.log(`📡 URL de criação: ${endpoint}/instance/create`);
         
         // Criar a instância na Evolution API
         const createResponse = await fetch(`${endpoint}/instance/create`, {
@@ -199,14 +208,26 @@ serve(async (req) => {
           })
         })
 
+        console.log('📥 Status da resposta:', createResponse.status);
+
         if (!createResponse.ok) {
-          const errorData = await createResponse.json()
-          console.error('Evolution API create instance error:', errorData)
+          const errorText = await createResponse.text();
+          console.error('❌ Erro da Evolution API:', errorText);
+          
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            errorData = { message: errorText };
+          }
+          
           return new Response(
             JSON.stringify({ 
               success: false, 
-              error: errorData.message || 'Failed to create instance',
-              details: errorData
+              error: `Erro ao criar instância (${createResponse.status}): ${errorData.message || errorText.substring(0, 200)}`,
+              details: errorData,
+              endpoint: endpoint,
+              statusCode: createResponse.status
             }),
             { 
               status: createResponse.status, 
@@ -216,7 +237,7 @@ serve(async (req) => {
         }
 
         const createData = await createResponse.json()
-        console.log('Instance created successfully:', createData)
+        console.log('✅ Instância criada com sucesso:', createData)
 
         // Aguardar um pouco para a instância ficar pronta
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -250,11 +271,13 @@ serve(async (req) => {
         )
 
       } catch (error) {
-        console.error('Evolution API error:', error)
+        console.error('❌ Erro de rede ao conectar com Evolution API:', error);
         return new Response(
           JSON.stringify({ 
             success: false, 
-            error: error.message || 'Failed to create instance' 
+            error: `Erro de conexão: ${error.message}. Verifique se o endpoint ${endpoint} está acessível.`,
+            details: error.stack,
+            endpoint: endpoint
           }),
           { 
             status: 500, 
