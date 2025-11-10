@@ -152,7 +152,7 @@ serve(async (req) => {
       }
       
       // Caso contrário, é criação de instância
-      const { instanceName, connectionName, evolutionEndpoint, evolutionApiKey }: CreateInstanceRequest = requestBody
+      const { instanceName, connectionName }: CreateInstanceRequest = requestBody
       
       if (!instanceName || !connectionName) {
         return new Response(
@@ -164,9 +164,9 @@ serve(async (req) => {
         )
       }
 
-      // Usar credenciais passadas OU dos secrets
-      const apiKey = evolutionApiKey || Deno.env.get('EVOLUTION_API_KEY')
-      let endpoint = evolutionEndpoint || Deno.env.get('EVOLUTION_API_ENDPOINT')
+      // Usar APENAS credenciais dos secrets do Supabase (mais seguro)
+      const apiKey = Deno.env.get('EVOLUTION_API_KEY')
+      let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT')
       
       if (!apiKey || !endpoint) {
         return new Response(
