@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, QrCode, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface QRCodeModalProps {
   open: boolean;
@@ -18,6 +19,7 @@ export const QRCodeModal = ({ open, onOpenChange, chipName, chipPhone }: QRCodeM
   const [qrStatus, setQrStatus] = useState<QRStatus>("loading");
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
   const [countdown, setCountdown] = useState(60);
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   const generateQRCode = async () => {
@@ -25,48 +27,121 @@ export const QRCodeModal = ({ open, onOpenChange, chipName, chipPhone }: QRCodeM
     setCountdown(60);
     
     try {
-      // Simulação de chamada para Evolution API - substituir pela integração real
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Limpar polling anterior se existir
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        setPollingInterval(null);
+      }
+
+      const instanceName = chipName.toLowerCase().replace(/\s+/g, '_');
       
-      // QR Code simulado - na implementação real virá da Evolution API
-      const mockQRCode = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+      console.log('🔄 Buscando QR Code da instância:', instanceName);
       
-      setQrCodeUrl(mockQRCode);
-      setQrStatus("waiting");
-      
-      // Simular mudança de status após alguns segundos
-      setTimeout(() => {
-        const isConnected = Math.random() > 0.3; // 70% chance de sucesso
-        if (isConnected) {
-          setQrStatus("connected");
-          toast({
-            title: "WhatsApp conectado!",
-            description: `${chipName} foi conectado com sucesso ao WhatsApp.`,
-          });
-        } else {
-          setQrStatus("error");
-          toast({
-            title: "Falha na conexão",
-            description: "QR Code expirou. Clique em 'Gerar Novo QR Code' para tentar novamente.",
-            variant: "destructive",
-          });
+      // Buscar QR Code da Evolution API via edge function
+      const response = await fetch(
+        `https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api?instanceName=${instanceName}&action=status`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`,
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM'
+          }
         }
-      }, 8000);
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Falha ao buscar QR Code');
+      }
+
+      console.log('📥 Dados recebidos da Evolution API:', data);
+
+      // Se tem QR code disponível
+      if (data.qrCode) {
+        setQrCodeUrl(data.qrCode);
+        setQrStatus("waiting");
+        
+        console.log('✅ QR Code obtido com sucesso');
+        
+        // Iniciar polling para verificar conexão
+        const interval = setInterval(async () => {
+          await checkConnectionStatus(instanceName);
+        }, 3000); // Verificar a cada 3 segundos
+        
+        setPollingInterval(interval);
+        
+      } else if (data.instance?.connectionStatus === 'open') {
+        // Já está conectado
+        setQrStatus("connected");
+        toast({
+          title: "WhatsApp conectado!",
+          description: `${chipName} já está conectado ao WhatsApp.`,
+        });
+      } else {
+        throw new Error('QR Code não disponível');
+      }
       
-    } catch (error) {
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar QR Code:', error);
       setQrStatus("error");
       toast({
         title: "Erro ao gerar QR Code",
-        description: "Não foi possível conectar com a Evolution API. Verifique suas configurações.",
+        description: error.message || "Não foi possível conectar com a Evolution API. Verifique suas configurações.",
         variant: "destructive",
       });
+    }
+  };
+
+  const checkConnectionStatus = async (instanceName: string) => {
+    try {
+      const response = await fetch(
+        `https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api?instanceName=${instanceName}&action=status`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`,
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM'
+          }
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success && data.instance?.connectionStatus === 'open') {
+        // Parar polling
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          setPollingInterval(null);
+        }
+        
+        setQrStatus("connected");
+        toast({
+          title: "WhatsApp conectado!",
+          description: `${chipName} foi conectado com sucesso ao WhatsApp.`,
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao verificar status:', error);
     }
   };
 
   useEffect(() => {
     if (open) {
       generateQRCode();
+    } else {
+      // Limpar polling ao fechar modal
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        setPollingInterval(null);
+      }
     }
+    
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
   }, [open]);
 
   useEffect(() => {
@@ -164,11 +239,16 @@ export const QRCodeModal = ({ open, onOpenChange, chipName, chipPhone }: QRCodeM
                   <AlertCircle className="w-12 h-12 text-destructive" />
                   <span className="text-sm text-destructive">QR Expirado</span>
                 </div>
+              ) : qrCodeUrl ? (
+                <img 
+                  src={qrCodeUrl} 
+                  alt="QR Code" 
+                  className="w-full h-full object-contain"
+                />
               ) : (
-                <div className="w-full h-full bg-white p-4 rounded">
-                  <div className="w-full h-full bg-black flex items-center justify-center">
-                    <QrCode className="w-32 h-32 text-white" />
-                  </div>
+                <div className="flex flex-col items-center space-y-2">
+                  <QrCode className="w-12 h-12 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Carregando QR Code...</span>
                 </div>
               )}
             </div>
