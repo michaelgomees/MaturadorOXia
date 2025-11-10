@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.test-evolution]
 verify_jwt = false
+
+[functions.force-maturation]
+verify_jwt = false
