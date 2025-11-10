@@ -221,7 +221,41 @@ serve(async (req) => {
       try {
         console.log(`📞 Verificando se instância ${instanceName} já existe...`);
         
-        // First, check if instance already exists
+        // First, test if credentials work at all by fetching instances list
+        console.log('🧪 Testing credentials with fetchInstances...');
+        const testResponse = await fetch(`${endpoint}/instance/fetchInstances`, {
+          method: 'GET',
+          headers: {
+            'apikey': cleanApiKey,
+            'Accept': 'application/json'
+          }
+        });
+        
+        console.log('🧪 Test response status:', testResponse.status);
+        
+        if (!testResponse.ok) {
+          const errorText = await testResponse.text();
+          console.error('❌ Credentials test FAILED:', errorText);
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: `Credenciais inválidas. Status: ${testResponse.status}. Verifique o endpoint e API key na aba APIs.`,
+              details: {
+                status: testResponse.status,
+                endpoint: endpoint,
+                response: errorText
+              }
+            }),
+            { 
+              status: testResponse.status, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+        }
+        
+        console.log('✅ Credentials test PASSED');
+        
+        // Now check if our specific instance already exists
         const checkResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
           method: 'GET',
           headers: {
@@ -235,10 +269,13 @@ serve(async (req) => {
 
         if (checkResponse.ok) {
           const instances = await checkResponse.json();
+          console.log('📋 Instances found:', instances);
           if (Array.isArray(instances) && instances.length > 0) {
             instanceExists = true;
             existingInstance = instances[0];
             console.log('✅ Instância já existe:', existingInstance);
+          } else {
+            console.log('ℹ️ Instância não existe ainda');
           }
         }
 
