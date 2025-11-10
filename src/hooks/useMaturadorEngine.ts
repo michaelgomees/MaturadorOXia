@@ -473,21 +473,15 @@ export const useMaturadorEngine = () => {
       // Função recursiva para manter conversas ininterruptas
       const keepConversationGoing = async () => {
         try {
-          // Verificar se o maturador ainda está rodando
-          if (!isRunning) {
-            console.log(`⏹️ Maturador parado, encerrando conversa do par ${pairId}`);
-            return;
-          }
-          
-          // Verificar status do par no Supabase
+          // Verificar status do par no Supabase (não verificar isRunning - usar apenas status do par)
           const { data: currentPair } = await supabase
             .from('saas_pares_maturacao')
             .select('*')
             .eq('id', pairId)
             .single();
           
-          if (!currentPair || !currentPair.is_active || currentPair.status === 'paused') {
-            console.log(`⏸️ Par ${pairId} pausado ou inativo`);
+          if (!currentPair || !currentPair.is_active || currentPair.status !== 'running') {
+            console.log(`⏸️ Par ${pairId} pausado ou inativo - parando loop`);
             return;
           }
           
@@ -499,7 +493,7 @@ export const useMaturadorEngine = () => {
           const nextDelay = (3 + Math.random() * 4) * 1000;
           console.log(`⏰ Próxima mensagem do par ${pairId} em ${(nextDelay/1000).toFixed(1)}s`);
           
-          // Agendar próxima mensagem IMEDIATAMENTE (sem verificar isRunning novamente)
+          // Agendar próxima mensagem IMEDIATAMENTE para continuar indefinidamente
           const timeout = setTimeout(() => {
             keepConversationGoing(); // Chamada recursiva para continuar indefinidamente
           }, nextDelay);
@@ -539,10 +533,10 @@ export const useMaturadorEngine = () => {
     console.log('=== PARANDO MATURADOR ===');
     setIsRunning(false);
     
-    // Atualizar status de todos os pares no Supabase
+    // Atualizar status de todos os pares para 'stopped' no Supabase
     await supabase
       .from('saas_pares_maturacao')
-      .update({ status: 'paused' })
+      .update({ status: 'stopped' })
       .eq('is_active', true);
     
     // Limpar todos os intervalos/timeouts
@@ -550,6 +544,9 @@ export const useMaturadorEngine = () => {
       clearTimeout(timeout);
     });
     intervalRefs.current.clear();
+    
+    // Atualizar estado local dos pares
+    setChipPairs(prev => prev.map(p => ({ ...p, status: 'stopped' as const })));
     
     console.log('✅ Todas as conversas interrompidas');
 
@@ -566,7 +563,13 @@ export const useMaturadorEngine = () => {
 
     console.log(`🚀 Iniciando par individual: ${pair.firstChipName} <-> ${pair.secondChipName}`);
     
-    // Atualizar status do par
+    // Atualizar status do par no Supabase
+    await supabase
+      .from('saas_pares_maturacao')
+      .update({ status: 'running', is_active: true })
+      .eq('id', pairId);
+    
+    // Atualizar status local
     const updatedPairs = chipPairs.map(p => 
       p.id === pairId 
         ? { ...p, status: 'running' as const, isActive: true }
@@ -578,17 +581,15 @@ export const useMaturadorEngine = () => {
     // Função recursiva para manter conversas ininterruptas
     const keepConversationGoing = async () => {
       try {
-        // Verificar se deve continuar
-        const savedConfig = localStorage.getItem('ox-enhanced-maturador-config');
-        if (!savedConfig) {
-          console.log(`⏹️ Config não encontrada, parando par ${pairId}`);
-          return;
-        }
+        // Verificar status do par no Supabase
+        const { data: currentPair } = await supabase
+          .from('saas_pares_maturacao')
+          .select('*')
+          .eq('id', pairId)
+          .single();
         
-        const config = JSON.parse(savedConfig);
-        const currentPair = config.selectedPairs?.find((p: any) => p.id === pairId);
-        if (!currentPair?.isActive || currentPair.status !== 'running') {
-          console.log(`⏸️ Par ${pairId} pausado ou inativo`);
+        if (!currentPair || !currentPair.is_active || currentPair.status !== 'running') {
+          console.log(`⏸️ Par ${pairId} pausado ou inativo - parando loop`);
           return;
         }
         
@@ -596,11 +597,11 @@ export const useMaturadorEngine = () => {
         console.log(`💬 Processando mensagem do par ${pairId}...`);
         await processChipPairConversation(pair);
         
-        // Delay curto entre mensagens (5-10 segundos) para manter conversa fluida
-        const nextDelay = (5 + Math.random() * 5) * 1000;
+        // Delay curto entre mensagens (3-7 segundos) para manter conversa fluida
+        const nextDelay = (3 + Math.random() * 4) * 1000;
         console.log(`⏰ Próxima mensagem do par ${pairId} em ${(nextDelay/1000).toFixed(1)}s`);
         
-        // Agendar próxima mensagem
+        // Agendar próxima mensagem para continuar indefinidamente
         const timeout = setTimeout(() => {
           keepConversationGoing();
         }, nextDelay);
@@ -610,8 +611,8 @@ export const useMaturadorEngine = () => {
       } catch (error) {
         console.error(`❌ Erro no par ${pairId}:`, error);
         
-        // Em caso de erro, aguardar mais tempo antes de tentar novamente
-        const retryDelay = 30000; // 30 segundos
+        // Em caso de erro, aguardar menos tempo antes de tentar novamente
+        const retryDelay = 10000; // 10 segundos
         console.log(`🔄 Tentando novamente o par ${pairId} em ${retryDelay/1000}s`);
         
         const timeout = setTimeout(() => {
@@ -633,16 +634,22 @@ export const useMaturadorEngine = () => {
   }, [chipPairs, messages, processChipPairConversation, saveData, toast]);
 
   // Parar par individual
-  const stopPair = useCallback((pairId: string) => {
+  const stopPair = useCallback(async (pairId: string) => {
     const pair = chipPairs.find(p => p.id === pairId);
     if (!pair) return;
 
     console.log(`⏸️ Parando par: ${pair.firstChipName} <-> ${pair.secondChipName}`);
     
-    // Atualizar status do par
+    // Atualizar status do par no Supabase
+    await supabase
+      .from('saas_pares_maturacao')
+      .update({ status: 'stopped' })
+      .eq('id', pairId);
+    
+    // Atualizar status local
     const updatedPairs = chipPairs.map(p => 
       p.id === pairId 
-        ? { ...p, status: 'paused' as const }
+        ? { ...p, status: 'stopped' as const }
         : p
     );
     setChipPairs(updatedPairs);

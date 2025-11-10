@@ -82,11 +82,11 @@ serve(async (req) => {
       throw new Error('Prompt is required');
     }
 
-    // SEMPRE usar EXATAMENTE o prompt fornecido pelo chip, sem modificações ou adições
+    // SEMPRE usar EXATAMENTE o prompt fornecido pelo chip, SEM NENHUMA modificação
+    // Este prompt já vem com todas as instruções de personalidade e comportamento
     const systemPrompt = prompt;
     
     console.log(`📝 Usando prompt EXATO do chip ${chipName} (${prompt.length} chars)`);
-    console.log(`Prompt completo: ${prompt}`);
 
     // Preparar mensagens para OpenAI com histórico completo
     const messages = [
