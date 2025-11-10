@@ -154,6 +154,12 @@ serve(async (req) => {
       // Caso contrário, é criação de instância
       const { instanceName, connectionName, evolutionEndpoint, evolutionApiKey }: CreateInstanceRequest = requestBody
       
+      console.log('🔍 CREATE INSTANCE REQUEST:');
+      console.log('  - instanceName:', instanceName);
+      console.log('  - connectionName:', connectionName);
+      console.log('  - evolutionEndpoint from body:', evolutionEndpoint || 'NOT PROVIDED');
+      console.log('  - evolutionApiKey from body:', evolutionApiKey ? 'PROVIDED (length: ' + evolutionApiKey.length + ')' : 'NOT PROVIDED');
+      
       if (!instanceName || !connectionName) {
         return new Response(
           JSON.stringify({ success: false, error: 'instanceName and connectionName are required' }),
@@ -168,16 +174,28 @@ serve(async (req) => {
       const apiKey = evolutionApiKey || Deno.env.get('EVOLUTION_API_KEY')
       let endpoint = evolutionEndpoint || Deno.env.get('EVOLUTION_API_ENDPOINT')
       
-      console.log('🔐 Verificando secrets...');
-      console.log('API Key presente:', apiKey ? 'SIM' : 'NÃO');
-      console.log('Endpoint presente:', endpoint ? 'SIM' : 'NÃO');
+      console.log('🔐 CREDENTIALS CHECK:');
+      console.log('  - Using API Key from:', evolutionApiKey ? 'REQUEST BODY' : 'ENV VARS');
+      console.log('  - Using Endpoint from:', evolutionEndpoint ? 'REQUEST BODY' : 'ENV VARS');
+      console.log('  - API Key present:', apiKey ? 'YES (length: ' + apiKey.length + ')' : 'NO');
+      console.log('  - Endpoint present:', endpoint ? 'YES (' + endpoint + ')' : 'NO');
       
       if (!apiKey || !endpoint) {
-        console.error('❌ Secrets não configurados!');
+        console.error('❌ CREDENTIALS MISSING!');
+        console.error('  - API Key:', apiKey ? 'present' : 'MISSING');
+        console.error('  - Endpoint:', endpoint ? 'present' : 'MISSING');
         return new Response(
           JSON.stringify({ 
             success: false, 
-            error: 'Evolution API não configurada. Configure EVOLUTION_API_KEY e EVOLUTION_API_ENDPOINT nos secrets do Supabase.' 
+            error: 'Evolution API não configurada. Vá para a aba APIs e configure o endpoint e API key primeiro.',
+            details: {
+              hasApiKey: !!apiKey,
+              hasEndpoint: !!endpoint,
+              receivedFromBody: {
+                endpoint: !!evolutionEndpoint,
+                apiKey: !!evolutionApiKey
+              }
+            }
           }),
           { 
             status: 500, 

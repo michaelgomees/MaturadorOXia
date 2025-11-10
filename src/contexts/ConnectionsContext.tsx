@@ -252,14 +252,25 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       
       // Buscar credenciais da Evolution API do localStorage
       const savedAPI = localStorage.getItem('ox-evolution-api');
+      console.log('📦 localStorage check:', savedAPI ? 'FOUND' : 'NOT FOUND');
+      
       if (!savedAPI) {
         throw new Error('Evolution API não configurada. Configure na aba APIs primeiro.');
       }
 
       const evolutionConfig = JSON.parse(savedAPI);
+      console.log('🔧 Evolution config:', {
+        hasEndpoint: !!evolutionConfig.endpoint,
+        hasApiKey: !!evolutionConfig.apiKey,
+        endpoint: evolutionConfig.endpoint,
+        apiKeyLength: evolutionConfig.apiKey?.length
+      });
+      
       if (!evolutionConfig.endpoint || !evolutionConfig.apiKey) {
         throw new Error('Credenciais da Evolution API incompletas.');
       }
+      
+      console.log('📤 Calling edge function with credentials...');
       
       // Chamar Edge Function para criar instância na Evolution API
       const { data, error } = await supabase.functions.invoke('evolution-api', {
@@ -270,6 +281,8 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
           evolutionApiKey: evolutionConfig.apiKey
         }
       });
+
+      console.log('📥 Edge function response:', { data, error });
 
       if (error) {
         console.error('Erro na Edge Function:', error);
