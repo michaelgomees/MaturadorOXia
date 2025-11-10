@@ -16,7 +16,7 @@ import { SystemConfigModal } from "./SystemConfigModal";
 import { ProfileModal } from "./ProfileModal";
 import { useConnections } from "@/contexts/ConnectionsContext";
 import { useAuth } from "@/contexts/AuthContext";
-import oxLogo from "/ox-logo.png";
+import oxLogo from "/ox-logo-full.png";
 
 export const Header = () => {
   const { toast } = useToast();
@@ -46,13 +46,7 @@ export const Header = () => {
         <div className="flex items-center justify-between">
           {/* Logo & Brand */}
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg overflow-hidden">
-              <img src={oxLogo} alt="OX MATURADOR" className="w-8 h-8" />
-            </div>
-            <div>
-              <h1 className="font-bold text-lg">OX MATURADOR</h1>
-              <p className="text-xs text-muted-foreground">Sistema de Chips IA</p>
-            </div>
+            <img src={oxLogo} alt="OX MATURADOR" className="h-12 w-auto" />
           </div>
 
           {/* Navigation & Actions */}
