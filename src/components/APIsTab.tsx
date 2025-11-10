@@ -116,22 +116,34 @@ export const APIsTab = () => {
   const handleTestAPI = async () => {
     toast({
       title: "Testando conexão...",
-      description: "Verificando conexão com a Evolution API."
+      description: "Verificando conexão com a Evolution API. Aguarde..."
     });
 
     try {
-      console.log('🔍 Testando conexão Evolution API...');
+      console.log('🔍 Testando conexão Evolution API via edge function...');
+      console.log('📡 Invocando test-evolution...');
       
       // Usar edge function para testar usando os secrets
       const { data: testData, error: testError } = await supabase.functions.invoke('test-evolution', {
-        body: {} // Sem parâmetros, vai usar os secrets
+        body: {} // Sem parâmetros, vai usar os secrets do Supabase
       });
 
-      if (testError || !testData?.success) {
-        throw new Error(testData?.error || testError?.message || 'Falha ao conectar');
+      console.log('📥 Resposta recebida:', { testData, testError });
+
+      if (testError) {
+        console.error('❌ Erro do Supabase Functions:', testError);
+        throw new Error(`Erro ao invocar função: ${testError.message}`);
       }
 
-      console.log('✅ Resposta Evolution API:', testData.data);
+      if (!testData?.success) {
+        const errorMsg = testData?.error || 'Falha ao conectar com a Evolution API';
+        console.error('❌ Erro da Evolution API:', errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      console.log('✅ Resposta Evolution API:', testData);
+      console.log(`✅ Endpoint: ${testData.endpoint}`);
+      console.log(`✅ Instâncias encontradas: ${testData.instanceCount || 0}`);
       
       const updatedAPI = {
         ...evolutionAPI,
@@ -142,10 +154,10 @@ export const APIsTab = () => {
       saveEvolutionAPI(updatedAPI);
       toast({
         title: "✅ Conexão bem-sucedida!",
-        description: "Evolution API está respondendo corretamente."
+        description: `Evolution API conectada com sucesso! ${testData.instanceCount || 0} instância(s) encontrada(s).`
       });
     } catch (error) {
-      console.error('❌ Erro ao testar Evolution API:', error);
+      console.error('❌ Erro completo:', error);
       const updatedAPI = {
         ...evolutionAPI,
         status: 'error' as const,
@@ -153,9 +165,11 @@ export const APIsTab = () => {
       };
       
       saveEvolutionAPI(updatedAPI);
+      
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido ao conectar";
       toast({
         title: "❌ Erro na conexão",
-        description: error instanceof Error ? error.message : "Não foi possível conectar com a Evolution API.",
+        description: errorMessage,
         variant: "destructive"
       });
     }
