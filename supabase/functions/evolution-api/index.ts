@@ -168,11 +168,21 @@ serve(async (req) => {
       const apiKey = Deno.env.get('EVOLUTION_API_KEY')
       let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT')
       
+      console.log('🔍 Verificando secrets:', {
+        hasApiKey: !!apiKey,
+        apiKeyLength: apiKey?.length || 0,
+        hasEndpoint: !!endpoint,
+        endpoint: endpoint,
+        allEnvKeys: Object.keys(Deno.env.toObject()).filter(k => k.includes('EVOLUTION'))
+      });
+      
       if (!apiKey || !endpoint) {
+        console.error('❌ Secrets não encontrados!');
         return new Response(
           JSON.stringify({ 
             success: false, 
-            error: 'Evolution API não configurada. Configure na aba APIs primeiro.'
+            error: 'Evolution API não configurada. Por favor, adicione os secrets EVOLUTION_API_KEY e EVOLUTION_API_ENDPOINT no Supabase.',
+            availableSecrets: Object.keys(Deno.env.toObject()).filter(k => k.includes('EVOLUTION'))
           }),
           { 
             status: 500, 
@@ -217,7 +227,15 @@ serve(async (req) => {
             integration: 'WHATSAPP-BAILEYS'
           };
 
-          console.log('📤 Payload de criação:', createPayload);
+          console.log('📤 Requisição:', {
+            url: `${endpoint}/instance/create`,
+            method: 'POST',
+            headers: {
+              'apikey': `${cleanApiKey.substring(0, 10)}...`,
+              'Content-Type': 'application/json',
+            },
+            payload: createPayload
+          });
 
           const createResponse = await fetch(`${endpoint}/instance/create`, {
             method: 'POST',
@@ -230,15 +248,26 @@ serve(async (req) => {
           });
 
           const createData = await createResponse.json();
-          console.log('📥 Resposta da criação:', createData);
+          console.log('📥 Resposta da Evolution API:', {
+            status: createResponse.status,
+            statusText: createResponse.statusText,
+            data: createData
+          });
 
           if (!createResponse.ok) {
-            console.error('❌ Erro ao criar instância:', createData);
+            console.error('❌ Erro ao criar instância:', {
+              status: createResponse.status,
+              response: createData
+            });
             return new Response(
               JSON.stringify({ 
                 success: false, 
-                error: `Erro ao criar instância: ${createData.message || 'Erro desconhecido'}`,
-                details: createData
+                error: `Erro ao criar instância: ${createData.message || createData.error || 'Erro desconhecido'}`,
+                details: {
+                  status: createResponse.status,
+                  error: createData.error,
+                  response: createData.response || createData
+                }
               }),
               { 
                 status: createResponse.status, 
