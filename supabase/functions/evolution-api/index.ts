@@ -195,8 +195,10 @@ serve(async (req) => {
       const cleanApiKey = apiKey.trim();
 
       console.log('🌐 Endpoint completo:', endpoint);
-      console.log('🔑 API Key recebida:', cleanApiKey);
+      console.log('🔑 API Key recebida (primeiros 8 chars):', cleanApiKey.substring(0, 8) + '...');
       console.log('🔑 Tamanho da key:', cleanApiKey.length);
+      console.log('🔑 evolutionEndpoint passado:', evolutionEndpoint ? 'SIM' : 'NÃO');
+      console.log('🔑 evolutionApiKey passado:', evolutionApiKey ? 'SIM' : 'NÃO');
 
       try {
         console.log(`📞 Criando instância: ${instanceName}`)
@@ -266,10 +268,13 @@ serve(async (req) => {
         }
         
         console.log('📥 Status final da resposta:', createResponse.status);
+        console.log('📥 Headers da resposta:', Object.fromEntries(createResponse.headers.entries()));
 
         if (!createResponse.ok) {
           const errorText = await createResponse.text();
-          console.error('❌ Erro da Evolution API:', errorText);
+          console.error('❌ Erro da Evolution API (status ' + createResponse.status + '):', errorText);
+          console.error('❌ URL tentada:', `${endpoint}/instance/create`);
+          console.error('❌ Payload enviado:', JSON.stringify(requestBody));
           
           let errorData;
           try {
