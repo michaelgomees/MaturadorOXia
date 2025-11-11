@@ -37,31 +37,28 @@ serve(async (req) => {
 
     console.log('🔄 Iniciando verificação de pares ativos...');
 
-    // Intervalo mínimo entre mensagens (20 segundos)
-    const MIN_INTERVAL_SECONDS = 20;
     const now = new Date();
-    const minTimestamp = new Date(now.getTime() - MIN_INTERVAL_SECONDS * 1000).toISOString();
 
-    // Buscar pares ativos que não enviaram mensagem recentemente
+    // Buscar TODOS os pares ativos (sem filtro de intervalo)
+    // O cron job a cada 20s já controla o timing
     const { data: activePairs, error: pairsError } = await supabase
       .from('saas_pares_maturacao')
       .select('*')
       .in('status', ['running', 'active'])
-      .eq('is_active', true)
-      .or(`last_activity.is.null,last_activity.lt.${minTimestamp}`);
+      .eq('is_active', true);
 
     if (pairsError) {
       console.error('❌ Erro ao buscar pares:', pairsError);
       throw pairsError;
     }
 
-    console.log(`📊 Query retornou ${activePairs?.length || 0} pares`);
+    console.log(`📊 Query retornou ${activePairs?.length || 0} pares ativos`);
 
     if (!activePairs || activePairs.length === 0) {
-      console.log(`⚠️ Nenhum par pronto para processar (aguardando intervalo mínimo de ${MIN_INTERVAL_SECONDS}s)`);
+      console.log('⚠️ Nenhum par ativo encontrado');
       return new Response(
         JSON.stringify({ 
-          message: `Aguardando intervalo mínimo de ${MIN_INTERVAL_SECONDS}s entre mensagens`, 
+          message: 'Nenhum par ativo para processar', 
           processedPairs: 0 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -153,28 +150,22 @@ serve(async (req) => {
         console.log(`✅ Resposta gerada (${responseText.length} chars, ${responseText.split('\n').length} linhas):`);
         console.log(`   ${responseText}`);
 
-        // Atualizar última atividade do par (SEM SALVAR MENSAGEM)
-        // A cada 6 mensagens, resetar o contador para manter a conversa fluindo
+        // Atualizar última atividade do par e incrementar contador
+        // Sistema continua indefinidamente alternando entre os chips
         const newCount = currentCount + 1;
-        const shouldReset = newCount >= 6;
-        const finalCount = shouldReset ? 0 : newCount;
-        
-        if (shouldReset) {
-          console.log(`🔄 Resetando contador após ${newCount} mensagens para manter conversa ativa`);
-        }
 
         const { error: updateError } = await supabase
           .from('saas_pares_maturacao')
           .update({ 
             last_activity: new Date().toISOString(),
-            messages_count: finalCount
+            messages_count: newCount
           })
           .eq('id', pair.id);
 
         if (updateError) {
           console.error(`❌ Erro ao atualizar par ${pair.id}:`, updateError);
         } else {
-          console.log(`✅ Par ${pair.id} atualizado: messages_count=${finalCount}, próximo turno: ${finalCount % 2 === 0 ? chip1.nome : chip2.nome}`);
+          console.log(`✅ Par ${pair.id} atualizado: messages_count=${newCount}, próximo turno: ${newCount % 2 === 0 ? chip1.nome : chip2.nome}`);
         }
 
         // Enviar mensagem via Evolution API
