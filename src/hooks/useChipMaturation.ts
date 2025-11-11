@@ -98,15 +98,9 @@ export const useChipMaturation = () => {
     try {
       console.log(`💬 Enviando mensagem de ${senderChip.name} para ${receiverChip.name}: ${message}`);
       
-      // Verificar se ambos os chips estão ativos antes de enviar
+      // Apenas avisar se as conexões estão inativas, mas tentar enviar mesmo assim
       if (senderChip.status !== 'active' || receiverChip.status !== 'active') {
-        console.error('❌ Uma ou ambas conexões estão inativas');
-        toast({
-          title: "⚠️ Conexão Inativa",
-          description: `${senderChip.displayName || senderChip.name} ou ${receiverChip.displayName || receiverChip.name} está desconectado`,
-          variant: 'destructive'
-        });
-        return false;
+        console.warn('⚠️ Uma ou ambas conexões podem estar inativas, mas tentando enviar...');
       }
       
       // Chamar Edge Function para enviar mensagem
@@ -122,14 +116,10 @@ export const useChipMaturation = () => {
       if (error) {
         console.error('Erro ao enviar mensagem:', error);
         
-        // Tratamento específico para Connection Closed
+        // Apenas logar erro, não mostrar toast para cada erro
         const errorMessage = error.message || '';
-        if (errorMessage.includes('Connection Closed') || errorMessage.includes('400')) {
-          toast({
-            title: "❌ WhatsApp Desconectado",
-            description: `${senderChip.displayName || senderChip.name} precisa reconectar o WhatsApp`,
-            variant: 'destructive'
-          });
+        if (errorMessage.includes('Connection Closed')) {
+          console.warn(`⚠️ Connection Closed para ${senderChip.name}, mas sistema continuará tentando`);
         }
         throw error;
       }
@@ -162,20 +152,9 @@ export const useChipMaturation = () => {
       } else {
         const errorMsg = data?.error || 'Falha ao enviar mensagem';
         
-        // Se for erro de conexão, pausar pares ativos com esse chip
-        if (errorMsg.includes('Connection Closed') || data?.details?.response?.message?.includes('Connection Closed')) {
-          const matchingPair = pairs.find(p => 
-            (p.nome_chip1 === senderChip.name && p.nome_chip2 === receiverChip.name) ||
-            (p.nome_chip1 === receiverChip.name && p.nome_chip2 === senderChip.name)
-          );
-          
-          if (matchingPair && matchingPair.status === 'running') {
-            console.log(`⏸️ Pausando par automaticamente devido a conexão fechada`);
-            await supabase
-              .from('saas_pares_maturacao')
-              .update({ status: 'paused' })
-              .eq('id', matchingPair.id);
-          }
+        // Apenas logar o erro, não pausar pares
+        if (errorMsg.includes('Connection Closed')) {
+          console.warn(`⚠️ Connection Closed mas sistema continuará tentando`);
         }
         
         throw new Error(errorMsg);
