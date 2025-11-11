@@ -35,9 +35,17 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    console.log('🔄 Iniciando verificação de pares ativos...');
+    console.log('🔄 Iniciando ciclo de maturação contínua (3x por minuto)...');
 
-    const now = new Date();
+    // Executar 3 vezes com intervalo de 20 segundos (0s, 20s, 40s)
+    for (let i = 0; i < 3; i++) {
+      if (i > 0) {
+        console.log(`⏳ Aguardando 20s para próxima execução (${i}/3)...`);
+        await new Promise(resolve => setTimeout(resolve, 20000));
+      }
+
+      console.log(`\n🎯 Execução ${i + 1}/3 - ${new Date().toISOString()}`);
+      const now = new Date();
 
     // Buscar TODOS os pares ativos (sem filtro de intervalo)
     // O cron job a cada 20s já controla o timing
@@ -223,12 +231,15 @@ serve(async (req) => {
       }
     }
 
-    console.log(`\n✅ Processamento concluído: ${results.length} pares processados`);
+      console.log(`✅ Execução ${i + 1}/3 concluída: ${results.length} pares processados`);
+    }
+
+    console.log(`\n🎉 Ciclo completo de maturação finalizado!`);
 
     return new Response(
       JSON.stringify({ 
-        message: 'Maturação forçada concluída',
-        processedPairs: results.length,
+        message: 'Ciclo de maturação concluído (3 execuções)',
+        totalExecutions: 3,
         results
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
