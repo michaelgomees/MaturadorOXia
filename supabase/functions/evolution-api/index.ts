@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.0'
 
 // Função para enviar mensagens
 async function handleSendMessage(request: SendMessageRequest) {
@@ -65,6 +66,58 @@ async function handleSendMessage(request: SendMessageRequest) {
 
     if (!response.ok) {
       console.error('❌ Erro na Evolution API:', responseData);
+      
+      // Detectar se é erro de conexão fechada
+      const errorMessage = JSON.stringify(responseData);
+      if (errorMessage.includes('Connection Closed')) {
+        console.log('🔴 Conexão WhatsApp fechada detectada, atualizando banco de dados...');
+        
+        try {
+          const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+          const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+          const supabase = createClient(supabaseUrl, supabaseKey);
+          
+          // Atualizar status da conexão para inactive
+          const { error: updateError } = await supabase
+            .from('saas_conexoes')
+            .update({ status: 'inactive' })
+            .eq('evolution_instance_name', request.instanceName);
+          
+          if (updateError) {
+            console.error('❌ Erro ao atualizar status da conexão:', updateError);
+          } else {
+            console.log('✅ Status da conexão atualizado para inactive');
+          }
+          
+          // Pausar todos os pares que usam essa instância
+          const { data: affectedPairs, error: pairsError } = await supabase
+            .from('saas_pares_maturacao')
+            .select('id, nome_chip1, nome_chip2')
+            .or(`nome_chip1.eq.${request.instanceName},nome_chip2.eq.${request.instanceName}`)
+            .eq('status', 'running');
+          
+          if (pairsError) {
+            console.error('❌ Erro ao buscar pares afetados:', pairsError);
+          } else if (affectedPairs && affectedPairs.length > 0) {
+            console.log(`⏸️ Pausando ${affectedPairs.length} par(es) automaticamente...`);
+            
+            const { error: pauseError } = await supabase
+              .from('saas_pares_maturacao')
+              .update({ status: 'paused' })
+              .or(`nome_chip1.eq.${request.instanceName},nome_chip2.eq.${request.instanceName}`)
+              .eq('status', 'running');
+            
+            if (pauseError) {
+              console.error('❌ Erro ao pausar pares:', pauseError);
+            } else {
+              console.log('✅ Pares pausados automaticamente');
+            }
+          }
+        } catch (dbError) {
+          console.error('❌ Erro ao atualizar banco de dados:', dbError);
+        }
+      }
+      
       return new Response(JSON.stringify({
         success: false,
         error: responseData.message || 'Failed to send message',
