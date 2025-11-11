@@ -52,10 +52,10 @@ export const useGlobalMaturadorPolling = () => {
       // Chamar imediatamente
       callForceMaturation();
 
-      // Configurar intervalo de 20 segundos para conversas fluidas
+      // Configurar intervalo de 15 segundos para conversas mais fluidas
       pollingIntervalRef.current = setInterval(() => {
         callForceMaturation();
-      }, 20000);
+      }, 15000);
     };
 
     const callForceMaturation = async () => {
