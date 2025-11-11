@@ -308,8 +308,8 @@ export const EnhancedMaturadorTab: React.FC = () => {
                 Pares Configurados ({chipPairs.length})
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[600px]">
+            <CardContent className="p-0">
+              <ScrollArea className="h-[500px] px-6 py-4">
                 <div className="space-y-4 pr-4">
                   {chipPairs.map((pair) => (
                     <div key={pair.id} className="p-4 border rounded-lg space-y-3">
