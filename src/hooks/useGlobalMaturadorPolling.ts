@@ -22,7 +22,7 @@ export const useGlobalMaturadorPolling = () => {
 
     const checkAndPoll = async () => {
       try {
-        // Verificar se existem pares ativos
+        // Verificar se existem pares ativos (status='running')
         const { data: activePairs } = await supabase
           .from('saas_pares_maturacao')
           .select('id')
@@ -30,15 +30,17 @@ export const useGlobalMaturadorPolling = () => {
           .eq('usuario_id', user.id);
 
         if (activePairs && activePairs.length > 0) {
-          // Se há pares ativos, garantir que o polling está ativo
+          // Se há pares RUNNING, garantir que o polling está ativo
           if (!pollingIntervalRef.current) {
             console.log('🔄 Iniciando polling global do backend...');
             startPolling();
           }
+          // ✅ NUNCA parar o polling enquanto houver pares com status='running'
+          // O polling só deve parar quando o usuário desligar manualmente (status != 'running')
         } else {
-          // Se não há pares ativos, parar o polling
+          // Só parar se NÃO há nenhum par com status='running'
           if (pollingIntervalRef.current) {
-            console.log('⏸️ Parando polling global (sem pares ativos)...');
+            console.log('⏸️ Parando polling global (sem pares running)...');
             clearInterval(pollingIntervalRef.current);
             pollingIntervalRef.current = null;
           }
