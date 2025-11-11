@@ -305,14 +305,13 @@ export const EnhancedMaturadorTab: React.FC = () => {
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Users className="w-5 h-5" />
-                Pares Configurados ({chipPairs.length})
+                Duplas Configuradas ({chipPairs.length})
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-6">
-              <div className="h-[400px] w-full overflow-hidden">
-                <ScrollArea className="h-full w-full">
-                  <div className="space-y-4 pr-4">
-                    {chipPairs.map((pair) => (
+            <CardContent className="p-0">
+              <ScrollArea className="h-[400px] w-full">
+                <div className="space-y-4 p-6">
+                  {chipPairs.map((pair) => (
                     <div key={pair.id} className="p-4 border rounded-lg space-y-3">
                       <div className="flex flex-col gap-3">
                         <div className="flex items-center justify-between">
@@ -366,10 +365,9 @@ export const EnhancedMaturadorTab: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </div>
+                  ))}
+                </div>
+              </ScrollArea>
             </CardContent>
           </Card>
         )}
