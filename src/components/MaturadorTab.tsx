@@ -368,8 +368,8 @@ export const MaturadorTab = () => {
               <p className="text-sm text-muted-foreground">Configure a primeira dupla para começar</p>
             </div>
           ) : (
-            <ScrollArea className="max-h-96">
-              <div className="space-y-4">
+            <ScrollArea className="h-[600px]">
+              <div className="space-y-4 pr-4">
                 {config.selectedPairs.map(pair => (
                   <Card key={pair.id} className="border-l-4 border-l-primary/30">
                     <CardContent className="p-4">
