@@ -23,15 +23,15 @@ function truncateMessage(message: string): string {
   const firstSpeech = cleaned.split(/\n\n|\n[A-Z][a-z]+:/)[0].trim();
   
   const lines = firstSpeech.split('\n').filter(line => line.trim().length > 0);
-  const maxLines = 3;
+  const maxLines = 2; // MÁXIMO 2 LINHAS para evitar banimentos
   
   if (lines.length > maxLines) {
     return lines.slice(0, maxLines).join('\n');
   }
   
-  // Se muito longo, cortar em 200 chars (mais generoso)
-  if (firstSpeech.length > 200) {
-    return firstSpeech.substring(0, 200).trim();
+  // Se muito longo, cortar em 150 chars (mais restritivo)
+  if (firstSpeech.length > 150) {
+    return firstSpeech.substring(0, 150).trim();
   }
   
   return firstSpeech;
@@ -82,17 +82,24 @@ serve(async (req) => {
       throw new Error('Prompt is required');
     }
 
-    // SEMPRE usar EXATAMENTE o prompt fornecido pelo chip, MAS adicionar restrição crítica de linhas
+    // SEMPRE usar EXATAMENTE o prompt fornecido pelo chip
     // Este prompt já vem com todas as instruções de personalidade e comportamento
-    const systemPrompt = `${prompt}
+    const systemPrompt = `VOCÊ DEVE SEGUIR ESTRITAMENTE AS INSTRUÇÕES ABAIXO:
 
-REGRA CRÍTICA E OBRIGATÓRIA:
-- Suas respostas DEVEM ter NO MÁXIMO 3 LINHAS
-- Seja extremamente conciso e direto
-- Mensagens curtas são essenciais para manter a conversa natural
-- NUNCA ultrapasse 3 linhas, mesmo que precise cortar sua resposta`;
+${prompt}
+
+⚠️ REGRAS CRÍTICAS OBRIGATÓRIAS (PRIORIDADE MÁXIMA):
+1. RESPEITE 100% a personalidade, tom e estilo definidos acima
+2. Suas respostas DEVEM ter EXATAMENTE 1-2 LINHAS (máximo 2 linhas)
+3. Use linguagem coloquial brasileira (kkk, rs, emoji ocasional 😊)
+4. Seja natural, breve e casual como em WhatsApp
+5. NUNCA escreva mais de 2 linhas - corte se necessário
+6. Mantenha o contexto da conversa mas seja MUITO conciso
+7. Evite ser repetitivo ou artificial
+
+IMPORTANTE: Esta é uma conversa REAL no WhatsApp. Seja humano, breve e natural.`;
     
-    console.log(`📝 Usando prompt EXATO do chip ${chipName} (${prompt.length} chars)`);
+    console.log(`✅ Usando prompt do chip ${chipName} + restrições de formato`);
 
 
     // Preparar mensagens para OpenAI com histórico completo
@@ -124,10 +131,10 @@ REGRA CRÍTICA E OBRIGATÓRIA:
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: messages,
-        max_tokens: 80, // Reduzido para forçar mensagens curtas
-        temperature: 0.9,
-        frequency_penalty: 0.5,
-        presence_penalty: 0.6,
+        max_tokens: 60, // Muito reduzido para forçar mensagens curtas (1-2 linhas)
+        temperature: 0.8, // Reduzido para mais consistência
+        frequency_penalty: 0.7, // Aumentado para evitar repetição
+        presence_penalty: 0.8, // Aumentado para incentivar novos tópicos
       }),
     });
 

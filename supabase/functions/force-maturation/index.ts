@@ -126,6 +126,11 @@ serve(async (req) => {
           ? pair.instance_prompt
           : respondingChip.prompt;
 
+        console.log(`📝 Prompt sendo usado para ${respondingChip.nome}:`);
+        console.log(`   - Tipo: ${pair.use_instance_prompt ? 'INSTANCE PROMPT' : 'CHIP PROMPT'}`);
+        console.log(`   - Preview: ${systemPrompt?.substring(0, 100) || 'NENHUM'}...`);
+        console.log(`   - Tamanho: ${systemPrompt?.length || 0} caracteres`);
+
         const isFirstMessage = true; // Sempre primeira mensagem sem histórico
 
         // Chamar OpenAI para gerar resposta
@@ -145,7 +150,8 @@ serve(async (req) => {
         }
 
         const responseText = aiResponse.message;
-        console.log(`✅ Resposta gerada: ${responseText.substring(0, 50)}...`);
+        console.log(`✅ Resposta gerada (${responseText.length} chars, ${responseText.split('\n').length} linhas):`);
+        console.log(`   ${responseText}`);
 
         // Atualizar última atividade do par (SEM SALVAR MENSAGEM)
         const newCount = currentCount + 1;
