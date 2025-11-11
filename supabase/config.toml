@@ -6,9 +6,6 @@ verify_jwt = false
 [functions.openai-chat]
 verify_jwt = true
 
-[functions.test-openai]
-verify_jwt = false
-
 [functions.test-evolution]
 verify_jwt = false
 

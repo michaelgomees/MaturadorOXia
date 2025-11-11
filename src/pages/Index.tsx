@@ -14,7 +14,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useConnections } from "@/contexts/ConnectionsContext";
 import { useAutoSync } from "@/hooks/useAutoSync";
 import { useChipMaturation } from "@/hooks/useChipMaturation";
-import { APIsTab } from "@/components/APIsTab";
 import { ConnectionsTab } from "@/components/ConnectionsTab";
 import { PromptsTab } from "@/components/PromptsTab";
 import { DadosTab } from "@/components/DadosTab";
@@ -79,7 +78,7 @@ const Index = () => {
       <main className="container mx-auto px-6 py-8 space-y-8">
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <Bot className="w-4 h-4" />
               Dashboard
@@ -87,10 +86,6 @@ const Index = () => {
             <TabsTrigger value="conexoes" className="flex items-center gap-2">
               <Phone className="w-4 h-4" />
               Conexões
-            </TabsTrigger>
-            <TabsTrigger value="apis" className="flex items-center gap-2">
-              <Link className="w-4 h-4" />
-              APIs
             </TabsTrigger>
             <TabsTrigger value="ai-config" className="flex items-center gap-2">
               <Brain className="w-4 h-4" />
@@ -202,7 +197,7 @@ const Index = () => {
                 {/* Add New Chip Card */}
                 <Card 
                   className="border-dashed border-2 hover:border-primary/50 transition-all duration-300 cursor-pointer group hover:scale-105"
-                  onClick={() => setActiveTab("apis")}
+                  onClick={() => setActiveTab("conexoes")}
                 >
                   <CardContent className="flex flex-col items-center justify-center h-full min-h-[200px] text-muted-foreground group-hover:text-primary transition-colors">
                     <Plus className="w-12 h-12 mb-4 group-hover:scale-110 transition-transform duration-300" />
@@ -216,7 +211,7 @@ const Index = () => {
             {/* Quick Actions */}
             <section className="bg-card rounded-lg border p-6">
               <h3 className="text-lg font-semibold mb-4">Ações Rápidas</h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Button 
                   variant="outline" 
                   className="h-auto p-4 justify-start hover:bg-secondary/10 hover:border-secondary transition-all duration-300"
@@ -224,19 +219,8 @@ const Index = () => {
                 >
                   <Bot className="w-5 h-5 mr-3" />
                   <div className="text-left">
-                    <div className="font-medium">Configurar IA</div>
-                    <div className="text-sm text-muted-foreground">Gerenciar modelos e APIs</div>
-                  </div>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="h-auto p-4 justify-start hover:bg-secondary/10 hover:border-secondary transition-all duration-300"
-                  onClick={() => setActiveTab("apis")}
-                >
-                  <MessageCircle className="w-5 h-5 mr-3" />
-                  <div className="text-left">
-                    <div className="font-medium">Configurar APIs</div>
-                    <div className="text-sm text-muted-foreground">Evolution e modelos de IA</div>
+                    <div className="font-medium">Configurar Prompts</div>
+                    <div className="text-sm text-muted-foreground">Gerenciar prompts de IA</div>
                   </div>
                 </Button>
                 <Button 
@@ -297,10 +281,6 @@ const Index = () => {
 
           <TabsContent value="conexoes" className="mt-8">
             <ConnectionsTab />
-          </TabsContent>
-
-          <TabsContent value="apis" className="mt-8">
-            <APIsTab isAdmin={isAdmin} />
           </TabsContent>
 
           <TabsContent value="ai-config" className="mt-8">
