@@ -12,6 +12,7 @@ export interface MaturadorPair {
   use_instance_prompt: boolean;
   instance_prompt?: string;
   last_activity: string;
+  started_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -155,10 +156,17 @@ export const useMaturadorPairs = () => {
     const pair = pairs.find(p => p.id === id);
     if (!pair) return;
 
-    await updatePair(id, {
+    const updates: any = {
       is_active: !pair.is_active,
       status: !pair.is_active ? 'running' : 'paused'
-    });
+    };
+
+    // Registrar horário de início quando ativar
+    if (!pair.is_active && !pair.started_at) {
+      updates.started_at = new Date().toISOString();
+    }
+
+    await updatePair(id, updates);
   };
 
   // Incrementar contador de mensagens

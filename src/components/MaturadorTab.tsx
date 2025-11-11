@@ -27,6 +27,7 @@ interface ChipPair {
   isActive: boolean;
   messagesExchanged: number;
   lastActivity: string;
+  startedAt?: string;
   status: 'running' | 'paused' | 'stopped';
   useInstancePrompt?: boolean;
   instancePrompt?: string | null;
@@ -73,6 +74,7 @@ export const MaturadorTab = () => {
       isActive: pair.is_active,
       messagesExchanged: pair.messages_count,
       lastActivity: pair.last_activity,
+      startedAt: pair.started_at,
       status: pair.status
     }));
     
@@ -179,17 +181,17 @@ export const MaturadorTab = () => {
     }
   };
 
-  const getStatusBadge = (status: ChipPair['status'], lastActivity?: string) => {
+  const getStatusBadge = (status: ChipPair['status'], startedAt?: string) => {
     switch (status) {
       case 'running': 
-        const startDate = lastActivity ? new Date(lastActivity).toLocaleDateString('pt-BR') : 'Hoje';
-        const startTime = lastActivity ? new Date(lastActivity).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+        const startDate = startedAt ? new Date(startedAt).toLocaleDateString('pt-BR') : 'Hoje';
+        const startTime = startedAt ? new Date(startedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
         return (
           <div className="flex items-center gap-2">
             <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Em Execução</Badge>
             <div className="text-xs text-muted-foreground flex items-center gap-1">
               <Clock className="w-3 h-3" />
-              Maturando desde: {startDate} {startTime}
+              Iniciado em: {startDate} {startTime}
             </div>
           </div>
         );
@@ -387,7 +389,7 @@ export const MaturadorTab = () => {
                           {/* Linha 2: Status com Data */}
                           <div className="flex items-center justify-between">
                             <div>
-                              {getStatusBadge(pair.status, pair.lastActivity)}
+                              {getStatusBadge(pair.status, pair.startedAt)}
                             </div>
                           </div>
                           

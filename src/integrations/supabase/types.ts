@@ -138,6 +138,7 @@ export type Database = {
           messages_count: number
           nome_chip1: string
           nome_chip2: string
+          started_at: string | null
           status: string
           updated_at: string
           use_instance_prompt: boolean
@@ -152,6 +153,7 @@ export type Database = {
           messages_count?: number
           nome_chip1: string
           nome_chip2: string
+          started_at?: string | null
           status?: string
           updated_at?: string
           use_instance_prompt?: boolean
@@ -166,6 +168,7 @@ export type Database = {
           messages_count?: number
           nome_chip1?: string
           nome_chip2?: string
+          started_at?: string | null
           status?: string
           updated_at?: string
           use_instance_prompt?: boolean
