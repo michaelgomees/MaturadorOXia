@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ConnectionsProvider } from "@/contexts/ConnectionsContext";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { useGlobalMaturadorPolling } from "@/hooks/useGlobalMaturadorPolling";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -13,8 +12,8 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const AppContent = () => {
-  // Hook global que mantém o polling ativo independente da aba
-  useGlobalMaturadorPolling();
+  // Sistema de maturação roda automaticamente no servidor via cron job
+  // Não precisa mais de polling no frontend
 
   return (
     <TooltipProvider>
