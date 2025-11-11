@@ -120,7 +120,10 @@ export const MaturadorTab = () => {
 
   const handleStartPair = async (pairId: string) => {
     try {
-      await updatePair(pairId, { status: 'running' });
+      await updatePair(pairId, { 
+        status: 'running',
+        started_at: new Date().toISOString()
+      });
       toast({ 
         title: "🎯 Maturação Iniciada!", 
         description: "A dupla começou a maturar automaticamente." 
@@ -165,7 +168,10 @@ export const MaturadorTab = () => {
 
       // Iniciar todas as duplas ativas
       for (const pair of activePairs) {
-        await updatePair(pair.id, { status: 'running' });
+        await updatePair(pair.id, { 
+          status: 'running',
+          started_at: new Date().toISOString()
+        });
       }
       
       toast({ 
