@@ -37,12 +37,18 @@ serve(async (req) => {
 
     console.log('🔄 Iniciando verificação de pares ativos...');
 
-    // Buscar todos os pares com status 'running' ou 'active'
+    // Intervalo mínimo entre mensagens (20 segundos)
+    const MIN_INTERVAL_SECONDS = 20;
+    const now = new Date();
+    const minTimestamp = new Date(now.getTime() - MIN_INTERVAL_SECONDS * 1000).toISOString();
+
+    // Buscar pares ativos que não enviaram mensagem recentemente
     const { data: activePairs, error: pairsError } = await supabase
       .from('saas_pares_maturacao')
       .select('*')
       .in('status', ['running', 'active'])
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .or(`last_activity.is.null,last_activity.lt.${minTimestamp}`);
 
     if (pairsError) {
       console.error('❌ Erro ao buscar pares:', pairsError);
@@ -52,9 +58,12 @@ serve(async (req) => {
     console.log(`📊 Query retornou ${activePairs?.length || 0} pares`);
 
     if (!activePairs || activePairs.length === 0) {
-      console.log('⚠️ Nenhum par ativo encontrado (status=running/active + is_active=true)');
+      console.log(`⚠️ Nenhum par pronto para processar (aguardando intervalo mínimo de ${MIN_INTERVAL_SECONDS}s)`);
       return new Response(
-        JSON.stringify({ message: 'Nenhum par ativo', processedPairs: 0 }),
+        JSON.stringify({ 
+          message: `Aguardando intervalo mínimo de ${MIN_INTERVAL_SECONDS}s entre mensagens`, 
+          processedPairs: 0 
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -102,8 +111,12 @@ serve(async (req) => {
         let respondingChip = isChip1Turn ? chip1 : chip2;
         let receivingChip = isChip1Turn ? chip2 : chip1;
 
+        const lastActivity = (pair as any).last_activity ? new Date((pair as any).last_activity) : null;
+        const timeSinceLastMessage = lastActivity ? Math.floor((now.getTime() - lastActivity.getTime()) / 1000) : null;
+        
         console.log(`💬 Turno ${currentCount + 1}: ${respondingChip.nome} (${respondingChip.evolution_instance_name}) vai responder para ${receivingChip.nome} (${receivingChip.telefone})`);
         console.log(`📊 Par ${pair.id}: messages_count=${currentCount}, status=${pair.status}, is_active=${pair.is_active}`);
+        console.log(`⏱️ Tempo desde última mensagem: ${timeSinceLastMessage ? `${timeSinceLastMessage}s` : 'primeira mensagem'}`);
 
         // Preparar histórico vazio (sem banco de dados)
         const conversationHistory: any[] = [];
@@ -203,9 +216,6 @@ serve(async (req) => {
           error: pairError.message
         });
       }
-
-      // Delay variável entre processar cada par (1-3 segundos)
-      await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
     }
 
     console.log(`\n✅ Processamento concluído: ${results.length} pares processados`);
