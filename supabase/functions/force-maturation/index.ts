@@ -37,26 +37,29 @@ serve(async (req) => {
 
     console.log('🔄 Iniciando verificação de pares ativos...');
 
-    // Buscar todos os pares com status 'running'
+    // Buscar todos os pares com status 'running' ou 'active'
     const { data: activePairs, error: pairsError } = await supabase
       .from('saas_pares_maturacao')
       .select('*')
-      .eq('status', 'running');
+      .in('status', ['running', 'active'])
+      .eq('is_active', true);
 
     if (pairsError) {
-      console.error('Erro ao buscar pares:', pairsError);
+      console.error('❌ Erro ao buscar pares:', pairsError);
       throw pairsError;
     }
 
+    console.log(`📊 Query retornou ${activePairs?.length || 0} pares`);
+
     if (!activePairs || activePairs.length === 0) {
-      console.log('✅ Nenhum par ativo encontrado');
+      console.log('⚠️ Nenhum par ativo encontrado (status=running/active + is_active=true)');
       return new Response(
         JSON.stringify({ message: 'Nenhum par ativo', processedPairs: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`📊 Encontrados ${activePairs.length} pares ativos`);
+    console.log(`✅ Encontrados ${activePairs.length} pares ativos para processar`);
 
     // Processar cada par
     const results = [];
@@ -99,7 +102,8 @@ serve(async (req) => {
         let respondingChip = isChip1Turn ? chip1 : chip2;
         let receivingChip = isChip1Turn ? chip2 : chip1;
 
-        console.log(`💬 Turno ${currentCount + 1}: ${respondingChip.nome} vai responder para ${receivingChip.nome}`);
+        console.log(`💬 Turno ${currentCount + 1}: ${respondingChip.nome} (${respondingChip.evolution_instance_name}) vai responder para ${receivingChip.nome} (${receivingChip.telefone})`);
+        console.log(`📊 Par ${pair.id}: messages_count=${currentCount}, status=${pair.status}, is_active=${pair.is_active}`);
 
         // Preparar histórico vazio (sem banco de dados)
         const conversationHistory: any[] = [];
@@ -131,13 +135,20 @@ serve(async (req) => {
         console.log(`✅ Resposta gerada: ${responseText.substring(0, 50)}...`);
 
         // Atualizar última atividade do par (SEM SALVAR MENSAGEM)
-        await supabase
+        const newCount = currentCount + 1;
+        const { error: updateError } = await supabase
           .from('saas_pares_maturacao')
           .update({ 
             last_activity: new Date().toISOString(),
-            messages_count: (pair as any).messages_count + 1
+            messages_count: newCount
           })
           .eq('id', pair.id);
+
+        if (updateError) {
+          console.error(`❌ Erro ao atualizar par ${pair.id}:`, updateError);
+        } else {
+          console.log(`✅ Par ${pair.id} atualizado: messages_count=${newCount}, próximo turno: ${newCount % 2 === 0 ? chip1.nome : chip2.nome}`);
+        }
 
         // Enviar mensagem via Evolution API
         try {
@@ -162,14 +173,14 @@ serve(async (req) => {
             });
 
             if (sendResponse.ok) {
-              console.log(`📱 Mensagem enviada via WhatsApp: ${respondingChip.nome} → ${receivingChip.telefone}`);
+              console.log(`✅ Mensagem enviada via WhatsApp: ${respondingChip.nome} → ${receivingChip.telefone}`);
             } else {
               const errorData = await sendResponse.text();
-              console.error(`❌ Erro ao enviar via Evolution API:`, errorData);
+              console.error(`❌ Erro ${sendResponse.status} ao enviar via Evolution API:`, errorData);
               
-              // Apenas logar o erro, não pausar automaticamente
+              // Logar o erro mas CONTINUAR tentando
               if (errorData.includes('Connection Closed')) {
-                console.warn(`⚠️ Conexão fechada detectada para par ${pair.id}, mas continuando tentativas`);
+                console.warn(`⚠️ Connection Closed para par ${pair.id} - sistema continuará tentando no próximo ciclo`);
               }
             }
           }
