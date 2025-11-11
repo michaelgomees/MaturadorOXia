@@ -84,6 +84,29 @@ serve(async (req) => {
           continue;
         }
 
+        // Verificar se ambas as conexões estão ativas
+        const chip1Connection = connections.find((c: any) => c.nome === pair.nome_chip1);
+        const chip2Connection = connections.find((c: any) => c.nome === pair.nome_chip2);
+        
+        if (chip1Connection?.status !== 'active' || chip2Connection?.status !== 'active') {
+          console.warn(`⚠️ Pausando par ${pair.id}: Uma ou ambas conexões estão inativas`);
+          
+          // Pausar o par automaticamente
+          await supabase
+            .from('saas_pares_maturacao')
+            .update({ status: 'paused' })
+            .eq('id', pair.id);
+          
+          results.push({
+            pairId: pair.id,
+            from: pair.nome_chip1,
+            to: pair.nome_chip2,
+            success: false,
+            error: 'Conexão fechada - par pausado automaticamente'
+          });
+          continue;
+        }
+
         // Determinar qual chip deve responder baseado no contador de mensagens
         // Se messages_count é par (0, 2, 4...), chip1 responde
         // Se messages_count é ímpar (1, 3, 5...), chip2 responde
@@ -160,6 +183,17 @@ serve(async (req) => {
             } else {
               const errorData = await sendResponse.text();
               console.error(`❌ Erro ao enviar via Evolution API:`, errorData);
+              
+              // Se for erro de conexão fechada, pausar o par
+              if (errorData.includes('Connection Closed')) {
+                console.warn(`⚠️ Pausando par ${pair.id} devido a conexão fechada`);
+                await supabase
+                  .from('saas_pares_maturacao')
+                  .update({ status: 'paused' })
+                  .eq('id', pair.id);
+                
+                throw new Error('Conexão WhatsApp fechada - par pausado automaticamente');
+              }
             }
           }
         } catch (evolutionError) {

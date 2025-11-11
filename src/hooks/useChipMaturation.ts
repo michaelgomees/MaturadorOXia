@@ -98,6 +98,17 @@ export const useChipMaturation = () => {
     try {
       console.log(`💬 Enviando mensagem de ${senderChip.name} para ${receiverChip.name}: ${message}`);
       
+      // Verificar se ambos os chips estão ativos antes de enviar
+      if (senderChip.status !== 'active' || receiverChip.status !== 'active') {
+        console.error('❌ Uma ou ambas conexões estão inativas');
+        toast({
+          title: "⚠️ Conexão Inativa",
+          description: `${senderChip.displayName || senderChip.name} ou ${receiverChip.displayName || receiverChip.name} está desconectado`,
+          variant: 'destructive'
+        });
+        return false;
+      }
+      
       // Chamar Edge Function para enviar mensagem
       const { data, error } = await supabase.functions.invoke('evolution-api', {
         body: {
@@ -110,6 +121,16 @@ export const useChipMaturation = () => {
 
       if (error) {
         console.error('Erro ao enviar mensagem:', error);
+        
+        // Tratamento específico para Connection Closed
+        const errorMessage = error.message || '';
+        if (errorMessage.includes('Connection Closed') || errorMessage.includes('400')) {
+          toast({
+            title: "❌ WhatsApp Desconectado",
+            description: `${senderChip.displayName || senderChip.name} precisa reconectar o WhatsApp`,
+            variant: 'destructive'
+          });
+        }
         throw error;
       }
 
@@ -139,13 +160,31 @@ export const useChipMaturation = () => {
         
         return true;
       } else {
-        throw new Error(data?.error || 'Falha ao enviar mensagem');
+        const errorMsg = data?.error || 'Falha ao enviar mensagem';
+        
+        // Se for erro de conexão, pausar pares ativos com esse chip
+        if (errorMsg.includes('Connection Closed') || data?.details?.response?.message?.includes('Connection Closed')) {
+          const matchingPair = pairs.find(p => 
+            (p.nome_chip1 === senderChip.name && p.nome_chip2 === receiverChip.name) ||
+            (p.nome_chip1 === receiverChip.name && p.nome_chip2 === senderChip.name)
+          );
+          
+          if (matchingPair && matchingPair.status === 'running') {
+            console.log(`⏸️ Pausando par automaticamente devido a conexão fechada`);
+            await supabase
+              .from('saas_pares_maturacao')
+              .update({ status: 'paused' })
+              .eq('id', matchingPair.id);
+          }
+        }
+        
+        throw new Error(errorMsg);
       }
     } catch (error) {
       console.error(`❌ Erro ao enviar mensagem entre chips:`, error);
       return false;
     }
-  }, [toast]);
+  }, [toast, pairs]);
 
   // Resetar memórias das conversas dos chips (limpa conversation_history)
   const resetActiveChipsMemory = useCallback(async (apenasDuplasAtivas: boolean = true) => {
