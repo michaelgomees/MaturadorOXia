@@ -84,17 +84,16 @@ serve(async (req) => {
           continue;
         }
 
-        // Determinar qual chip deve responder
-        // Se não há histórico, chip1 começa; senão, alterna baseado na última mensagem
-        let respondingChip = chip1;
-        let receivingChip = chip2;
+        // Determinar qual chip deve responder baseado no contador de mensagens
+        // Se messages_count é par (0, 2, 4...), chip1 responde
+        // Se messages_count é ímpar (1, 3, 5...), chip2 responde
+        const currentCount = (pair as any).messages_count || 0;
+        const isChip1Turn = currentCount % 2 === 0;
+        
+        let respondingChip = isChip1Turn ? chip1 : chip2;
+        let receivingChip = isChip1Turn ? chip2 : chip1;
 
-        // Sempre alternar entre os chips (sem verificar histórico no banco)
-        // Por padrão, chip1 começa, mas isso pode ser expandido com lógica local se necessário
-        respondingChip = chip1;
-        receivingChip = chip2;
-
-        console.log(`💬 ${respondingChip.nome} vai responder para ${receivingChip.nome}`);
+        console.log(`💬 Turno ${currentCount + 1}: ${respondingChip.nome} vai responder para ${receivingChip.nome}`);
 
         // Preparar histórico vazio (sem banco de dados)
         const conversationHistory: any[] = [];
