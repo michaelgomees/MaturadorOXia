@@ -77,7 +77,19 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     prompt: conn.prompt
   }));
 
-      setConnections(formattedConnections);
+  // Ordenar conexões numericamente pelo nome
+  const sortedConnections = formattedConnections.sort((a, b) => {
+    const numA = parseInt(a.name.match(/\d+/)?.[0] || '0');
+    const numB = parseInt(b.name.match(/\d+/)?.[0] || '0');
+    
+    if (numA !== numB) {
+      return numA - numB;
+    }
+    
+    return a.name.localeCompare(b.name);
+  });
+
+      setConnections(sortedConnections);
     } catch (error) {
       console.error('Erro ao carregar conexões:', error);
     }

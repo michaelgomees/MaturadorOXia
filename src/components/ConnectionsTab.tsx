@@ -208,7 +208,18 @@ export const ConnectionsTab = () => {
           ) : (
             <ScrollArea className="h-[600px] pr-4">
               <div className="space-y-4">
-                {connections.map((connection) => (
+                {connections
+                  .sort((a, b) => {
+                    const numA = parseInt(a.name.match(/\d+/)?.[0] || '0');
+                    const numB = parseInt(b.name.match(/\d+/)?.[0] || '0');
+                    
+                    if (numA !== numB) {
+                      return numA - numB;
+                    }
+                    
+                    return a.name.localeCompare(b.name);
+                  })
+                  .map((connection) => (
                   <div 
                     key={connection.id}
                     className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"

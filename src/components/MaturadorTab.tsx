@@ -207,12 +207,23 @@ export const MaturadorTab = () => {
   };
 
   const getAvailableChipsForSecond = (selectedFirst: string) => {
-    return whatsappConnections.filter(connection => 
-      connection.status === 'active' && connection.name !== selectedFirst
-    );
+    return whatsappConnections
+      .filter(connection => 
+        connection.status === 'active' && connection.name !== selectedFirst
+      )
+      .sort((a, b) => {
+        const numA = parseInt(a.name.match(/\d+/)?.[0] || '0');
+        const numB = parseInt(b.name.match(/\d+/)?.[0] || '0');
+        
+        if (numA !== numB) {
+          return numA - numB;
+        }
+        
+        return a.name.localeCompare(b.name);
+      });
   };
 
-  // Conexões ativas formatadas
+  // Conexões ativas formatadas e ordenadas numericamente
   const activeConnections: ActiveConnection[] = whatsappConnections
     .filter(conn => conn.status === 'active')
     .map(conn => ({
@@ -221,7 +232,17 @@ export const MaturadorTab = () => {
       status: 'connected' as const,
       lastSeen: conn.lastActive,
       platform: 'WhatsApp'
-    }));
+    }))
+    .sort((a, b) => {
+      const numA = parseInt(a.name.match(/\d+/)?.[0] || '0');
+      const numB = parseInt(b.name.match(/\d+/)?.[0] || '0');
+      
+      if (numA !== numB) {
+        return numA - numB;
+      }
+      
+      return a.name.localeCompare(b.name);
+    });
 
   const loading = false;
   const activePairs = config.selectedPairs.filter(pair => pair.isActive);
@@ -296,7 +317,19 @@ export const MaturadorTab = () => {
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {whatsappConnections.filter(conn => conn.status === 'active').map(conn => (
+                  {whatsappConnections
+                    .filter(conn => conn.status === 'active')
+                    .sort((a, b) => {
+                      const numA = parseInt(a.name.match(/\d+/)?.[0] || '0');
+                      const numB = parseInt(b.name.match(/\d+/)?.[0] || '0');
+                      
+                      if (numA !== numB) {
+                        return numA - numB;
+                      }
+                      
+                      return a.name.localeCompare(b.name);
+                    })
+                    .map(conn => (
                     <SelectItem key={conn.id} value={conn.name}>
                       <div className="flex items-center gap-2">
                         <Wifi className="w-3 h-3 text-green-500" />{conn.name}
