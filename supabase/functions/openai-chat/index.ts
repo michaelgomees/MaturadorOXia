@@ -1,7 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const groqApiKey = Deno.env.get('groq_api_key');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -55,11 +55,11 @@ serve(async (req) => {
   }
 
   try {
-    console.log('OpenAI Chat function called');
+    console.log('Groq Chat function called');
     
-    if (!openAIApiKey) {
-      console.error('OPENAI_API_KEY not configured');
-      throw new Error('OpenAI API key not configured');
+    if (!groqApiKey) {
+      console.error('groq_api_key not configured');
+      throw new Error('Groq API key not configured');
     }
 
     const { 
@@ -68,11 +68,11 @@ serve(async (req) => {
       conversationHistory = [], 
       isFirstMessage = false,
       responseDelay = 30,
-      maxTokens = 35
+      maxTokens = 40
     } = await req.json();
     
-    // LIMITE FIXO: Nunca permitir mais de 35 tokens
-    const tokenLimit = Math.min(maxTokens || 35, 35);
+    // LIMITE FIXO: Nunca permitir mais de 40 tokens
+    const tokenLimit = Math.min(maxTokens || 40, 40);
     
     console.log('Request data:', { 
       prompt: prompt?.substring(0, 100) + '...', 
@@ -94,7 +94,7 @@ ${prompt}
 
 ⚠️ REGRAS CRÍTICAS OBRIGATÓRIAS (PRIORIDADE MÁXIMA):
 1. RESPEITE 100% a personalidade, tom e estilo definidos acima
-2. Suas respostas DEVEM ter EXATAMENTE 1-2 LINHAS (máximo 2 linhas)
+2. Suas respostas DEVEM ter EXATAMENTE 1-2 LINHAS (máximo 40 tokens)
 3. Use linguagem coloquial brasileira (kkk, rs, emoji ocasional 😊)
 4. Seja natural, breve e casual como em WhatsApp
 5. NUNCA escreva mais de 2 linhas - corte se necessário
@@ -119,23 +119,23 @@ IMPORTANTE: Esta é uma conversa REAL no WhatsApp. Seja humano, breve e natural.
       })),
     ];
 
-    console.log('Enviando para OpenAI:', {
+    console.log('Enviando para Groq:', {
       chipName,
       messagesCount: messages.length,
       systemPromptLength: systemPrompt.length,
       promptUsed: prompt.substring(0, 100) + '...'
     });
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
+        'Authorization': `Bearer ${groqApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
+        model: 'llama-3.3-70b-versatile',
         messages: messages,
-        max_tokens: tokenLimit, // Limite fixo de 35 tokens máximo
+        max_tokens: tokenLimit,
         temperature: 0.8,
         frequency_penalty: 0.7,
         presence_penalty: 0.8,
@@ -144,12 +144,12 @@ IMPORTANTE: Esta é uma conversa REAL no WhatsApp. Seja humano, breve e natural.
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error('OpenAI API error:', response.status, errorData);
-      throw new Error(`OpenAI API error: ${response.status} ${errorData}`);
+      console.error('Groq API error:', response.status, errorData);
+      throw new Error(`Groq API error: ${response.status} ${errorData}`);
     }
 
     const data = await response.json();
-    console.log('Resposta da OpenAI recebida:', {
+    console.log('Resposta da Groq recebida:', {
       finishReason: data.choices[0].finish_reason,
       contentLength: data.choices[0].message.content.length
     });
