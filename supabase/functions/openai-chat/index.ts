@@ -67,8 +67,12 @@ serve(async (req) => {
       chipName, 
       conversationHistory = [], 
       isFirstMessage = false,
-      responseDelay = 30 
+      responseDelay = 30,
+      maxTokens = 35
     } = await req.json();
+    
+    // LIMITE FIXO: Nunca permitir mais de 35 tokens
+    const tokenLimit = Math.min(maxTokens || 35, 35);
     
     console.log('Request data:', { 
       prompt: prompt?.substring(0, 100) + '...', 
@@ -131,10 +135,10 @@ IMPORTANTE: Esta é uma conversa REAL no WhatsApp. Seja humano, breve e natural.
       body: JSON.stringify({
         model: 'gpt-3.5-turbo',
         messages: messages,
-        max_tokens: 60, // Muito reduzido para forçar mensagens curtas (1-2 linhas)
-        temperature: 0.8, // Reduzido para mais consistência
-        frequency_penalty: 0.7, // Aumentado para evitar repetição
-        presence_penalty: 0.8, // Aumentado para incentivar novos tópicos
+        max_tokens: tokenLimit, // Limite fixo de 35 tokens máximo
+        temperature: 0.8,
+        frequency_penalty: 0.7,
+        presence_penalty: 0.8,
       }),
     });
 
