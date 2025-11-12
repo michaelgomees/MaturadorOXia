@@ -46,7 +46,7 @@ export const ChipConfigModal = ({ open, onOpenChange, chipId, chipName }: ChipCo
     personality: "Atencioso e prestativo",
     aiModel: "gpt-4",
     phone: "+5511999999999",
-    maxTokens: 2000,
+    maxTokens: 40,
     temperature: 0.7,
     systemPrompt: "Você é um assistente inteligente e prestativo. Responda de forma clara e objetiva.",
     isAutoReply: true,

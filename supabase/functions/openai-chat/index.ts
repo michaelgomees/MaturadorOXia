@@ -129,7 +129,7 @@ IMPORTANTE: Esta é uma conversa REAL no WhatsApp. Seja humano, breve e natural.
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-3.5-turbo',
         messages: messages,
         max_tokens: 60, // Muito reduzido para forçar mensagens curtas (1-2 linhas)
         temperature: 0.8, // Reduzido para mais consistência
