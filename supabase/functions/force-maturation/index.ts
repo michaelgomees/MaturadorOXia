@@ -155,15 +155,14 @@ serve(async (req) => {
         }
 
         let responseText = '';
-        let newMessageIndex = (pair as any).current_message_index || 0;
 
         // Verificar modo de maturação
         const maturationMode = (pair as any).maturation_mode || 'prompts';
         console.log(`🎯 Modo de maturação: ${maturationMode}`);
 
         if (maturationMode === 'messages') {
-          // Modo mensagens: buscar mensagem do arquivo
-          console.log(`📋 Buscando mensagens do arquivo para o par ${pair.id}`);
+          // Modo mensagens: buscar mensagem ALEATÓRIA do arquivo
+          console.log(`📋 Buscando mensagem aleatória do arquivo para o par ${pair.id}`);
           
           // Buscar arquivo de mensagens ativo do usuário
           const { data: messageFile, error: messageFileError } = await supabase
@@ -188,25 +187,11 @@ serve(async (req) => {
               console.error(`❌ Arquivo de mensagens vazio`);
               responseText = 'oi, tudo bem?';
             } else {
-              // Pegar mensagem atual do índice
-              const messageIndex = newMessageIndex % totalMessages;
-              responseText = messages[messageIndex];
+              // Pegar mensagem ALEATÓRIA
+              const randomIndex = Math.floor(Math.random() * totalMessages);
+              responseText = messages[randomIndex];
               
-              console.log(`✅ Mensagem ${messageIndex + 1}/${totalMessages}: ${responseText}`);
-              
-              // Incrementar índice para próxima mensagem
-              newMessageIndex = messageIndex + 1;
-              
-              // Se loop está ativado e chegou ao fim, volta ao início
-              const loopMessages = (pair as any).loop_messages !== false;
-              if (!loopMessages && newMessageIndex >= totalMessages) {
-                console.log(`⚠️ Fim das mensagens e loop desativado, parando par`);
-                // Parar o par ao chegar no fim das mensagens
-                await supabase
-                  .from('saas_pares_maturacao')
-                  .update({ status: 'stopped' })
-                  .eq('id', pair.id);
-              }
+              console.log(`🎲 Mensagem aleatória ${randomIndex + 1}/${totalMessages}: ${responseText}`);
             }
           }
         } else {
@@ -254,10 +239,7 @@ serve(async (req) => {
           messages_count: newCount
         };
 
-        // Se modo mensagens, atualizar índice
-        if (maturationMode === 'messages') {
-          updateData.current_message_index = newMessageIndex;
-        }
+        // Não precisa mais atualizar índice pois é aleatório
 
         const { error: updateError } = await supabase
           .from('saas_pares_maturacao')
