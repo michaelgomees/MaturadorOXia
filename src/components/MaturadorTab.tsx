@@ -13,13 +13,24 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { 
   Play, Pause, Square, Users, MessageCircle, ArrowRight, 
-  Settings, Activity, Wifi, Bot, Clock, Brain 
+  Settings, Activity, Wifi, Bot, Clock, Brain, Trash2 
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useConnections } from "@/contexts/ConnectionsContext";
 import { useMaturadorPairs } from "@/hooks/useMaturadorPairs";
 import { usePrompts } from "@/hooks/usePrompts";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface ChipPair {
   id: string;
@@ -229,6 +240,33 @@ export const MaturadorTab = () => {
         title: "Erro", 
         description: "Não foi possível iniciar todas as duplas.", 
         variant: "destructive" 
+      });
+    }
+  };
+
+  const handleRemoveAll = async () => {
+    try {
+      // Remover todas as duplas do banco de dados
+      const { error } = await supabase
+        .from('saas_pares_maturacao')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Remove tudo (condição sempre verdadeira)
+
+      if (error) throw error;
+
+      // Recarregar pares
+      await loadPairs();
+      
+      toast({
+        title: "✅ Todas as Duplas Removidas",
+        description: "Todas as duplas foram removidas com sucesso.",
+      });
+    } catch (error: any) {
+      console.error('Erro ao remover todas as duplas:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível remover todas as duplas.",
+        variant: "destructive"
       });
     }
   };
@@ -493,14 +531,43 @@ export const MaturadorTab = () => {
               <CardDescription>Gerencie as duplas</CardDescription>
             </div>
             {config.selectedPairs.length > 0 && (
-              <Button 
-                onClick={handleStartAll}
-                className="flex items-center gap-2"
-                disabled={activePairs.length === 0}
-              >
-                <Play className="w-4 h-4" />
-                Iniciar Todos
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleStartAll}
+                  className="flex items-center gap-2"
+                  disabled={activePairs.length === 0}
+                >
+                  <Play className="w-4 h-4" />
+                  Iniciar Todos
+                </Button>
+                
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button 
+                      variant="destructive"
+                      className="flex items-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Remover Todos
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Remover Todas as Duplas?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta ação irá remover permanentemente todas as {config.selectedPairs.length} duplas configuradas.
+                        Esta ação não pode ser desfeita.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleRemoveAll} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Remover Todos
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             )}
           </div>
         </CardHeader>
