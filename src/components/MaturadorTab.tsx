@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useConnections } from "@/contexts/ConnectionsContext";
 import { useMaturadorPairs } from "@/hooks/useMaturadorPairs";
 import { usePrompts } from "@/hooks/usePrompts";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ChipPair {
   id: string;
@@ -31,6 +32,7 @@ interface ChipPair {
   status: 'running' | 'paused' | 'stopped';
   useInstancePrompt?: boolean;
   instancePrompt?: string | null;
+  maturationMode?: 'prompts' | 'messages';
 }
 
 interface ActiveConnection {
@@ -49,7 +51,7 @@ interface MaturadorConfig {
 
 export const MaturadorTab = () => {
   const { connections: whatsappConnections } = useConnections();
-  const { pairs: dbPairs, createPair, updatePair, deletePair, togglePairActive } = useMaturadorPairs();
+  const { pairs: dbPairs, updatePair, deletePair, togglePairActive, refreshPairs: loadPairs } = useMaturadorPairs();
   const { prompts } = usePrompts();
   
   // Estado global para controlar o modo de maturação
@@ -86,7 +88,8 @@ export const MaturadorTab = () => {
       messagesExchanged: pair.messages_count,
       lastActivity: pair.last_activity,
       startedAt: pair.started_at,
-      status: pair.status
+      status: pair.status,
+      maturationMode: pair.maturation_mode || 'prompts' // Incluir modo de maturação
     }));
     
     setConfig(prev => ({
@@ -106,10 +109,38 @@ export const MaturadorTab = () => {
     }
 
     try {
-      await createPair(newPair.chip1, newPair.chip2);
+      // Criar par com o modo global atual
+      const { data: pairData, error: createError } = await supabase
+        .from('saas_pares_maturacao')
+        .insert([{
+          nome_chip1: newPair.chip1,
+          nome_chip2: newPair.chip2,
+          is_active: true,
+          status: 'stopped',
+          messages_count: 0,
+          maturation_mode: globalMaturationMode,
+          use_instance_prompt: false,
+          usuario_id: (await supabase.auth.getUser()).data.user?.id
+        }])
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      await loadPairs();
       setNewPair({ chip1: '', chip2: '', promptId: '' });
-    } catch (error) {
-      // Error já tratado no hook
+      
+      toast({
+        title: "Par adicionado",
+        description: `${newPair.chip1} <-> ${newPair.chip2} (Modo: ${globalMaturationMode === 'prompts' ? '🧠 Prompts IA' : '💬 Mensagens + Dados'})`
+      });
+    } catch (error: any) {
+      console.error('Erro ao criar par:', error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível criar o par",
+        variant: "destructive"
+      });
     }
   };
 
@@ -264,39 +295,68 @@ export const MaturadorTab = () => {
   return (
     <div className="space-y-6">
       {/* Header com Toggle */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
-        <div>
-          <h2 className="text-3xl font-bold">Sistema de Maturação</h2>
-          <p className="text-muted-foreground">
-            Configure conversas automáticas entre conexões ativas ({activeConnections.length} disponíveis)
-          </p>
+      <div className="space-y-4 mb-6">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-3xl font-bold">Sistema de Maturação</h2>
+            <p className="text-muted-foreground">
+              Configure conversas automáticas entre conexões ativas ({activeConnections.length} disponíveis)
+            </p>
+          </div>
+
+          {/* Toggle de Modo */}
+          <div className="border-2 border-primary rounded-lg px-5 py-3 flex items-center gap-4 bg-background shadow-md">
+            <div className={`flex items-center gap-2 transition-colors ${globalMaturationMode === 'prompts' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+              <Brain className="w-4 h-4" />
+              <span className="text-sm whitespace-nowrap">Prompts IA</span>
+            </div>
+            
+            <Switch
+              checked={globalMaturationMode === 'messages'}
+              onCheckedChange={(checked) => {
+                const newMode = checked ? 'messages' : 'prompts';
+                setGlobalMaturationMode(newMode);
+                toast({
+                  title: "Modo Alterado",
+                  description: checked 
+                    ? "💬 Usando Mensagens + Dados" 
+                    : "🧠 Usando Prompts IA",
+                });
+              }}
+              disabled={runningPairs.length > 0}
+            />
+            
+            <div className={`flex items-center gap-2 transition-colors ${globalMaturationMode === 'messages' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+              <MessageCircle className="w-4 h-4" />
+              <span className="text-sm whitespace-nowrap">Mensagens + Dados</span>
+            </div>
+          </div>
         </div>
 
-        {/* Toggle de Modo */}
-        <div className="border-2 border-primary rounded-lg px-5 py-3 flex items-center gap-4 bg-background shadow-md">
-          <div className={`flex items-center gap-2 ${globalMaturationMode === 'prompts' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
-            <Brain className="w-4 h-4" />
-            <span className="text-sm whitespace-nowrap">Prompts IA</span>
-          </div>
-          
-          <Switch
-            checked={globalMaturationMode === 'messages'}
-            onCheckedChange={(checked) => {
-              const newMode = checked ? 'messages' : 'prompts';
-              setGlobalMaturationMode(newMode);
-              toast({
-                title: "Modo Alterado",
-                description: checked 
-                  ? "💬 Usando Mensagens + Dados" 
-                  : "🧠 Usando Prompts IA",
-              });
-            }}
-            disabled={runningPairs.length > 0}
-          />
-          
-          <div className={`flex items-center gap-2 ${globalMaturationMode === 'messages' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
-            <MessageCircle className="w-4 h-4" />
-            <span className="text-sm whitespace-nowrap">Mensagens + Dados</span>
+        {/* Info sobre modo atual */}
+        <div className={`border rounded-lg p-3 ${globalMaturationMode === 'prompts' ? 'bg-primary/10 border-primary/20' : 'bg-secondary/10 border-secondary/20'}`}>
+          <div className="flex items-start gap-2">
+            {globalMaturationMode === 'prompts' ? (
+              <>
+                <Brain className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                <div className="text-sm">
+                  <p className="font-medium text-primary">Modo Ativo: Prompts IA</p>
+                  <p className="text-muted-foreground">
+                    Novas duplas usarão prompts configurados na aba "Prompts de IA" para gerar mensagens naturais com IA.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <MessageCircle className="w-4 h-4 text-secondary mt-0.5 flex-shrink-0" />
+                <div className="text-sm">
+                  <p className="font-medium text-secondary">Modo Ativo: Mensagens + Dados</p>
+                  <p className="text-muted-foreground">
+                    Novas duplas usarão mensagens da aba "Mensagens" e recursos da aba "Dados" (offline, sem consumo de tokens).
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -458,11 +518,24 @@ export const MaturadorTab = () => {
                             </div>
                           </div>
                           
-                          {/* Linha 3: Controles */}
+                          {/* Linha 3: Modo e Controles */}
                           <div className="flex items-center justify-between">
                             <div className="text-sm text-muted-foreground flex items-center gap-2">
-                              <Bot className="w-4 h-4" />
-                              Cada chip usa seu prompt individual
+                              {pair.maturationMode === 'messages' ? (
+                                <>
+                                  <MessageCircle className="w-4 h-4 text-secondary" />
+                                  <Badge variant="secondary" className="text-xs">
+                                    💬 Mensagens + Dados
+                                  </Badge>
+                                </>
+                              ) : (
+                                <>
+                                  <Brain className="w-4 h-4 text-primary" />
+                                  <Badge variant="default" className="text-xs">
+                                    🧠 Prompts IA
+                                  </Badge>
+                                </>
+                              )}
                             </div>
                             
                             <div className="flex gap-2">
