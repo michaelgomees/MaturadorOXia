@@ -37,6 +37,12 @@ export const EnhancedMaturadorTab: React.FC = () => {
   const { messages: messageFiles } = useMaturationMessages();
   const { config: mediaConfig, mediaItems } = useMediaData();
   
+  // Estado global para controlar o modo de maturação de todas as duplas
+  const [globalMaturationMode, setGlobalMaturationMode] = useState<'prompts' | 'messages'>(() => {
+    const saved = localStorage.getItem('ox-global-maturation-mode');
+    return (saved as 'prompts' | 'messages') || 'prompts';
+  });
+
   const [newPair, setNewPair] = useState({
     firstChipId: '',
     secondChipId: '',
@@ -46,6 +52,11 @@ export const EnhancedMaturadorTab: React.FC = () => {
   });
   const [activeConnections, setActiveConnections] = useState<ActiveConnection[]>([]);
   const { toast } = useToast();
+
+  // Salvar modo global no localStorage
+  useEffect(() => {
+    localStorage.setItem('ox-global-maturation-mode', globalMaturationMode);
+  }, [globalMaturationMode]);
 
   // Carregar dados iniciais
   useEffect(() => {
@@ -76,10 +87,10 @@ export const EnhancedMaturadorTab: React.FC = () => {
     }
 
     // Validar modo de mensagens
-    if (newPair.maturationMode === 'messages' && !newPair.messageFileId) {
+    if (globalMaturationMode === 'messages' && !newPair.messageFileId) {
       toast({
         title: "Erro",
-        description: "Selecione um arquivo de mensagens",
+        description: "Selecione um arquivo de mensagens para o modo 'Mensagens + Dados'",
         variant: "destructive"
       });
       return;
@@ -91,19 +102,20 @@ export const EnhancedMaturadorTab: React.FC = () => {
     if (!firstChip || !secondChip) return;
 
     try {
+      // Usar o modo global ao criar o par
       await createPair(firstChip.name, secondChip.name);
       
       setNewPair({ 
         firstChipId: '', 
         secondChipId: '',
-        maturationMode: 'prompts',
+        maturationMode: globalMaturationMode,
         messageFileId: '',
         loopMessages: true
       });
       
       toast({
         title: "Par Configurado",
-        description: `${firstChip.name} <-> ${secondChip.name}`,
+        description: `${firstChip.name} <-> ${secondChip.name} (Modo: ${globalMaturationMode === 'prompts' ? '🧠 Prompts IA' : '💬 Mensagens + Dados'})`,
       });
     } catch (error) {
       console.error('Erro ao criar par:', error);
@@ -158,7 +170,7 @@ export const EnhancedMaturadorTab: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header com Status */}
+      {/* Header com Status e Toggle Global */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Maturador de Chips</h2>
@@ -166,6 +178,65 @@ export const EnhancedMaturadorTab: React.FC = () => {
             Configure conversas automáticas inteligentes entre chips usando OpenAI
           </p>
         </div>
+
+        {/* Toggle Global de Modo */}
+        <Card className="border-2 border-primary/30">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <Label className={`block text-sm font-semibold transition-colors ${globalMaturationMode === 'prompts' ? 'text-primary' : 'text-muted-foreground'}`}>
+                  🧠 Prompts IA
+                </Label>
+                <p className="text-xs text-muted-foreground">Usa tokens</p>
+              </div>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Switch
+                      checked={globalMaturationMode === 'messages'}
+                      onCheckedChange={(checked) => {
+                        const newMode = checked ? 'messages' : 'prompts';
+                        setGlobalMaturationMode(newMode);
+                        toast({
+                          title: "Modo Alterado",
+                          description: checked 
+                            ? "🎯 Usando Mensagens Definidas + Dados Multimídia" 
+                            : "🧠 Usando Prompts Individuais (IA)",
+                        });
+                      }}
+                      className="data-[state=checked]:bg-secondary"
+                      disabled={isRunning}
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs text-sm">
+                      {isRunning 
+                        ? "Pare o maturador para alternar o modo" 
+                        : "Alterne entre Prompts IA e Mensagens + Dados"}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <div className="text-left">
+                <Label className={`block text-sm font-semibold transition-colors ${globalMaturationMode === 'messages' ? 'text-secondary' : 'text-muted-foreground'}`}>
+                  💬 Mensagens + Dados
+                </Label>
+                <p className="text-xs text-muted-foreground">Offline, sem tokens</p>
+              </div>
+            </div>
+            
+            {globalMaturationMode === 'messages' && (
+              <div className="mt-3 pt-3 border-t">
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Database className="w-3 h-3" />
+                  Recursos multimídia da aba "Dados" serão usados automaticamente
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Controles Principais */}
@@ -295,52 +366,27 @@ export const EnhancedMaturadorTab: React.FC = () => {
                 </div>
               </div>
 
-              {/* Novo: Seletor de Modo de Maturação */}
-              <div className="space-y-2 border-t pt-4">
-                <div className="flex items-center gap-2">
-                  <Label>Modo de Maturação</Label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Info className="w-4 h-4 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p className="text-sm">
-                          <strong>Prompts Individuais:</strong> Usa IA para gerar mensagens (consome tokens)<br/>
-                          <strong>Mensagens Definidas:</strong> Usa arquivo pré-definido (offline, sem tokens)
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+              {/* Info sobre modo global */}
+              <div className="border-t pt-4">
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <Info className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-400 mb-1">
+                        Modo Global Ativo: {globalMaturationMode === 'prompts' ? '🧠 Prompts IA' : '💬 Mensagens + Dados'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {globalMaturationMode === 'prompts' 
+                          ? 'Todas as duplas usarão prompts configurados na aba "Prompts de IA"' 
+                          : 'Todas as duplas usarão mensagens da aba "Mensagens" e recursos da aba "Dados"'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <Select 
-                  value={newPair.maturationMode} 
-                  onValueChange={(value: 'prompts' | 'messages') => 
-                    setNewPair(prev => ({ ...prev, maturationMode: value, messageFileId: '' }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="prompts">
-                      <div className="flex items-center gap-2">
-                        <Brain className="w-4 h-4" />
-                        <span>Prompts Individuais (IA)</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="messages">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4" />
-                        <span>Mensagens Definidas (Offline)</span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
 
-              {/* Seletor de Arquivo de Mensagens (apenas se modo = messages) */}
-              {newPair.maturationMode === 'messages' && (
+              {/* Seletor de Arquivo de Mensagens (apenas se modo global = messages) */}
+              {globalMaturationMode === 'messages' && (
                 <>
                   <div className="space-y-2">
                     <Label>Arquivo de Mensagens</Label>
