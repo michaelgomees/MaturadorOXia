@@ -170,76 +170,43 @@ export const EnhancedMaturadorTab: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header com Status e Toggle Global */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold">Maturador de Chips</h2>
-          <p className="text-muted-foreground">
-            Configure conversas automáticas inteligentes entre chips usando OpenAI
+          <h2 className="text-3xl font-bold">Sistema de Maturação</h2>
+          <p className="text-sm text-muted-foreground">
+            Configure conversas automáticas entre conexões ativas ({activeConnections.length} disponíveis)
           </p>
         </div>
 
-        {/* Toggle Global de Modo - BOX GRANDE E VISÍVEL */}
-        <Card className="border-2 border-primary/50 bg-card shadow-lg min-w-[320px]">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-right flex-1">
-                <Label className={`block text-sm font-bold transition-colors ${globalMaturationMode === 'prompts' ? 'text-primary' : 'text-muted-foreground'}`}>
-                  🧠 Prompts IA
-                </Label>
-                <p className="text-xs text-muted-foreground">Usa tokens</p>
-              </div>
-              
-              <div className="flex flex-col items-center gap-1">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Switch
-                        checked={globalMaturationMode === 'messages'}
-                        onCheckedChange={(checked) => {
-                          const newMode = checked ? 'messages' : 'prompts';
-                          setGlobalMaturationMode(newMode);
-                          toast({
-                            title: "Modo Alterado",
-                            description: checked 
-                              ? "🎯 Usando Mensagens Definidas + Dados Multimídia" 
-                              : "🧠 Usando Prompts Individuais (IA)",
-                          });
-                        }}
-                        className="data-[state=checked]:bg-secondary data-[state=unchecked]:bg-primary scale-125"
-                        disabled={isRunning}
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="max-w-xs text-sm">
-                        {isRunning 
-                          ? "Pare o maturador para alternar o modo" 
-                          : "Alterne entre Prompts IA e Mensagens + Dados"}
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <span className="text-[10px] text-muted-foreground font-medium">MODO</span>
-              </div>
-
-              <div className="text-left flex-1">
-                <Label className={`block text-sm font-bold transition-colors ${globalMaturationMode === 'messages' ? 'text-secondary' : 'text-muted-foreground'}`}>
-                  💬 Mensagens + Dados
-                </Label>
-                <p className="text-xs text-muted-foreground">Sem tokens</p>
-              </div>
-            </div>
-            
-            {globalMaturationMode === 'messages' && (
-              <div className="mt-3 pt-3 border-t">
-                <p className="text-xs text-center text-muted-foreground flex items-center justify-center gap-1">
-                  <Database className="w-3 h-3" />
-                  Recursos multimídia da aba "Dados" serão usados
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Toggle de Modo */}
+        <div className="border-2 border-primary rounded-lg p-3 flex items-center gap-3 bg-card/50">
+          <div className={`flex items-center gap-2 transition-opacity ${globalMaturationMode === 'prompts' ? 'opacity-100' : 'opacity-50'}`}>
+            <Brain className="w-4 h-4 text-primary" />
+            <span className="text-sm font-medium">Prompts IA</span>
+          </div>
+          
+          <Switch
+            checked={globalMaturationMode === 'messages'}
+            onCheckedChange={(checked) => {
+              const newMode = checked ? 'messages' : 'prompts';
+              setGlobalMaturationMode(newMode);
+              toast({
+                title: "Modo Alterado",
+                description: checked 
+                  ? "💬 Usando Mensagens + Dados" 
+                  : "🧠 Usando Prompts IA",
+              });
+            }}
+            className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-primary"
+            disabled={isRunning}
+          />
+          
+          <div className={`flex items-center gap-2 transition-opacity ${globalMaturationMode === 'messages' ? 'opacity-100' : 'opacity-50'}`}>
+            <MessageCircle className="w-4 h-4 text-primary" />
+            <span className="text-sm font-medium">Mensagens + Dados</span>
+          </div>
+        </div>
       </div>
 
       {/* Controles Principais */}
