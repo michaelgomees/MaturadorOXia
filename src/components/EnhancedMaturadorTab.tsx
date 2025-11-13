@@ -351,6 +351,43 @@ export const EnhancedMaturadorTab: React.FC = () => {
         </Card>
       </div>
 
+      {/* Barra de Controle do Maturador */}
+      {dbPairs.length > 0 && (
+        <div className="bg-card border-2 border-primary/20 rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div>
+                <h3 className="text-lg font-semibold">Controle do Maturador</h3>
+                <p className="text-sm text-muted-foreground">
+                  {dbPairs.filter(p => p.is_active).length} de {dbPairs.length} duplas ativas
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={handleStartMaturador}
+                size="lg"
+                className={isRunning ? "bg-red-500 hover:bg-red-600" : "bg-primary hover:bg-primary/90"}
+                disabled={dbPairs.filter(p => p.is_active).length === 0 && !isRunning}
+              >
+                {isRunning ? (
+                  <>
+                    <Square className="w-5 h-5 mr-2" />
+                    Parar Maturador
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-5 h-5 mr-2" />
+                    Iniciar Maturador
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sempre mostrar se houver duplas OU conexões disponíveis */}
       {dbPairs.length > 0 || activeConnections.length > 0 ? (
         <>
