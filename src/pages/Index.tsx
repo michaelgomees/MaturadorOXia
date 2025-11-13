@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Bot, MessageCircle, Zap, Settings, BarChart3, QrCode, Link, Brain, GitBranch, Users, Phone } from "lucide-react";
+import { Plus, Bot, MessageCircle, Zap, Settings, BarChart3, QrCode, Link, Brain, GitBranch, Users, Phone, FileText } from "lucide-react";
 import { Header } from "@/components/Header";
 import { ChipCard } from "@/components/ChipCard";
 import { StatsCard } from "@/components/StatsCard";
@@ -18,6 +18,7 @@ import { ConnectionsTab } from "@/components/ConnectionsTab";
 import { PromptsTab } from "@/components/PromptsTab";
 import { DadosTab } from "@/components/DadosTab";
 import { MaturadorTab } from "@/components/MaturadorTab";
+import { MessagesConfigTab } from "@/components/MessagesConfigTab";
 import { ProtectedRoute, useAuth } from "@/contexts/AuthContext";
 
 // Dados reais - sem demonstração
@@ -78,7 +79,7 @@ const Index = () => {
       <main className="container mx-auto px-6 py-8 space-y-8">
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <Bot className="w-4 h-4" />
               Dashboard
@@ -90,6 +91,10 @@ const Index = () => {
             <TabsTrigger value="ai-config" className="flex items-center gap-2">
               <Brain className="w-4 h-4" />
               Prompts de IA
+            </TabsTrigger>
+            <TabsTrigger value="mensagens" className="flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              Mensagens
             </TabsTrigger>
             <TabsTrigger value="dados" className="flex items-center gap-2">
               <BarChart3 className="w-4 h-4" />
@@ -285,6 +290,10 @@ const Index = () => {
 
           <TabsContent value="ai-config" className="mt-8">
             <PromptsTab />
+          </TabsContent>
+
+          <TabsContent value="mensagens" className="mt-8">
+            <MessagesConfigTab />
           </TabsContent>
 
           <TabsContent value="dados" className="mt-8">
