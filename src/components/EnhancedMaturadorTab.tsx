@@ -168,10 +168,12 @@ export const EnhancedMaturadorTab: React.FC = () => {
   // Calcular estatísticas usando o hook
   const stats = getStats();
 
+  console.log('🎯 Modo de maturação atual:', globalMaturationMode);
+  
   return (
     <div className="space-y-6">
       {/* Header com Toggle */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-3xl font-bold">Sistema de Maturação</h2>
           <p className="text-sm text-muted-foreground">
@@ -179,9 +181,9 @@ export const EnhancedMaturadorTab: React.FC = () => {
           </p>
         </div>
 
-        {/* Toggle de Modo - Visível */}
-        <div className="border-2 border-primary rounded-lg px-5 py-3 flex items-center gap-4 bg-background shadow-sm">
-          <div className={`flex items-center gap-2 transition-all ${globalMaturationMode === 'prompts' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+        {/* Toggle de Modo - SEMPRE VISÍVEL */}
+        <div className="border-2 border-[hsl(var(--primary))] rounded-lg px-5 py-3 flex items-center gap-4 bg-[hsl(var(--background))] shadow-md">
+          <div className={`flex items-center gap-2 ${globalMaturationMode === 'prompts' ? 'text-[hsl(var(--primary))] font-bold' : 'text-muted-foreground'}`}>
             <Brain className="w-4 h-4" />
             <span className="text-sm whitespace-nowrap">Prompts IA</span>
           </div>
@@ -191,6 +193,7 @@ export const EnhancedMaturadorTab: React.FC = () => {
             onCheckedChange={(checked) => {
               const newMode = checked ? 'messages' : 'prompts';
               setGlobalMaturationMode(newMode);
+              console.log('🔄 Modo alterado para:', newMode);
               toast({
                 title: "Modo Alterado",
                 description: checked 
@@ -201,7 +204,7 @@ export const EnhancedMaturadorTab: React.FC = () => {
             disabled={isRunning}
           />
           
-          <div className={`flex items-center gap-2 transition-all ${globalMaturationMode === 'messages' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+          <div className={`flex items-center gap-2 ${globalMaturationMode === 'messages' ? 'text-[hsl(var(--primary))] font-bold' : 'text-muted-foreground'}`}>
             <MessageCircle className="w-4 h-4" />
             <span className="text-sm whitespace-nowrap">Mensagens + Dados</span>
           </div>
