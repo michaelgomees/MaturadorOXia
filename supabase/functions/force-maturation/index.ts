@@ -130,28 +130,145 @@ serve(async (req) => {
         // Preparar histórico vazio (sem banco de dados)
         const conversationHistory: any[] = [];
 
-        // Carregar configurações de mídia do localStorage (se disponível)
+        // Buscar e gerenciar mídia
         let shouldSendMediaContent = false;
         let mediaContent: any = null;
         
         try {
-          // Simular acesso ao localStorage através de configurações do par
-          // Na prática, isso seria passado via body ou configuração
-          const pairConfig = (pair as any).media_config || {};
-          
-          if (pairConfig.useMediaData) {
-            // Verificar se deve enviar mídia baseado no contador de mensagens
-            const messageCount = currentCount;
-            const mediaFrequency = pairConfig.mediaFrequency || 5;
-            
-            if (messageCount > 0 && messageCount % mediaFrequency === 0) {
-              shouldSendMediaContent = true;
-              mediaContent = pairConfig.nextMediaItem || null;
-              console.log(`📷 Momento de enviar mídia! Mensagem #${messageCount}`);
+          // Buscar configuração de mídia do usuário
+          const { data: mediaConfig, error: configError } = await supabase
+            .from('saas_media_config')
+            .select('*')
+            .eq('usuario_id', pair.usuario_id)
+            .single();
+
+          if (!configError && mediaConfig) {
+            // Buscar ou criar tracker para este par
+            let { data: tracker, error: trackerError } = await supabase
+              .from('saas_media_usage_trackers')
+              .select('*')
+              .eq('pair_id', pair.id)
+              .single();
+
+            const currentHour = new Date().getHours();
+
+            if (trackerError || !tracker) {
+              // Criar novo tracker
+              const { data: newTracker, error: createError } = await supabase
+                .from('saas_media_usage_trackers')
+                .insert({
+                  pair_id: pair.id,
+                  usuario_id: pair.usuario_id,
+                  images_used_this_hour: 0,
+                  links_used_in_conversation: 0,
+                  message_count: currentCount,
+                  last_reset_hour: currentHour
+                })
+                .select()
+                .single();
+
+              if (!createError) tracker = newTracker;
+            } else {
+              // Reset contador de imagens se mudou a hora
+              if (tracker.last_reset_hour !== currentHour) {
+                await supabase
+                  .from('saas_media_usage_trackers')
+                  .update({
+                    images_used_this_hour: 0,
+                    last_reset_hour: currentHour
+                  })
+                  .eq('id', tracker.id);
+                
+                tracker.images_used_this_hour = 0;
+              }
+
+              // Atualizar contador de mensagens
+              await supabase
+                .from('saas_media_usage_trackers')
+                .update({ message_count: currentCount })
+                .eq('id', tracker.id);
+            }
+
+            if (tracker) {
+              // Buscar itens de mídia ativos
+              const { data: mediaItems, error: itemsError } = await supabase
+                .from('saas_media_items')
+                .select('*')
+                .eq('usuario_id', pair.usuario_id)
+                .eq('is_active', true);
+
+              if (!itemsError && mediaItems && mediaItems.length > 0) {
+                // Verificar cada tipo de mídia
+                for (const item of mediaItems) {
+                  // Verificar se deve enviar baseado na frequência
+                  if (currentCount > 0 && currentCount % item.frequency === 0) {
+                    // Verificar limites
+                    if (item.type === 'image' && tracker.images_used_this_hour >= mediaConfig.max_images_per_hour) {
+                      console.log(`⚠️ Limite de imagens atingido (${tracker.images_used_this_hour}/${mediaConfig.max_images_per_hour})`);
+                      continue;
+                    }
+                    
+                    if (item.type === 'link' && tracker.links_used_in_conversation >= mediaConfig.max_links_per_conversation) {
+                      console.log(`⚠️ Limite de links atingido (${tracker.links_used_in_conversation}/${mediaConfig.max_links_per_conversation})`);
+                      continue;
+                    }
+
+                    // Selecionar item aleatório ou por ordem
+                    const eligibleItems = mediaItems.filter(m => 
+                      m.type === item.type && 
+                      m.is_active &&
+                      currentCount % m.frequency === 0
+                    );
+
+                    if (eligibleItems.length > 0) {
+                      if (mediaConfig.randomize_selection) {
+                        mediaContent = eligibleItems[Math.floor(Math.random() * eligibleItems.length)];
+                      } else {
+                        // Ordenar por usage_count (menor primeiro)
+                        eligibleItems.sort((a, b) => a.usage_count - b.usage_count);
+                        mediaContent = eligibleItems[0];
+                      }
+
+                      shouldSendMediaContent = true;
+                      console.log(`📷 Momento de enviar mídia! Mensagem #${currentCount}, Tipo: ${mediaContent.type}, Nome: ${mediaContent.name}`);
+
+                      // Atualizar contadores
+                      if (mediaContent.type === 'image') {
+                        await supabase
+                          .from('saas_media_usage_trackers')
+                          .update({ 
+                            images_used_this_hour: tracker.images_used_this_hour + 1,
+                            last_image_time: new Date().toISOString()
+                          })
+                          .eq('id', tracker.id);
+                      } else if (mediaContent.type === 'link') {
+                        await supabase
+                          .from('saas_media_usage_trackers')
+                          .update({ 
+                            links_used_in_conversation: tracker.links_used_in_conversation + 1
+                          })
+                          .eq('id', tracker.id);
+                      }
+
+                      // Atualizar item de mídia
+                      await supabase
+                        .from('saas_media_items')
+                        .update({ 
+                          usage_count: mediaContent.usage_count + 1,
+                          last_used: new Date().toISOString()
+                        })
+                        .eq('id', mediaContent.id);
+
+                      break; // Enviar apenas um tipo de mídia por mensagem
+                    }
+                  }
+                }
+              }
             }
           }
         } catch (e) {
-          console.log('⚠️ Configuração de mídia não disponível, continuando apenas com texto');
+          console.log('⚠️ Erro ao processar mídia:', e);
+          console.log('⚠️ Continuando apenas com texto');
         }
 
         let responseText = '';

@@ -26,6 +26,8 @@ import {
   Shuffle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface MediaItem {
   id: string;
@@ -74,7 +76,7 @@ const IMAGE_MODES = [
 export const DadosTab = () => {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [config, setConfig] = useState<DadosConfig>({
-    maxImagesPerHour: 3,
+    maxImagesPerHour: 10,
     maxLinksPerConversation: 5,
     randomizeSelection: true,
     enablePreview: true
@@ -90,32 +92,112 @@ export const DadosTab = () => {
   });
   
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
 
-  // Carregar dados do localStorage
+  // Carregar dados do Supabase
   useEffect(() => {
-    const savedItems = localStorage.getItem('ox-media-items');
-    if (savedItems) {
-      setMediaItems(JSON.parse(savedItems));
+    if (user) {
+      loadData();
     }
+  }, [user]);
 
-    const savedConfig = localStorage.getItem('ox-dados-config');
-    if (savedConfig) {
-      setConfig(JSON.parse(savedConfig));
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      
+      // Buscar itens de mídia
+      const { data: items, error: itemsError } = await supabase
+        .from('saas_media_items')
+        .select('*')
+        .eq('usuario_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (itemsError) throw itemsError;
+      
+      if (items) {
+        const mappedItems = items.map(item => ({
+          id: item.id,
+          type: item.type as 'image' | 'link' | 'audio',
+          name: item.name,
+          url: item.url,
+          category: item.category,
+          frequency: item.frequency,
+          mode: item.mode,
+          usageCount: item.usage_count,
+          lastUsed: item.last_used || '',
+          isActive: item.is_active
+        }));
+        setMediaItems(mappedItems);
+      }
+
+      // Buscar configurações
+      const { data: configData, error: configError } = await supabase
+        .from('saas_media_config')
+        .select('*')
+        .eq('usuario_id', user.id)
+        .single();
+
+      if (configError && configError.code !== 'PGRST116') {
+        throw configError;
+      }
+
+      if (configData) {
+        setConfig({
+          maxImagesPerHour: configData.max_images_per_hour,
+          maxLinksPerConversation: configData.max_links_per_conversation,
+          randomizeSelection: configData.randomize_selection,
+          enablePreview: configData.enable_preview
+        });
+      } else {
+        // Criar configuração padrão se não existir
+        await saveConfig(config);
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar dados:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao carregar dados de mídia",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  };
 
-  // Salvar dados no localStorage
-  const saveItems = (items: MediaItem[]) => {
+  // Salvar dados no Supabase
+  const saveItems = async (items: MediaItem[]) => {
     setMediaItems(items);
-    localStorage.setItem('ox-media-items', JSON.stringify(items));
   };
 
-  const saveConfig = (newConfig: DadosConfig) => {
+  const saveConfig = async (newConfig: DadosConfig) => {
     setConfig(newConfig);
-    localStorage.setItem('ox-dados-config', JSON.stringify(newConfig));
+    
+    try {
+      const { error } = await supabase
+        .from('saas_media_config')
+        .upsert({
+          usuario_id: user.id,
+          max_images_per_hour: newConfig.maxImagesPerHour,
+          max_links_per_conversation: newConfig.maxLinksPerConversation,
+          randomize_selection: newConfig.randomizeSelection,
+          enable_preview: newConfig.enablePreview
+        }, {
+          onConflict: 'usuario_id'
+        });
+
+      if (error) throw error;
+    } catch (error: any) {
+      console.error('Erro ao salvar configuração:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao salvar configuração",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleAddItem = (type: 'image' | 'link' | 'audio') => {
+  const handleAddItem = async (type: 'image' | 'link' | 'audio') => {
     if (!newItem.name || !newItem.category) {
       toast({
         title: "Erro",
@@ -134,45 +216,103 @@ export const DadosTab = () => {
       return;
     }
 
-    const item: MediaItem = {
-      id: Date.now().toString(),
-      type,
-      name: newItem.name,
-      url: newItem.url || '',
-      category: newItem.category,
-      frequency: newItem.frequency,
-      mode: newItem.mode,
-      usageCount: 0,
-      lastUsed: '',
-      isActive: true
-    };
+    try {
+      const { data, error } = await supabase
+        .from('saas_media_items')
+        .insert({
+          usuario_id: user.id,
+          type,
+          name: newItem.name,
+          url: newItem.url || '',
+          category: newItem.category,
+          frequency: newItem.frequency,
+          mode: newItem.mode,
+          usage_count: 0,
+          is_active: true
+        })
+        .select()
+        .single();
 
-    const updatedItems = [...mediaItems, item];
-    saveItems(updatedItems);
-    
-    setNewItem({ name: '', url: '', category: '', frequency: 5, mode: 'image_text' });
-    
-    toast({
-      title: "Item adicionado",
-      description: `${type === 'image' ? 'Imagem' : type === 'link' ? 'Link' : 'Áudio'} "${newItem.name}" foi adicionado.`
-    });
+      if (error) throw error;
+
+      const newMediaItem: MediaItem = {
+        id: data.id,
+        type: data.type as 'image' | 'link' | 'audio',
+        name: data.name,
+        url: data.url,
+        category: data.category,
+        frequency: data.frequency,
+        mode: data.mode,
+        usageCount: data.usage_count,
+        lastUsed: data.last_used || '',
+        isActive: data.is_active
+      };
+
+      setMediaItems([...mediaItems, newMediaItem]);
+      setNewItem({ name: '', url: '', category: '', frequency: 5, mode: 'image_text' });
+      
+      toast({
+        title: "Item adicionado",
+        description: `${type === 'image' ? 'Imagem' : type === 'link' ? 'Link' : 'Áudio'} "${newItem.name}" foi adicionado.`
+      });
+    } catch (error: any) {
+      console.error('Erro ao adicionar item:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao adicionar item de mídia",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleRemoveItem = (id: string) => {
-    const updatedItems = mediaItems.filter(item => item.id !== id);
-    saveItems(updatedItems);
-    
-    toast({
-      title: "Item removido",
-      description: "Item foi removido com sucesso."
-    });
+  const handleRemoveItem = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('saas_media_items')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setMediaItems(mediaItems.filter(item => item.id !== id));
+      
+      toast({
+        title: "Item removido",
+        description: "Item foi removido com sucesso."
+      });
+    } catch (error: any) {
+      console.error('Erro ao remover item:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao remover item",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleToggleItem = (id: string) => {
-    const updatedItems = mediaItems.map(item => 
-      item.id === id ? { ...item, isActive: !item.isActive } : item
-    );
-    saveItems(updatedItems);
+  const handleToggleItem = async (id: string) => {
+    try {
+      const item = mediaItems.find(i => i.id === id);
+      if (!item) return;
+
+      const { error } = await supabase
+        .from('saas_media_items')
+        .update({ is_active: !item.isActive })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setMediaItems(mediaItems.map(item => 
+        item.id === id ? { ...item, isActive: !item.isActive } : item
+      ));
+    } catch (error: any) {
+      console.error('Erro ao atualizar item:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao atualizar item",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {

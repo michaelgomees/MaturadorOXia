@@ -170,6 +170,126 @@ export type Database = {
         }
         Relationships: []
       }
+      saas_media_config: {
+        Row: {
+          created_at: string
+          enable_preview: boolean
+          id: string
+          max_images_per_hour: number
+          max_links_per_conversation: number
+          randomize_selection: boolean
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          enable_preview?: boolean
+          id?: string
+          max_images_per_hour?: number
+          max_links_per_conversation?: number
+          randomize_selection?: boolean
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          enable_preview?: boolean
+          id?: string
+          max_images_per_hour?: number
+          max_links_per_conversation?: number
+          randomize_selection?: boolean
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
+      saas_media_items: {
+        Row: {
+          category: string
+          created_at: string
+          frequency: number
+          id: string
+          is_active: boolean
+          last_used: string | null
+          mode: string
+          name: string
+          type: string
+          updated_at: string
+          url: string
+          usage_count: number
+          usuario_id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          frequency?: number
+          id?: string
+          is_active?: boolean
+          last_used?: string | null
+          mode?: string
+          name: string
+          type: string
+          updated_at?: string
+          url: string
+          usage_count?: number
+          usuario_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          frequency?: number
+          id?: string
+          is_active?: boolean
+          last_used?: string | null
+          mode?: string
+          name?: string
+          type?: string
+          updated_at?: string
+          url?: string
+          usage_count?: number
+          usuario_id?: string
+        }
+        Relationships: []
+      }
+      saas_media_usage_trackers: {
+        Row: {
+          created_at: string
+          id: string
+          images_used_this_hour: number
+          last_image_time: string | null
+          last_reset_hour: number
+          links_used_in_conversation: number
+          message_count: number
+          pair_id: string
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          images_used_this_hour?: number
+          last_image_time?: string | null
+          last_reset_hour?: number
+          links_used_in_conversation?: number
+          message_count?: number
+          pair_id: string
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          images_used_this_hour?: number
+          last_image_time?: string | null
+          last_reset_hour?: number
+          links_used_in_conversation?: number
+          message_count?: number
+          pair_id?: string
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
       saas_pares_maturacao: {
         Row: {
           created_at: string
