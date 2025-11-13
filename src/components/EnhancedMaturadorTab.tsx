@@ -180,10 +180,10 @@ export const EnhancedMaturadorTab: React.FC = () => {
         </div>
 
         {/* Toggle de Modo */}
-        <div className="border-2 border-primary rounded-lg p-3 flex items-center gap-3 bg-card/50">
-          <div className={`flex items-center gap-2 transition-opacity ${globalMaturationMode === 'prompts' ? 'opacity-100' : 'opacity-50'}`}>
-            <Brain className="w-4 h-4 text-primary" />
-            <span className="text-sm font-medium">Prompts IA</span>
+        <div className="border-2 border-primary/60 rounded-lg px-4 py-2.5 flex items-center gap-4 bg-background">
+          <div className={`flex items-center gap-2 transition-all ${globalMaturationMode === 'prompts' ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
+            <Brain className="w-4 h-4" />
+            <span className="text-sm">Prompts IA</span>
           </div>
           
           <Switch
@@ -198,13 +198,12 @@ export const EnhancedMaturadorTab: React.FC = () => {
                   : "🧠 Usando Prompts IA",
               });
             }}
-            className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-primary"
             disabled={isRunning}
           />
           
-          <div className={`flex items-center gap-2 transition-opacity ${globalMaturationMode === 'messages' ? 'opacity-100' : 'opacity-50'}`}>
-            <MessageCircle className="w-4 h-4 text-primary" />
-            <span className="text-sm font-medium">Mensagens + Dados</span>
+          <div className={`flex items-center gap-2 transition-all ${globalMaturationMode === 'messages' ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
+            <MessageCircle className="w-4 h-4" />
+            <span className="text-sm">Mensagens + Dados</span>
           </div>
         </div>
       </div>
