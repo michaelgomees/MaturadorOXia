@@ -128,13 +128,59 @@ export type Database = {
         }
         Relationships: []
       }
+      saas_maturation_messages: {
+        Row: {
+          categoria: string
+          created_at: string
+          descricao: string | null
+          id: string
+          is_active: boolean
+          mensagens: Json
+          nome: string
+          tipo_arquivo: string
+          total_mensagens: number
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          categoria?: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          is_active?: boolean
+          mensagens?: Json
+          nome: string
+          tipo_arquivo: string
+          total_mensagens?: number
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          is_active?: boolean
+          mensagens?: Json
+          nome?: string
+          tipo_arquivo?: string
+          total_mensagens?: number
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
       saas_pares_maturacao: {
         Row: {
           created_at: string
+          current_message_index: number
           id: string
           instance_prompt: string | null
           is_active: boolean
           last_activity: string
+          loop_messages: boolean
+          maturation_mode: string
+          message_file_id: string | null
           messages_count: number
           nome_chip1: string
           nome_chip2: string
@@ -146,10 +192,14 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          current_message_index?: number
           id?: string
           instance_prompt?: string | null
           is_active?: boolean
           last_activity?: string
+          loop_messages?: boolean
+          maturation_mode?: string
+          message_file_id?: string | null
           messages_count?: number
           nome_chip1: string
           nome_chip2: string
@@ -161,10 +211,14 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          current_message_index?: number
           id?: string
           instance_prompt?: string | null
           is_active?: boolean
           last_activity?: string
+          loop_messages?: boolean
+          maturation_mode?: string
+          message_file_id?: string | null
           messages_count?: number
           nome_chip1?: string
           nome_chip2?: string

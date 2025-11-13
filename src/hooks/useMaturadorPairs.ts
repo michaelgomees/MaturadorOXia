@@ -15,6 +15,10 @@ export interface MaturadorPair {
   started_at?: string;
   created_at: string;
   updated_at: string;
+  maturation_mode?: 'prompts' | 'messages';
+  message_file_id?: string;
+  current_message_index?: number;
+  loop_messages?: boolean;
 }
 
 export const useMaturadorPairs = () => {

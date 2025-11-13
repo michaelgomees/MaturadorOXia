@@ -6,9 +6,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Switch } from './ui/switch';
 import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
-import { Play, Square, Settings, MessageCircle, Users, Activity, Zap, ArrowRight, Plus } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { Play, Square, Settings, MessageCircle, Users, Activity, Zap, ArrowRight, Plus, FileText, Brain, Info } from 'lucide-react';
 import { StatsCard } from './StatsCard';
 import { useMaturadorEngine } from '@/hooks/useMaturadorEngine';
+import { useMaturadorPairs } from '@/hooks/useMaturadorPairs';
+import { useMaturationMessages } from '@/hooks/useMaturationMessages';
 import { useToast } from '@/hooks/use-toast';
 
 interface ActiveConnection {
@@ -29,9 +32,15 @@ export const EnhancedMaturadorTab: React.FC = () => {
     getPairMessages 
   } = useMaturadorEngine();
   
+  const { pairs: dbPairs, createPair, updatePair, deletePair, togglePairActive } = useMaturadorPairs();
+  const { messages: messageFiles } = useMaturationMessages();
+  
   const [newPair, setNewPair] = useState({
     firstChipId: '',
-    secondChipId: ''
+    secondChipId: '',
+    maturationMode: 'prompts' as 'prompts' | 'messages',
+    messageFileId: '',
+    loopMessages: true
   });
   const [activeConnections, setActiveConnections] = useState<ActiveConnection[]>([]);
   const { toast } = useToast();
@@ -59,8 +68,18 @@ export const EnhancedMaturadorTab: React.FC = () => {
       }));
   };
 
-  const handleAddPair = () => {
+  const handleAddPair = async () => {
     if (!newPair.firstChipId || !newPair.secondChipId || newPair.firstChipId === newPair.secondChipId) {
+      return;
+    }
+
+    // Validar modo de mensagens
+    if (newPair.maturationMode === 'messages' && !newPair.messageFileId) {
+      toast({
+        title: "Erro",
+        description: "Selecione um arquivo de mensagens",
+        variant: "destructive"
+      });
       return;
     }
 
@@ -69,36 +88,32 @@ export const EnhancedMaturadorTab: React.FC = () => {
 
     if (!firstChip || !secondChip) return;
 
-    const newChipPair = {
-      id: crypto.randomUUID(),
-      firstChipId: firstChip.id,
-      firstChipName: firstChip.name,
-      secondChipId: secondChip.id,
-      secondChipName: secondChip.name,
-      isActive: true,
-      messagesCount: 0,
-      lastActivity: new Date(),
-      status: 'stopped' as const,
-      useInstancePrompt: false
-    };
-
-    setChipPairs(prev => [...prev, newChipPair]);
-    setNewPair({ firstChipId: '', secondChipId: '' });
-    
-    toast({
-      title: "Par Configurado",
-      description: `${firstChip.name} <-> ${secondChip.name}`,
-    });
+    try {
+      await createPair(firstChip.name, secondChip.name);
+      
+      setNewPair({ 
+        firstChipId: '', 
+        secondChipId: '',
+        maturationMode: 'prompts',
+        messageFileId: '',
+        loopMessages: true
+      });
+      
+      toast({
+        title: "Par Configurado",
+        description: `${firstChip.name} <-> ${secondChip.name}`,
+      });
+    } catch (error) {
+      console.error('Erro ao criar par:', error);
+    }
   };
 
-  const handleRemovePair = (pairId: string) => {
-    setChipPairs(prev => prev.filter(pair => pair.id !== pairId));
+  const handleRemovePair = async (pairId: string) => {
+    await deletePair(pairId);
   };
 
-  const handleTogglePair = (pairId: string) => {
-    setChipPairs(prev => prev.map(pair =>
-      pair.id === pairId ? { ...pair, isActive: !pair.isActive } : pair
-    ));
+  const handleTogglePair = async (pairId: string) => {
+    await togglePairActive(pairId);
   };
 
   const handleStartMaturador = () => {
@@ -271,6 +286,98 @@ export const EnhancedMaturadorTab: React.FC = () => {
                   </Select>
                 </div>
               </div>
+
+              {/* Novo: Seletor de Modo de Maturação */}
+              <div className="space-y-2 border-t pt-4">
+                <div className="flex items-center gap-2">
+                  <Label>Modo de Maturação</Label>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Info className="w-4 h-4 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="text-sm">
+                          <strong>Prompts Individuais:</strong> Usa IA para gerar mensagens (consome tokens)<br/>
+                          <strong>Mensagens Definidas:</strong> Usa arquivo pré-definido (offline, sem tokens)
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <Select 
+                  value={newPair.maturationMode} 
+                  onValueChange={(value: 'prompts' | 'messages') => 
+                    setNewPair(prev => ({ ...prev, maturationMode: value, messageFileId: '' }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="prompts">
+                      <div className="flex items-center gap-2">
+                        <Brain className="w-4 h-4" />
+                        <span>Prompts Individuais (IA)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="messages">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4" />
+                        <span>Mensagens Definidas (Offline)</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Seletor de Arquivo de Mensagens (apenas se modo = messages) */}
+              {newPair.maturationMode === 'messages' && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Arquivo de Mensagens</Label>
+                    <Select 
+                      value={newPair.messageFileId} 
+                      onValueChange={(value) => setNewPair(prev => ({ ...prev, messageFileId: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um arquivo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {messageFiles.filter(f => f.is_active).length === 0 ? (
+                          <SelectItem value="none" disabled>
+                            Nenhum arquivo ativo encontrado
+                          </SelectItem>
+                        ) : (
+                          messageFiles
+                            .filter(f => f.is_active)
+                            .map(file => (
+                              <SelectItem key={file.id} value={file.id}>
+                                {file.nome} ({file.total_mensagens} mensagens)
+                              </SelectItem>
+                            ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {messageFiles.filter(f => f.is_active).length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Configure arquivos na aba "Mensagens de Maturação"
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="loop-messages"
+                      checked={newPair.loopMessages}
+                      onCheckedChange={(checked) => setNewPair(prev => ({ ...prev, loopMessages: checked }))}
+                    />
+                    <Label htmlFor="loop-messages" className="text-sm cursor-pointer">
+                      Reiniciar mensagens quando acabar
+                    </Label>
+                  </div>
+                </>
+              )}
               
               <Button 
                 onClick={handleAddPair}
@@ -289,83 +396,118 @@ export const EnhancedMaturadorTab: React.FC = () => {
               <div className="flex items-start gap-3">
                 <Zap className="w-5 h-5 text-primary mt-0.5" />
                 <div>
-                  <h3 className="font-semibold mb-1">Prompts Individuais</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Cada chip usa seu próprio prompt configurado na aba "Prompts de IA". 
-                    Configure os prompts individualmente para criar personalidades únicas.
-                  </p>
+                  <h3 className="font-semibold mb-1">Dois Modos de Maturação</h3>
+                  <div className="text-sm text-muted-foreground space-y-2">
+                    <p>
+                      <strong className="text-primary">🧠 Prompts Individuais:</strong> Cada chip usa IA para gerar mensagens naturais e variadas (consome tokens da Groq/OpenAI).
+                    </p>
+                    <p>
+                      <strong className="text-secondary">💬 Mensagens Definidas:</strong> Usa sequência de mensagens pré-definidas de arquivo (maturação offline, sem tokens).
+                    </p>
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
         {/* Lista de Pares Configurados */}
-        {chipPairs.length > 0 && (
+        {dbPairs.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Users className="w-5 h-5" />
-                Duplas Configuradas ({chipPairs.length})
+                Duplas Configuradas ({dbPairs.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <ScrollArea className="h-[400px] w-full">
                 <div className="space-y-4 p-6">
-                  {chipPairs.map((pair) => (
-                    <div key={pair.id} className="p-4 border rounded-lg space-y-3">
-                      <div className="flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Switch
-                              checked={pair.isActive}
-                              onCheckedChange={() => handleTogglePair(pair.id)}
-                              disabled={isRunning}
-                            />
-                            <div>
-                              <div className="font-medium flex items-center gap-2">
-                                {pair.firstChipName} 
-                                <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                                {pair.secondChipName}
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                {pair.messagesCount} mensagens • {getStatusBadge(pair.status)}
+                  {dbPairs.map((pair) => {
+                    const messageFile = pair.message_file_id 
+                      ? messageFiles.find(f => f.id === pair.message_file_id)
+                      : null;
+                    
+                    return (
+                      <div key={pair.id} className="p-4 border rounded-lg space-y-3">
+                        <div className="flex flex-col gap-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <Switch
+                                checked={pair.is_active}
+                                onCheckedChange={() => handleTogglePair(pair.id)}
+                                disabled={isRunning}
+                              />
+                              <div>
+                                <div className="font-medium flex items-center gap-2">
+                                  {pair.nome_chip1} 
+                                  <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                                  {pair.nome_chip2}
+                                </div>
+                                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                  {pair.messages_count} mensagens • {getStatusBadge(pair.status)}
+                                  {pair.maturation_mode === 'messages' ? (
+                                    <Badge variant="secondary" className="text-xs">
+                                      <FileText className="w-3 h-3 mr-1" />
+                                      Mensagens Definidas
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="default" className="text-xs">
+                                      <Brain className="w-3 h-3 mr-1" />
+                                      Prompts IA
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
                             </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  const messages = getPairMessages(pair.id);
+                                  console.log('Mensagens do par:', messages);
+                                  toast({
+                                    title: "Mensagens do Par",
+                                    description: `${messages.length} mensagens encontradas. Verifique o console.`,
+                                  });
+                                }}
+                              >
+                                <MessageCircle className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleRemovePair(pair.id)}
+                                disabled={isRunning}
+                              >
+                                Remover
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                const messages = getPairMessages(pair.id);
-                                console.log('Mensagens do par:', messages);
-                                toast({
-                                  title: "Mensagens do Par",
-                                  description: `${messages.length} mensagens encontradas. Verifique o console.`,
-                                });
-                              }}
-                            >
-                              <MessageCircle className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => handleRemovePair(pair.id)}
-                              disabled={isRunning}
-                            >
-                              Remover
-                            </Button>
-                          </div>
-                        </div>
 
-                        <div className="bg-blue-50 border border-blue-200 rounded p-2">
-                          <p className="text-xs text-blue-800">
-                            💡 Cada chip usará seu próprio prompt configurado na aba "Prompts de IA"
-                          </p>
+                          {/* Informações específicas do modo */}
+                          {pair.maturation_mode === 'messages' && messageFile ? (
+                            <div className="bg-secondary/20 border border-secondary/30 rounded p-2">
+                              <p className="text-xs text-secondary-foreground">
+                                📄 Arquivo: <strong>{messageFile.nome}</strong> • 
+                                {messageFile.total_mensagens} mensagens • 
+                                {pair.loop_messages ? 'Loop ativado' : 'Sem loop'}
+                                {pair.current_message_index !== undefined && 
+                                  ` • Mensagem atual: ${pair.current_message_index + 1}/${messageFile.total_mensagens}`
+                                }
+                              </p>
+                            </div>
+                          ) : pair.maturation_mode === 'prompts' ? (
+                            <div className="bg-primary/10 border border-primary/20 rounded p-2">
+                              <p className="text-xs text-primary">
+                                💡 Cada chip usará seu próprio prompt configurado na aba "Prompts de IA"
+                              </p>
+                            </div>
+                          ) : null}
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </ScrollArea>
             </CardContent>
