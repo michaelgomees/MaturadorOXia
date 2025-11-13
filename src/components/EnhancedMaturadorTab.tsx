@@ -167,8 +167,6 @@ export const EnhancedMaturadorTab: React.FC = () => {
 
   // Calcular estatísticas usando o hook
   const stats = getStats();
-
-  console.log('🎯 Modo de maturação atual:', globalMaturationMode);
   
   return (
     <div className="space-y-6">
@@ -193,7 +191,6 @@ export const EnhancedMaturadorTab: React.FC = () => {
             onCheckedChange={(checked) => {
               const newMode = checked ? 'messages' : 'prompts';
               setGlobalMaturationMode(newMode);
-              console.log('🔄 Modo alterado para:', newMode);
               toast({
                 title: "Modo Alterado",
                 description: checked 
