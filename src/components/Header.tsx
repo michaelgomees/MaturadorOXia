@@ -51,9 +51,9 @@ export const Header = () => {
 
           {/* Navigation & Actions */}
           <div className="flex items-center gap-4">
-            {/* Status Badge */}
-            <Badge variant="secondary" className="bg-secondary/20 text-secondary">
-              <div className="w-2 h-2 bg-secondary rounded-full mr-2 animate-pulse" />
+            {/* Status Badge - VERDE para Chips Ativos */}
+            <Badge className="bg-green-500/20 text-green-400 border border-green-500/30">
+              <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse" />
               {activeConnectionsCount} Chips Ativos
             </Badge>
 

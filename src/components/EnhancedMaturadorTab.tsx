@@ -171,7 +171,7 @@ export const EnhancedMaturadorTab: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header com Status e Toggle Global */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-bold">Maturador de Chips</h2>
           <p className="text-muted-foreground">
@@ -179,59 +179,62 @@ export const EnhancedMaturadorTab: React.FC = () => {
           </p>
         </div>
 
-        {/* Toggle Global de Modo */}
-        <Card className="border-2 border-primary/30">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <Label className={`block text-sm font-semibold transition-colors ${globalMaturationMode === 'prompts' ? 'text-primary' : 'text-muted-foreground'}`}>
+        {/* Toggle Global de Modo - BOX GRANDE E VISÍVEL */}
+        <Card className="border-2 border-primary/50 bg-card shadow-lg min-w-[320px]">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-right flex-1">
+                <Label className={`block text-sm font-bold transition-colors ${globalMaturationMode === 'prompts' ? 'text-primary' : 'text-muted-foreground'}`}>
                   🧠 Prompts IA
                 </Label>
                 <p className="text-xs text-muted-foreground">Usa tokens</p>
               </div>
               
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Switch
-                      checked={globalMaturationMode === 'messages'}
-                      onCheckedChange={(checked) => {
-                        const newMode = checked ? 'messages' : 'prompts';
-                        setGlobalMaturationMode(newMode);
-                        toast({
-                          title: "Modo Alterado",
-                          description: checked 
-                            ? "🎯 Usando Mensagens Definidas + Dados Multimídia" 
-                            : "🧠 Usando Prompts Individuais (IA)",
-                        });
-                      }}
-                      className="data-[state=checked]:bg-secondary"
-                      disabled={isRunning}
-                    />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="max-w-xs text-sm">
-                      {isRunning 
-                        ? "Pare o maturador para alternar o modo" 
-                        : "Alterne entre Prompts IA e Mensagens + Dados"}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <div className="flex flex-col items-center gap-1">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Switch
+                        checked={globalMaturationMode === 'messages'}
+                        onCheckedChange={(checked) => {
+                          const newMode = checked ? 'messages' : 'prompts';
+                          setGlobalMaturationMode(newMode);
+                          toast({
+                            title: "Modo Alterado",
+                            description: checked 
+                              ? "🎯 Usando Mensagens Definidas + Dados Multimídia" 
+                              : "🧠 Usando Prompts Individuais (IA)",
+                          });
+                        }}
+                        className="data-[state=checked]:bg-secondary data-[state=unchecked]:bg-primary scale-125"
+                        disabled={isRunning}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs text-sm">
+                        {isRunning 
+                          ? "Pare o maturador para alternar o modo" 
+                          : "Alterne entre Prompts IA e Mensagens + Dados"}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <span className="text-[10px] text-muted-foreground font-medium">MODO</span>
+              </div>
 
-              <div className="text-left">
-                <Label className={`block text-sm font-semibold transition-colors ${globalMaturationMode === 'messages' ? 'text-secondary' : 'text-muted-foreground'}`}>
+              <div className="text-left flex-1">
+                <Label className={`block text-sm font-bold transition-colors ${globalMaturationMode === 'messages' ? 'text-secondary' : 'text-muted-foreground'}`}>
                   💬 Mensagens + Dados
                 </Label>
-                <p className="text-xs text-muted-foreground">Offline, sem tokens</p>
+                <p className="text-xs text-muted-foreground">Sem tokens</p>
               </div>
             </div>
             
             {globalMaturationMode === 'messages' && (
               <div className="mt-3 pt-3 border-t">
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <p className="text-xs text-center text-muted-foreground flex items-center justify-center gap-1">
                   <Database className="w-3 h-3" />
-                  Recursos multimídia da aba "Dados" serão usados automaticamente
+                  Recursos multimídia da aba "Dados" serão usados
                 </p>
               </div>
             )}
