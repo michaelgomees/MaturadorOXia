@@ -7,7 +7,7 @@ import { Switch } from './ui/switch';
 import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { Play, Square, Settings, MessageCircle, Users, Activity, Zap, ArrowRight, Plus, FileText, Brain, Info, Database, Image } from 'lucide-react';
+import { Play, Square, Settings, MessageCircle, Users, Activity, Zap, ArrowRight, Plus, FileText, Brain, Info, Database, Image, Trash2 } from 'lucide-react';
 import { StatsCard } from './StatsCard';
 import { useMaturadorEngine } from '@/hooks/useMaturadorEngine';
 import { useMaturadorPairs } from '@/hooks/useMaturadorPairs';
@@ -134,6 +134,64 @@ export const EnhancedMaturadorTab: React.FC = () => {
 
   const handleTogglePair = async (pairId: string) => {
     await togglePairActive(pairId);
+  };
+
+  // Parar todas as duplas ativas
+  const handleStopAll = async () => {
+    const activePairs = dbPairs.filter(p => p.is_active);
+    
+    if (activePairs.length === 0) {
+      toast({
+        title: "Aviso",
+        description: "Nenhuma dupla ativa para parar",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    for (const pair of activePairs) {
+      await togglePairActive(pair.id);
+    }
+
+    toast({
+      title: "Duplas Paradas",
+      description: `${activePairs.length} dupla(s) foram desativadas`
+    });
+  };
+
+  // Excluir todas as duplas
+  const handleDeleteAll = async () => {
+    if (dbPairs.length === 0) {
+      toast({
+        title: "Aviso",
+        description: "Nenhuma dupla para excluir"
+      });
+      return;
+    }
+
+    if (isRunning) {
+      toast({
+        title: "Erro",
+        description: "Pare o maturador antes de excluir duplas",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Confirmar ação
+    if (!confirm(`Tem certeza que deseja excluir TODAS as ${dbPairs.length} duplas?`)) {
+      return;
+    }
+
+    const count = dbPairs.length;
+    for (const pair of dbPairs) {
+      await deletePair(pair.id);
+    }
+
+    toast({
+      title: "Duplas Excluídas",
+      description: `${count} dupla(s) foram removidas`
+    });
   };
 
   const handleStartMaturador = () => {
@@ -548,11 +606,36 @@ export const EnhancedMaturadorTab: React.FC = () => {
         {/* Lista de Pares Configurados */}
         {dbPairs.length > 0 && (
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Users className="w-5 h-5" />
                 Duplas Configuradas ({dbPairs.length})
               </CardTitle>
+              
+              {/* Botões de Ação em Massa */}
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleStopAll}
+                  variant="outline"
+                  size="sm"
+                  disabled={dbPairs.filter(p => p.is_active).length === 0 || isRunning}
+                  className="flex items-center gap-2"
+                >
+                  <Square className="w-4 h-4" />
+                  Parar Todos
+                </Button>
+                
+                <Button
+                  onClick={handleDeleteAll}
+                  variant="destructive"
+                  size="sm"
+                  disabled={isRunning}
+                  className="flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Excluir Todas
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <ScrollArea className="h-[400px] w-full">

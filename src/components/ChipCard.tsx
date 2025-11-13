@@ -272,30 +272,10 @@ export const ChipCard = ({ chip, isSelected, onSelect, onGenerateQR, onChipUpdat
           </Badge>
         </div>
 
-        {/* Stats Expandidas */}
-        <div className="grid grid-cols-3 gap-3 pt-2 border-t">
-          <div className="text-center">
-            <p className="text-base font-semibold text-primary">{chipMonitoring?.totalMessages || chip.conversations}</p>
-            <p className="text-xs text-muted-foreground">Mensagens</p>
-          </div>
-          <div className="text-center">
-            <p className="text-base font-semibold text-secondary">
-              {chipMonitoring?.startDate ? 
-                Math.floor((new Date().getTime() - chipMonitoring.startDate.getTime()) / (1000 * 60 * 60 * 24)) 
-                : 0}
-            </p>
-            <p className="text-xs text-muted-foreground">Dias</p>
-          </div>
-          <div className="text-center">
-            <p className="text-base font-semibold text-accent">{chipMonitoring?.errorCount || 0}</p>
-            <p className="text-xs text-muted-foreground">Erros</p>
-          </div>
-        </div>
-
-        {/* Última Atividade */}
-        <div className="flex justify-between items-center text-xs text-muted-foreground pt-1">
-          <span>Última atividade:</span>
-          <span>{chipMonitoring?.lastActivity ? 
+        {/* Última Atividade - MOVIDO PARA CIMA */}
+        <div className="flex justify-between items-center text-xs pt-2 border-t">
+          <span className="text-muted-foreground">Última atividade:</span>
+          <span className="font-medium">{chipMonitoring?.lastActivity ? 
             chipMonitoring.lastActivity.toLocaleString('pt-BR', { 
               day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' 
             }) : chip.lastActive}
