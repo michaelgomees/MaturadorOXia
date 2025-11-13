@@ -15,6 +15,10 @@ interface ChipPair {
   usuario_id: string;
   use_instance_prompt: boolean;
   instance_prompt: string | null;
+  maturation_mode: string;
+  current_message_index: number;
+  loop_messages: boolean;
+  message_file_id: string | null;
 }
 
 interface Connection {
@@ -150,48 +154,114 @@ serve(async (req) => {
           console.log('⚠️ Configuração de mídia não disponível, continuando apenas com texto');
         }
 
-        // Determinar o prompt a usar
-        const systemPrompt = pair.use_instance_prompt && pair.instance_prompt
-          ? pair.instance_prompt
-          : respondingChip.prompt;
+        let responseText = '';
+        let newMessageIndex = (pair as any).current_message_index || 0;
 
-        console.log(`📝 Prompt sendo usado para ${respondingChip.nome}:`);
-        console.log(`   - Tipo: ${pair.use_instance_prompt ? 'INSTANCE PROMPT' : 'CHIP PROMPT'}`);
-        console.log(`   - Preview: ${systemPrompt?.substring(0, 100) || 'NENHUM'}...`);
-        console.log(`   - Tamanho: ${systemPrompt?.length || 0} caracteres`);
+        // Verificar modo de maturação
+        const maturationMode = (pair as any).maturation_mode || 'prompts';
+        console.log(`🎯 Modo de maturação: ${maturationMode}`);
 
-        const isFirstMessage = true; // Sempre primeira mensagem sem histórico
+        if (maturationMode === 'messages') {
+          // Modo mensagens: buscar mensagem do arquivo
+          console.log(`📋 Buscando mensagens do arquivo para o par ${pair.id}`);
+          
+          // Buscar arquivo de mensagens ativo do usuário
+          const { data: messageFile, error: messageFileError } = await supabase
+            .from('saas_maturation_messages')
+            .select('*')
+            .eq('usuario_id', pair.usuario_id)
+            .eq('is_active', true)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
 
-        // Chamar OpenAI para gerar resposta
-        const { data: aiResponse, error: aiError } = await supabase.functions.invoke('openai-chat', {
-          body: {
-            prompt: systemPrompt,
-            chipName: respondingChip.nome,
-            conversationHistory,
-            isFirstMessage,
-            responseDelay: 30
+          if (messageFileError || !messageFile) {
+            console.error(`❌ Nenhum arquivo de mensagens ativo encontrado:`, messageFileError);
+            responseText = 'oi, tudo bem?';
+          } else {
+            const messages = messageFile.mensagens || [];
+            const totalMessages = messages.length;
+            
+            console.log(`📚 Arquivo: ${messageFile.nome}, Total: ${totalMessages} mensagens`);
+            
+            if (totalMessages === 0) {
+              console.error(`❌ Arquivo de mensagens vazio`);
+              responseText = 'oi, tudo bem?';
+            } else {
+              // Pegar mensagem atual do índice
+              const messageIndex = newMessageIndex % totalMessages;
+              responseText = messages[messageIndex];
+              
+              console.log(`✅ Mensagem ${messageIndex + 1}/${totalMessages}: ${responseText}`);
+              
+              // Incrementar índice para próxima mensagem
+              newMessageIndex = messageIndex + 1;
+              
+              // Se loop está ativado e chegou ao fim, volta ao início
+              const loopMessages = (pair as any).loop_messages !== false;
+              if (!loopMessages && newMessageIndex >= totalMessages) {
+                console.log(`⚠️ Fim das mensagens e loop desativado, parando par`);
+                // Parar o par ao chegar no fim das mensagens
+                await supabase
+                  .from('saas_pares_maturacao')
+                  .update({ status: 'stopped' })
+                  .eq('id', pair.id);
+              }
+            }
           }
-        });
+        } else {
+          // Modo prompts: usar IA
+          console.log(`🤖 Usando IA para gerar mensagem`);
+          
+          const systemPrompt = pair.use_instance_prompt && pair.instance_prompt
+            ? pair.instance_prompt
+            : respondingChip.prompt;
 
-        if (aiError) {
-          console.error(`❌ Erro ao chamar OpenAI para ${respondingChip.nome}:`, aiError);
-          continue;
+          console.log(`📝 Prompt sendo usado para ${respondingChip.nome}:`);
+          console.log(`   - Tipo: ${pair.use_instance_prompt ? 'INSTANCE PROMPT' : 'CHIP PROMPT'}`);
+          console.log(`   - Preview: ${systemPrompt?.substring(0, 100) || 'NENHUM'}...`);
+          console.log(`   - Tamanho: ${systemPrompt?.length || 0} caracteres`);
+
+          const isFirstMessage = true;
+
+          // Chamar OpenAI para gerar resposta
+          const { data: aiResponse, error: aiError } = await supabase.functions.invoke('openai-chat', {
+            body: {
+              prompt: systemPrompt,
+              chipName: respondingChip.nome,
+              conversationHistory,
+              isFirstMessage,
+              responseDelay: 30
+            }
+          });
+
+          if (aiError) {
+            console.error(`❌ Erro ao chamar OpenAI para ${respondingChip.nome}:`, aiError);
+            responseText = 'oi, tudo bem?';
+          } else {
+            responseText = aiResponse.message;
+            console.log(`✅ Resposta gerada (${responseText.length} chars, ${responseText.split('\n').length} linhas):`);
+            console.log(`   ${responseText}`);
+          }
         }
-
-        const responseText = aiResponse.message;
-        console.log(`✅ Resposta gerada (${responseText.length} chars, ${responseText.split('\n').length} linhas):`);
-        console.log(`   ${responseText}`);
 
         // Atualizar última atividade do par e incrementar contador
         // Sistema continua indefinidamente alternando entre os chips
         const newCount = currentCount + 1;
 
+        const updateData: any = {
+          last_activity: new Date().toISOString(),
+          messages_count: newCount
+        };
+
+        // Se modo mensagens, atualizar índice
+        if (maturationMode === 'messages') {
+          updateData.current_message_index = newMessageIndex;
+        }
+
         const { error: updateError } = await supabase
           .from('saas_pares_maturacao')
-          .update({ 
-            last_activity: new Date().toISOString(),
-            messages_count: newCount
-          })
+          .update(updateData)
           .eq('id', pair.id);
 
         if (updateError) {
