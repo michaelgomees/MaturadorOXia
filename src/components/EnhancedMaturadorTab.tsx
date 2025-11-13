@@ -65,6 +65,14 @@ export const EnhancedMaturadorTab: React.FC = () => {
     // Carregar conexões ativas
     const connections = getActiveConnections();
     setActiveConnections(connections);
+    
+    // Atualizar conexões a cada 2 segundos
+    const interval = setInterval(() => {
+      const connections = getActiveConnections();
+      setActiveConnections(connections);
+    }, 2000);
+    
+    return () => clearInterval(interval);
   }, [loadData]);
 
   const getActiveConnections = (): ActiveConnection[] => {
