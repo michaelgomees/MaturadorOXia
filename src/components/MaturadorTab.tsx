@@ -13,7 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { 
   Play, Pause, Square, Users, MessageCircle, ArrowRight, 
-  Settings, Activity, Wifi, Bot, Clock 
+  Settings, Activity, Wifi, Bot, Clock, Brain 
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useConnections } from "@/contexts/ConnectionsContext";
@@ -52,6 +52,12 @@ export const MaturadorTab = () => {
   const { pairs: dbPairs, createPair, updatePair, deletePair, togglePairActive } = useMaturadorPairs();
   const { prompts } = usePrompts();
   
+  // Estado global para controlar o modo de maturação
+  const [globalMaturationMode, setGlobalMaturationMode] = useState<'prompts' | 'messages'>(() => {
+    const saved = localStorage.getItem('ox-global-maturation-mode');
+    return (saved as 'prompts' | 'messages') || 'prompts';
+  });
+  
   const [config, setConfig] = useState<MaturadorConfig>({
     selectedPairs: [],
     useBasePrompt: true,
@@ -64,6 +70,11 @@ export const MaturadorTab = () => {
     promptId: '' 
   });
   const { toast } = useToast();
+
+  // Salvar modo global no localStorage
+  useEffect(() => {
+    localStorage.setItem('ox-global-maturation-mode', globalMaturationMode);
+  }, [globalMaturationMode]);
 
   // Sincronizar configuração com dados do Supabase
   useEffect(() => {
@@ -252,13 +263,41 @@ export const MaturadorTab = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header com Toggle */}
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-3xl font-bold">Sistema de Maturação</h2>
           <p className="text-muted-foreground">
             Configure conversas automáticas entre conexões ativas ({activeConnections.length} disponíveis)
           </p>
+        </div>
+
+        {/* Toggle de Modo */}
+        <div className="border-2 border-primary rounded-lg px-5 py-3 flex items-center gap-4 bg-background shadow-md">
+          <div className={`flex items-center gap-2 ${globalMaturationMode === 'prompts' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+            <Brain className="w-4 h-4" />
+            <span className="text-sm whitespace-nowrap">Prompts IA</span>
+          </div>
+          
+          <Switch
+            checked={globalMaturationMode === 'messages'}
+            onCheckedChange={(checked) => {
+              const newMode = checked ? 'messages' : 'prompts';
+              setGlobalMaturationMode(newMode);
+              toast({
+                title: "Modo Alterado",
+                description: checked 
+                  ? "💬 Usando Mensagens + Dados" 
+                  : "🧠 Usando Prompts IA",
+              });
+            }}
+            disabled={runningPairs.length > 0}
+          />
+          
+          <div className={`flex items-center gap-2 ${globalMaturationMode === 'messages' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+            <MessageCircle className="w-4 h-4" />
+            <span className="text-sm whitespace-nowrap">Mensagens + Dados</span>
+          </div>
         </div>
       </div>
 
@@ -357,19 +396,6 @@ export const MaturadorTab = () => {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          </div>
-          
-          <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <Bot className="w-5 h-5 text-primary mt-0.5" />
-              <div>
-                <h4 className="font-semibold mb-1">Prompts Individuais</h4>
-                <p className="text-sm text-muted-foreground">
-                  Cada chip usará seu próprio prompt configurado na aba "Prompts de IA".
-                  Configure os prompts para criar personalidades únicas.
-                </p>
-              </div>
             </div>
           </div>
           
