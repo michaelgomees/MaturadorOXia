@@ -57,8 +57,11 @@ export const MaturadorTab = () => {
   // Estado global para controlar o modo de maturação
   const [globalMaturationMode, setGlobalMaturationMode] = useState<'prompts' | 'messages'>(() => {
     const saved = localStorage.getItem('ox-global-maturation-mode');
+    console.log('🔍 Modo salvo no localStorage:', saved);
     return (saved as 'prompts' | 'messages') || 'prompts';
   });
+  
+  console.log('🎯 Modo atual no estado:', globalMaturationMode);
   
   const [config, setConfig] = useState<MaturadorConfig>({
     selectedPairs: [],
@@ -75,6 +78,7 @@ export const MaturadorTab = () => {
 
   // Salvar modo global no localStorage
   useEffect(() => {
+    console.log('💾 Salvando modo no localStorage:', globalMaturationMode);
     localStorage.setItem('ox-global-maturation-mode', globalMaturationMode);
   }, [globalMaturationMode]);
 
@@ -304,32 +308,47 @@ export const MaturadorTab = () => {
             </p>
           </div>
 
-          {/* Toggle de Modo */}
+          {/* Toggle de Modo - SIMPLIFICADO */}
           <div className="border-2 border-primary rounded-lg px-5 py-3 flex items-center gap-4 bg-background shadow-md">
-            <div className={`flex items-center gap-2 transition-colors ${globalMaturationMode === 'prompts' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
-              <Brain className="w-4 h-4" />
-              <span className="text-sm whitespace-nowrap">Prompts IA</span>
-            </div>
-            
-            <Switch
-              checked={globalMaturationMode === 'messages'}
-              onCheckedChange={(checked) => {
-                const newMode = checked ? 'messages' : 'prompts';
-                setGlobalMaturationMode(newMode);
+            <button
+              onClick={() => {
+                console.log('❌ Clique no botão PROMPTS');
+                setGlobalMaturationMode('prompts');
                 toast({
                   title: "Modo Alterado",
-                  description: checked 
-                    ? "💬 Usando Mensagens + Dados" 
-                    : "🧠 Usando Prompts IA",
+                  description: "🧠 Usando Prompts IA",
                 });
               }}
-              disabled={runningPairs.length > 0}
-            />
+              className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all cursor-pointer ${
+                globalMaturationMode === 'prompts' 
+                  ? 'bg-primary text-primary-foreground font-bold' 
+                  : 'text-muted-foreground hover:bg-secondary'
+              }`}
+            >
+              <Brain className="w-4 h-4" />
+              <span className="text-sm whitespace-nowrap">Prompts IA</span>
+            </button>
             
-            <div className={`flex items-center gap-2 transition-colors ${globalMaturationMode === 'messages' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+            <div className="h-8 w-px bg-border" />
+            
+            <button
+              onClick={() => {
+                console.log('❌ Clique no botão MENSAGENS');
+                setGlobalMaturationMode('messages');
+                toast({
+                  title: "Modo Alterado",
+                  description: "💬 Usando Mensagens + Dados",
+                });
+              }}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all cursor-pointer ${
+                globalMaturationMode === 'messages' 
+                  ? 'bg-primary text-primary-foreground font-bold' 
+                  : 'text-muted-foreground hover:bg-secondary'
+              }`}
+            >
               <MessageCircle className="w-4 h-4" />
               <span className="text-sm whitespace-nowrap">Mensagens + Dados</span>
-            </div>
+            </button>
           </div>
         </div>
 
