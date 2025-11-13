@@ -170,8 +170,8 @@ export const EnhancedMaturadorTab: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      {/* Header com Toggle */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-3xl font-bold">Sistema de Maturação</h2>
           <p className="text-sm text-muted-foreground">
@@ -179,11 +179,11 @@ export const EnhancedMaturadorTab: React.FC = () => {
           </p>
         </div>
 
-        {/* Toggle de Modo */}
-        <div className="border-2 border-primary/60 rounded-lg px-4 py-2.5 flex items-center gap-4 bg-background">
-          <div className={`flex items-center gap-2 transition-all ${globalMaturationMode === 'prompts' ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
+        {/* Toggle de Modo - Visível */}
+        <div className="border-2 border-primary rounded-lg px-5 py-3 flex items-center gap-4 bg-background shadow-sm">
+          <div className={`flex items-center gap-2 transition-all ${globalMaturationMode === 'prompts' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
             <Brain className="w-4 h-4" />
-            <span className="text-sm">Prompts IA</span>
+            <span className="text-sm whitespace-nowrap">Prompts IA</span>
           </div>
           
           <Switch
@@ -201,9 +201,9 @@ export const EnhancedMaturadorTab: React.FC = () => {
             disabled={isRunning}
           />
           
-          <div className={`flex items-center gap-2 transition-all ${globalMaturationMode === 'messages' ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
+          <div className={`flex items-center gap-2 transition-all ${globalMaturationMode === 'messages' ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
             <MessageCircle className="w-4 h-4" />
-            <span className="text-sm">Mensagens + Dados</span>
+            <span className="text-sm whitespace-nowrap">Mensagens + Dados</span>
           </div>
         </div>
       </div>
