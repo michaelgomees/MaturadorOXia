@@ -17,7 +17,7 @@ import { useChipMaturation } from "@/hooks/useChipMaturation";
 import { ConnectionsTab } from "@/components/ConnectionsTab";
 import { PromptsTab } from "@/components/PromptsTab";
 import { DadosTab } from "@/components/DadosTab";
-import { EnhancedMaturadorTab } from "@/components/EnhancedMaturadorTab";
+import { MaturadorTab } from "@/components/MaturadorTab";
 import { MessagesConfigTab } from "@/components/MessagesConfigTab";
 import { ProtectedRoute, useAuth } from "@/contexts/AuthContext";
 
@@ -301,7 +301,7 @@ const Index = () => {
           </TabsContent>
 
           <TabsContent value="maturador" className="mt-8">
-            <EnhancedMaturadorTab />
+            <MaturadorTab />
           </TabsContent>
         </Tabs>
       </main>

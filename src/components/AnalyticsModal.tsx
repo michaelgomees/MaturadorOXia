@@ -71,26 +71,15 @@ export const AnalyticsModal = ({ open, onOpenChange }: AnalyticsModalProps) => {
         totalMessages
       });
 
-      // Montar performance por chip COM DETALHE DAS CONVERSAS
-      const performance = conexoes?.map(chip => {
-        const pairsList = pares?.filter(p => 
+      // Montar performance por chip
+      const performance = conexoes?.map(chip => ({
+        name: chip.nome,
+        status: chip.status === 'active' ? 'Ativo' : 'Inativo',
+        conversationsCount: chip.conversas_count || 0,
+        paresCount: pares?.filter(p => 
           p.nome_chip1 === chip.nome || p.nome_chip2 === chip.nome
-        ) || [];
-        
-        // Construir lista de conversas (quem fala com quem)
-        const conversations = pairsList.map(p => {
-          const otherChip = p.nome_chip1 === chip.nome ? p.nome_chip2 : p.nome_chip1;
-          return `${chip.nome} → ${otherChip}`;
-        });
-
-        return {
-          name: chip.nome,
-          status: chip.status === 'ativo' ? 'Ativo' : 'Inativo',
-          conversationsCount: pairsList.length,
-          paresCount: pairsList.length,
-          conversations: conversations // Lista de conversas formatada
-        };
-      }) || [];
+        ).length || 0
+      })) || [];
 
       setChipPerformance(performance);
     } catch (error) {
@@ -189,29 +178,17 @@ export const AnalyticsModal = ({ open, onOpenChange }: AnalyticsModalProps) => {
                   <Card key={index}>
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h4 className="font-semibold">{chip.name}</h4>
-                            <Badge variant={chip.status === 'Ativo' ? 'default' : 'secondary'}>
-                              {chip.status}
-                            </Badge>
-                          </div>
-                          <div className="space-y-1">
+                        <div className="flex items-center gap-3">
+                          <div>
+                            <h4 className="font-medium">{chip.name}</h4>
                             <p className="text-sm text-muted-foreground">
-                              <strong>{chip.conversationsCount} conversas</strong> • {chip.paresCount} duplas configuradas
+                              {chip.conversationsCount} conversas • {chip.paresCount} duplas configuradas
                             </p>
-                            {chip.conversations && chip.conversations.length > 0 && (
-                              <div className="mt-2 space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Conversando com:</p>
-                                {chip.conversations.map((conv: string, idx: number) => (
-                                  <p key={idx} className="text-xs text-secondary pl-2">
-                                    {conv}
-                                  </p>
-                                ))}
-                              </div>
-                            )}
                           </div>
                         </div>
+                        <Badge variant={chip.status === "Ativo" ? "default" : "secondary"}>
+                          {chip.status}
+                        </Badge>
                       </div>
                     </CardContent>
                   </Card>

@@ -6,7 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Switch } from './ui/switch';
 import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
-import { Play, Square, Settings, MessageCircle, Users, Activity, ArrowRight, Plus, FileText, Brain, Trash2 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { Play, Square, Settings, MessageCircle, Users, Activity, Zap, ArrowRight, Plus, FileText, Brain, Info, Database, Image } from 'lucide-react';
+import { StatsCard } from './StatsCard';
 import { useMaturadorEngine } from '@/hooks/useMaturadorEngine';
 import { useMaturadorPairs } from '@/hooks/useMaturadorPairs';
 import { useMaturationMessages } from '@/hooks/useMaturationMessages';
@@ -63,14 +65,6 @@ export const EnhancedMaturadorTab: React.FC = () => {
     // Carregar conexões ativas
     const connections = getActiveConnections();
     setActiveConnections(connections);
-    
-    // Atualizar conexões a cada 2 segundos
-    const interval = setInterval(() => {
-      const connections = getActiveConnections();
-      setActiveConnections(connections);
-    }, 2000);
-    
-    return () => clearInterval(interval);
   }, [loadData]);
 
   const getActiveConnections = (): ActiveConnection[] => {
@@ -108,14 +102,8 @@ export const EnhancedMaturadorTab: React.FC = () => {
     if (!firstChip || !secondChip) return;
 
     try {
-      // SEMPRE usar o modo global ao criar o par
-      await createPair(
-        firstChip.name, 
-        secondChip.name, 
-        globalMaturationMode, 
-        newPair.messageFileId || undefined,
-        newPair.loopMessages
-      );
+      // Usar o modo global ao criar o par
+      await createPair(firstChip.name, secondChip.name);
       
       setNewPair({ 
         firstChipId: '', 
@@ -127,7 +115,7 @@ export const EnhancedMaturadorTab: React.FC = () => {
       
       toast({
         title: "Par Configurado",
-        description: `${firstChip.name} <-> ${secondChip.name} (${globalMaturationMode === 'prompts' ? '🧠 Prompts IA' : '💬 Mensagens + Dados'})`,
+        description: `${firstChip.name} <-> ${secondChip.name} (Modo: ${globalMaturationMode === 'prompts' ? '🧠 Prompts IA' : '💬 Mensagens + Dados'})`,
       });
     } catch (error) {
       console.error('Erro ao criar par:', error);
@@ -142,68 +130,10 @@ export const EnhancedMaturadorTab: React.FC = () => {
     await togglePairActive(pairId);
   };
 
-  // Parar todas as duplas ativas
-  const handleStopAll = async () => {
-    const activePairs = dbPairs.filter(p => p.is_active);
-    
-    if (activePairs.length === 0) {
-      toast({
-        title: "Aviso",
-        description: "Nenhuma dupla ativa para parar",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    for (const pair of activePairs) {
-      await togglePairActive(pair.id);
-    }
-
-    toast({
-      title: "Duplas Paradas",
-      description: `${activePairs.length} dupla(s) foram desativadas`
-    });
-  };
-
-  // Excluir todas as duplas
-  const handleDeleteAll = async () => {
-    if (dbPairs.length === 0) {
-      toast({
-        title: "Aviso",
-        description: "Nenhuma dupla para excluir"
-      });
-      return;
-    }
-
-    if (isRunning) {
-      toast({
-        title: "Erro",
-        description: "Pare o maturador antes de excluir duplas",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Confirmar ação
-    if (!confirm(`Tem certeza que deseja excluir TODAS as ${dbPairs.length} duplas?`)) {
-      return;
-    }
-
-    const count = dbPairs.length;
-    for (const pair of dbPairs) {
-      await deletePair(pair.id);
-    }
-
-    toast({
-      title: "Duplas Excluídas",
-      description: `${count} dupla(s) foram removidas`
-    });
-  };
-
   const handleStartMaturador = () => {
     if (!isRunning) {
-      // Verificar se há pares ativos nos dbPairs (do banco de dados)
-      const activePairs = dbPairs.filter(pair => pair.is_active);
+      // Verificar se há pares ativos
+      const activePairs = chipPairs.filter(pair => pair.isActive);
       
       if (activePairs.length === 0) {
         toast({
@@ -213,17 +143,6 @@ export const EnhancedMaturadorTab: React.FC = () => {
         });
         return;
       }
-
-      // Verificar requisitos baseados no modo global
-      if (globalMaturationMode === 'messages') {
-        // Temporariamente desabilitado - será implementado quando houver suporte a arquivos de mensagens
-        console.log('Modo mensagens ativado - implementação pendente');
-      }
-
-      toast({
-        title: "Maturador Iniciado",
-        description: `Modo: ${globalMaturationMode === 'prompts' ? '🧠 Prompts IA (usa tokens)' : '💬 Mensagens + Dados (offline)'}`,
-      });
 
       startMaturador();
     } else {
@@ -251,273 +170,452 @@ export const EnhancedMaturadorTab: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Cards de Status */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-orange-500/10 rounded-lg">
-                <Users className="w-6 h-6 text-orange-500" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Duplas Configuradas</p>
-                <p className="text-2xl font-bold">{dbPairs.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Header com Status e Toggle Global */}
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-2xl font-bold">Maturador de Chips</h2>
+          <p className="text-muted-foreground">
+            Configure conversas automáticas inteligentes entre chips usando OpenAI
+          </p>
+        </div>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-green-500/10 rounded-lg">
-                <Activity className="w-6 h-6 text-green-500" />
+        {/* Toggle Global de Modo - BOX GRANDE E VISÍVEL */}
+        <Card className="border-2 border-primary/50 bg-card shadow-lg min-w-[320px]">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-right flex-1">
+                <Label className={`block text-sm font-bold transition-colors ${globalMaturationMode === 'prompts' ? 'text-primary' : 'text-muted-foreground'}`}>
+                  🧠 Prompts IA
+                </Label>
+                <p className="text-xs text-muted-foreground">Usa tokens</p>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Duplas Ativas</p>
-                <p className="text-2xl font-bold">{stats.activePairs}</p>
-                <p className="text-xs text-muted-foreground">{stats.activePairs} de {dbPairs.length}</p>
+              
+              <div className="flex flex-col items-center gap-1">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Switch
+                        checked={globalMaturationMode === 'messages'}
+                        onCheckedChange={(checked) => {
+                          const newMode = checked ? 'messages' : 'prompts';
+                          setGlobalMaturationMode(newMode);
+                          toast({
+                            title: "Modo Alterado",
+                            description: checked 
+                              ? "🎯 Usando Mensagens Definidas + Dados Multimídia" 
+                              : "🧠 Usando Prompts Individuais (IA)",
+                          });
+                        }}
+                        className="data-[state=checked]:bg-secondary data-[state=unchecked]:bg-primary scale-125"
+                        disabled={isRunning}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs text-sm">
+                        {isRunning 
+                          ? "Pare o maturador para alternar o modo" 
+                          : "Alterne entre Prompts IA e Mensagens + Dados"}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <span className="text-[10px] text-muted-foreground font-medium">MODO</span>
               </div>
-            </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-500/10 rounded-lg">
-                <MessageCircle className="w-6 h-6 text-blue-500" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Mensagens Trocadas</p>
-                <p className="text-2xl font-bold">{stats.totalMessages}</p>
+              <div className="text-left flex-1">
+                <Label className={`block text-sm font-bold transition-colors ${globalMaturationMode === 'messages' ? 'text-secondary' : 'text-muted-foreground'}`}>
+                  💬 Mensagens + Dados
+                </Label>
+                <p className="text-xs text-muted-foreground">Sem tokens</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-purple-500/10 rounded-lg">
-                <Settings className="w-6 h-6 text-purple-500" />
+            
+            {globalMaturationMode === 'messages' && (
+              <div className="mt-3 pt-3 border-t">
+                <p className="text-xs text-center text-muted-foreground flex items-center justify-center gap-1">
+                  <Database className="w-3 h-3" />
+                  Recursos multimídia da aba "Dados" serão usados
+                </p>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Status Sistema</p>
-                <p className="text-2xl font-bold">{isRunning ? 'ON' : 'OFF'}</p>
-                <p className="text-xs text-muted-foreground">{isRunning ? "Sistema ativo" : "Sistema parado"}</p>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
-
-      {/* Configurar Nova Dupla */}
-      {activeConnections.length >= 2 && (
-        <div className="mb-6">
-          <div className="mb-4">
-            <h3 className="text-xl font-semibold mb-1">Configurar Nova Dupla</h3>
-            <p className="text-sm text-muted-foreground">
-              Selecione duas conexões ativas para iniciar maturação
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Primeiro Chip</Label>
-              <Select 
-                value={newPair.firstChipId} 
-                onValueChange={(value) => setNewPair(prev => ({ ...prev, firstChipId: value }))}
-              >
-                <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeConnections.map(conn => (
-                    <SelectItem key={conn.id} value={conn.id}>
-                      {conn.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Segundo Chip</Label>
-              <Select 
-                value={newPair.secondChipId} 
-                onValueChange={(value) => setNewPair(prev => ({ ...prev, secondChipId: value }))}
-                disabled={!newPair.firstChipId}
-              >
-                <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {getAvailableChipsForSecond().map(conn => (
-                    <SelectItem key={conn.id} value={conn.id}>
-                      {conn.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Info Box */}
-          <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-4">
-            <div className="flex items-start gap-3">
-              <Brain className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-foreground mb-1">Prompts Individuais</p>
-                <p className="text-xs text-muted-foreground">
-                  Cada chip usará seu próprio prompt configurado na aba "Prompts de IA". Configure os prompts para criar personalidades únicas.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <Button
-            onClick={handleAddPair}
-            className="w-full bg-[hsl(22,100%,50%)] hover:bg-[hsl(22,100%,45%)] text-white"
-            disabled={!newPair.firstChipId || !newPair.secondChipId}
-            size="lg"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Adicionar Dupla
-          </Button>
+      {/* Controles Principais */}
+      <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-2">
+          <div className={`w-3 h-3 rounded-full ${isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+          <span className="font-medium">
+            Status: {isRunning ? 'Ativo' : 'Parado'}
+          </span>
         </div>
-      )}
+        
+        <Button 
+          onClick={handleStartMaturador}
+          variant={isRunning ? "destructive" : "default"}
+          className="flex items-center gap-2"
+          disabled={chipPairs.filter(pair => pair.isActive).length === 0}
+        >
+          {isRunning ? (
+            <>
+              <Square className="w-4 h-4" />
+              Parar Maturador
+            </>
+          ) : (
+            <>
+              <Play className="w-4 h-4" />
+              Iniciar Maturador
+            </>
+          )}
+        </Button>
+        
+        {chipPairs.filter(pair => pair.isActive).length === 0 && !isRunning && (
+          <Badge variant="secondary" className="text-xs">
+            Ative pelo menos uma dupla para iniciar
+          </Badge>
+        )}
+      </div>
 
-      {/* Duplas Configuradas */}
-      {dbPairs.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-xl font-semibold">Duplas Configuradas ({dbPairs.length})</h3>
-              <p className="text-sm text-muted-foreground">Gerencie as duplas</p>
-            </div>
-            <Button
-              onClick={handleStartMaturador}
-              size="lg"
-              className={isRunning ? "bg-red-500 hover:bg-red-600 text-white" : "bg-[hsl(22,100%,50%)] hover:bg-[hsl(22,100%,45%)] text-white"}
-              disabled={dbPairs.filter(p => p.is_active).length === 0 && !isRunning}
-            >
-              {isRunning ? (
-                <>
-                  <Square className="w-5 h-5 mr-2" />
-                  Parar Todos
-                </>
-              ) : (
-                <>
-                  <Play className="w-5 h-5 mr-2" />
-                  Iniciar Todos
-                </>
-              )}
-            </Button>
-          </div>
+      {/* Cards de Status */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <StatsCard
+          title="Pares Configurados"
+          value={chipPairs.length.toString()}
+          icon={<Settings className="w-5 h-5" />}
+          description="Total de duplas"
+        />
+        <StatsCard
+          title="Pares Ativos"
+          value={stats.activePairs.toString()}
+          icon={<Users className="w-5 h-5" />}
+          description={`${stats.activePairs} de ${chipPairs.length}`}
+          trend={stats.activePairs > 0 ? 'up' : undefined}
+        />
+        <StatsCard
+          title="Mensagens Trocadas"
+          value={stats.totalMessages.toString()}
+          icon={<MessageCircle className="w-5 h-5" />}
+          description="Total de mensagens"
+          trend={stats.totalMessages > 0 ? 'up' : undefined}
+        />
+        <StatsCard
+          title="Recursos Multimídia"
+          value={mediaItems.filter(item => item.isActive).length.toString()}
+          icon={<Image className="w-5 h-5" />}
+          description="Itens ativos da aba Dados"
+        />
+        <StatsCard
+          title="Status do Sistema"
+          value={isRunning ? 'ON' : 'OFF'}
+          icon={<Activity className="w-5 h-5" />}
+          description={isRunning ? "Maturação em andamento" : "Sistema parado"}
+          trend={isRunning ? 'up' : undefined}
+        />
+      </div>
 
-          <ScrollArea className="h-[500px]">
-            <div className="space-y-3 pr-4">
-              {dbPairs.map(pair => (
-                <div 
-                  key={pair.id} 
-                  className="border border-primary/30 rounded-lg p-4 bg-card hover:bg-card/80 transition-colors"
-                >
-                  {/* Header da dupla */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium text-base">{pair.nome_chip1}</span>
-                      <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                      <span className="font-medium text-base">{pair.nome_chip2}</span>
-                      
-                      <div className="ml-3">
-                        {pair.is_active ? (
-                          <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                            Em Execução
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">Parado</Badge>
-                        )}
-                      </div>
+      {activeConnections.length > 0 ? (
+        <>
+          {/* Configuração de Nova Dupla */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Plus className="w-5 h-5" />
+                Configurar Nova Dupla
+              </CardTitle>
+              <CardDescription>
+                Selecione duas conexões ativas que irão conversar automaticamente
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Primeira Conexão</Label>
+                  <Select 
+                    value={newPair.firstChipId} 
+                    onValueChange={(value) => setNewPair(prev => ({ ...prev, firstChipId: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a primeira conexão" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeConnections.map(conn => (
+                        <SelectItem key={conn.id} value={conn.id}>
+                          {conn.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Segunda Conexão</Label>
+                  <Select 
+                    value={newPair.secondChipId} 
+                    onValueChange={(value) => setNewPair(prev => ({ ...prev, secondChipId: value }))}
+                    disabled={!newPair.firstChipId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a segunda conexão" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getAvailableChipsForSecond().map(conn => (
+                        <SelectItem key={conn.id} value={conn.id}>
+                          {conn.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Info sobre modo global */}
+              <div className="border-t pt-4">
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <Info className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-400 mb-1">
+                        Modo Global Ativo: {globalMaturationMode === 'prompts' ? '🧠 Prompts IA' : '💬 Mensagens + Dados'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {globalMaturationMode === 'prompts' 
+                          ? 'Todas as duplas usarão prompts configurados na aba "Prompts de IA"' 
+                          : 'Todas as duplas usarão mensagens da aba "Mensagens" e recursos da aba "Dados"'}
+                      </p>
                     </div>
-                    
-                    <span className="text-lg font-semibold">
-                      {pair.messages_count} mensagens
-                    </span>
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
-                    {pair.started_at && (
-                      <div className="flex items-center gap-1">
-                        <Activity className="w-3 h-3" />
-                        <span>Iniciado em: {new Date(pair.started_at).toLocaleString('pt-BR', { 
-                          day: '2-digit', 
-                          month: '2-digit', 
-                          year: 'numeric', 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}</span>
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center gap-1">
-                      <Brain className="w-3 h-3" />
-                      <span>Cada chip usa seu prompt individual</span>
-                    </div>
-                  </div>
-
-                  {/* Botões de ação */}
-                  <div className="flex items-center gap-2">
-                    <Button
-                      onClick={() => handleTogglePair(pair.id)}
-                      variant="outline"
-                      size="sm"
-                      className="h-8"
-                    >
-                      {pair.is_active ? (
-                        <>
-                          <Square className="w-3 h-3 mr-1" />
-                          Parar
-                        </>
-                      ) : (
-                        <>
-                          <Play className="w-3 h-3 mr-1" />
-                          Iniciar
-                        </>
-                      )}
-                    </Button>
-
-                    <Button
-                      onClick={() => handleTogglePair(pair.id)}
-                      variant="outline"
-                      size="sm"
-                      className="h-8"
-                      disabled={!pair.is_active}
-                    >
-                      <Square className="w-3 h-3 mr-1" />
-                      Pausar
-                    </Button>
-
-                    <Button
-                      onClick={() => handleRemovePair(pair.id)}
-                      variant="destructive"
-                      size="sm"
-                      className="h-8"
-                      disabled={isRunning}
-                    >
-                      Remover
-                    </Button>
                   </div>
                 </div>
-              ))}
-            </div>
-          </ScrollArea>
-        </div>
-      )}
+              </div>
 
-      {activeConnections.length < 2 && dbPairs.length === 0 && (
+              {/* Seletor de Arquivo de Mensagens (apenas se modo global = messages) */}
+              {globalMaturationMode === 'messages' && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Arquivo de Mensagens</Label>
+                    <Select 
+                      value={newPair.messageFileId} 
+                      onValueChange={(value) => setNewPair(prev => ({ ...prev, messageFileId: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um arquivo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {messageFiles.filter(f => f.is_active).length === 0 ? (
+                          <SelectItem value="none" disabled>
+                            Nenhum arquivo ativo encontrado
+                          </SelectItem>
+                        ) : (
+                          messageFiles
+                            .filter(f => f.is_active)
+                            .map(file => (
+                              <SelectItem key={file.id} value={file.id}>
+                                {file.nome} ({file.total_mensagens} mensagens)
+                              </SelectItem>
+                            ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {messageFiles.filter(f => f.is_active).length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Configure arquivos na aba "Mensagens de Maturação"
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="loop-messages"
+                      checked={newPair.loopMessages}
+                      onCheckedChange={(checked) => setNewPair(prev => ({ ...prev, loopMessages: checked }))}
+                    />
+                    <Label htmlFor="loop-messages" className="text-sm cursor-pointer">
+                      Reiniciar mensagens quando acabar
+                    </Label>
+                  </div>
+                </>
+              )}
+              
+              <Button 
+                onClick={handleAddPair}
+                disabled={!newPair.firstChipId || !newPair.secondChipId || isRunning}
+                className="w-full"
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Adicionar Dupla
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Info sobre Prompts e Recursos Multimídia */}
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <Zap className="w-5 h-5 text-primary mt-0.5" />
+                <div className="w-full space-y-4">
+                  <div>
+                    <h3 className="font-semibold mb-1">Dois Modos de Maturação</h3>
+                    <div className="text-sm text-muted-foreground space-y-2">
+                      <p>
+                        <strong className="text-primary">🧠 Prompts Individuais:</strong> Cada chip usa IA para gerar mensagens naturais e variadas (consome tokens da Groq/OpenAI).
+                      </p>
+                      <p>
+                        <strong className="text-secondary">💬 Mensagens Definidas:</strong> Usa sequência de mensagens pré-definidas de arquivo (maturação offline, sem tokens).
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="border-t pt-4">
+                    <h3 className="font-semibold mb-2 flex items-center gap-2">
+                      <Database className="w-4 h-4 text-purple-500" />
+                      Recursos Multimídia (Automático)
+                    </h3>
+                    <div className="text-sm text-muted-foreground space-y-2">
+                      <p>
+                        Durante a maturação, os chips usarão automaticamente os recursos configurados na aba "Dados":
+                      </p>
+                      <ul className="space-y-1 ml-4">
+                        <li>• 📷 Imagens: enviadas conforme frequência configurada (máx. {mediaConfig.maxImagesPerHour}/hora)</li>
+                        <li>• 🔗 Links: compartilhados respeitando limites (máx. {mediaConfig.maxLinksPerConversation}/conversa)</li>
+                        <li>• 🔊 Áudios: incluídos quando disponíveis</li>
+                        <li>• {mediaConfig.randomizeSelection ? '🎲 Seleção aleatória ativa' : '📋 Seleção sequencial'}</li>
+                      </ul>
+                      {mediaItems.filter(item => item.isActive).length === 0 && (
+                        <p className="text-xs text-amber-500 mt-2">
+                          ⚠️ Nenhum recurso multimídia ativo. Configure na aba "Dados" para enriquecer as conversas.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+        {/* Lista de Pares Configurados */}
+        {dbPairs.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Duplas Configuradas ({dbPairs.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ScrollArea className="h-[400px] w-full">
+                <div className="space-y-4 p-6">
+                  {dbPairs.map((pair) => {
+                    const messageFile = pair.message_file_id 
+                      ? messageFiles.find(f => f.id === pair.message_file_id)
+                      : null;
+                    
+                    return (
+                      <div key={pair.id} className="p-4 border rounded-lg space-y-3">
+                        <div className="flex flex-col gap-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <Switch
+                                checked={pair.is_active}
+                                onCheckedChange={() => handleTogglePair(pair.id)}
+                                disabled={isRunning}
+                              />
+                              <div>
+                                <div className="font-medium flex items-center gap-2">
+                                  {pair.nome_chip1} 
+                                  <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                                  {pair.nome_chip2}
+                                </div>
+                                <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
+                                  {pair.messages_count} mensagens • {getStatusBadge(pair.status)}
+                                  {pair.maturation_mode === 'messages' ? (
+                                    <Badge variant="secondary" className="text-xs">
+                                      <FileText className="w-3 h-3 mr-1" />
+                                      Mensagens Definidas
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="default" className="text-xs">
+                                      <Brain className="w-3 h-3 mr-1" />
+                                      Prompts IA
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  const messages = getPairMessages(pair.id);
+                                  console.log('Mensagens do par:', messages);
+                                  toast({
+                                    title: "Mensagens do Par",
+                                    description: `${messages.length} mensagens encontradas. Verifique o console.`,
+                                  });
+                                }}
+                              >
+                                <MessageCircle className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleRemovePair(pair.id)}
+                                disabled={isRunning}
+                              >
+                                Remover
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Informações específicas do modo */}
+                          {pair.maturation_mode === 'messages' && messageFile ? (
+                            <div className="bg-secondary/20 border border-secondary/30 rounded p-2">
+                              <p className="text-xs text-secondary-foreground">
+                                📄 Arquivo: <strong>{messageFile.nome}</strong> • 
+                                {messageFile.total_mensagens} mensagens • 
+                                {pair.loop_messages ? 'Loop ativado' : 'Sem loop'}
+                                {pair.current_message_index !== undefined && 
+                                  ` • Mensagem atual: ${pair.current_message_index + 1}/${messageFile.total_mensagens}`
+                                }
+                              </p>
+                            </div>
+                          ) : pair.maturation_mode === 'prompts' ? (
+                            <div className="bg-primary/10 border border-primary/20 rounded p-2">
+                              <p className="text-xs text-primary">
+                                💡 Cada chip usará seu próprio prompt configurado na aba "Prompts de IA"
+                              </p>
+                            </div>
+                          ) : null}
+                          
+                          {/* Indicador de uso de dados multimídia */}
+                          {mediaItems.filter(item => item.isActive).length > 0 && (
+                            <div className="bg-purple-500/10 border border-purple-500/20 rounded p-2">
+                              <div className="flex items-start gap-2">
+                                <Database className="w-4 h-4 text-purple-500 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1">
+                                  <p className="text-xs font-medium text-purple-400 mb-1">
+                                    Usando Recursos Multimídia da Aba "Dados"
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    📷 {mediaItems.filter(item => item.isActive && item.type === 'image').length} imgs (máx {mediaConfig.maxImagesPerHour}/h) • 
+                                    🔗 {mediaItems.filter(item => item.isActive && item.type === 'link').length} links (máx {mediaConfig.maxLinksPerConversation}/conv) •
+                                    {mediaConfig.randomizeSelection ? ' 🎲 Aleatório' : ' 📋 Sequencial'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
+        </>
+      ) : (
         <Card>
           <CardContent className="text-center py-12">
             <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
@@ -527,6 +625,7 @@ export const EnhancedMaturadorTab: React.FC = () => {
             </p>
             <Button 
               onClick={() => {
+                // Navegar para a aba de conexões
                 window.dispatchEvent(new CustomEvent('navigate-to-connections'));
               }}
               variant="outline"
