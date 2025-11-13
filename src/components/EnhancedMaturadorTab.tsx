@@ -251,45 +251,6 @@ export const EnhancedMaturadorTab: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header com Toggle de Modo */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-bold">Sistema de Maturação</h2>
-          <p className="text-muted-foreground">
-            Configure conversas automáticas entre conexões ativas ({activeConnections.length} disponíveis)
-          </p>
-        </div>
-        
-        {/* Toggle Global de Modo */}
-        <div className="border-2 border-primary/50 rounded-lg p-3">
-          <div className="flex items-center gap-3">
-            <Label className={`text-sm font-medium ${globalMaturationMode === 'prompts' ? 'text-primary' : 'text-muted-foreground'}`}>
-              🧠 Prompts IA
-            </Label>
-            
-            <Switch
-              checked={globalMaturationMode === 'messages'}
-              onCheckedChange={(checked) => {
-                const newMode = checked ? 'messages' : 'prompts';
-                setGlobalMaturationMode(newMode);
-                toast({
-                  title: "Modo Alterado",
-                  description: checked 
-                    ? "💬 Mensagens + Dados" 
-                    : "🧠 Prompts IA",
-                });
-              }}
-              className="data-[state=checked]:bg-blue-500 data-[state=unchecked]:bg-primary"
-              disabled={isRunning}
-            />
-
-            <Label className={`text-sm font-medium ${globalMaturationMode === 'messages' ? 'text-blue-500' : 'text-muted-foreground'}`}>
-              💬 Mensagens + Dados
-            </Label>
-          </div>
-        </div>
-      </div>
-
       {/* Cards de Status */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <Card>
@@ -351,343 +312,212 @@ export const EnhancedMaturadorTab: React.FC = () => {
         </Card>
       </div>
 
-      {/* Barra de Controle do Maturador */}
-      {dbPairs.length > 0 && (
-        <div className="bg-card border-2 border-primary/20 rounded-lg p-4 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+
+      {/* Configurar Nova Dupla */}
+      {activeConnections.length >= 2 && (
+        <div className="mb-6">
+          <div className="mb-4">
+            <h3 className="text-xl font-semibold mb-1">Configurar Nova Dupla</h3>
+            <p className="text-sm text-muted-foreground">
+              Selecione duas conexões ativas para iniciar maturação
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Primeiro Chip</Label>
+              <Select 
+                value={newPair.firstChipId} 
+                onValueChange={(value) => setNewPair(prev => ({ ...prev, firstChipId: value }))}
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeConnections.map(conn => (
+                    <SelectItem key={conn.id} value={conn.id}>
+                      {conn.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Segundo Chip</Label>
+              <Select 
+                value={newPair.secondChipId} 
+                onValueChange={(value) => setNewPair(prev => ({ ...prev, secondChipId: value }))}
+                disabled={!newPair.firstChipId}
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {getAvailableChipsForSecond().map(conn => (
+                    <SelectItem key={conn.id} value={conn.id}>
+                      {conn.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Info Box */}
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-4">
+            <div className="flex items-start gap-3">
+              <Brain className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
               <div>
-                <h3 className="text-lg font-semibold">Controle do Maturador</h3>
-                <p className="text-sm text-muted-foreground">
-                  {dbPairs.filter(p => p.is_active).length} de {dbPairs.length} duplas ativas
+                <p className="text-sm font-medium text-foreground mb-1">Prompts Individuais</p>
+                <p className="text-xs text-muted-foreground">
+                  Cada chip usará seu próprio prompt configurado na aba "Prompts de IA". Configure os prompts para criar personalidades únicas.
                 </p>
               </div>
             </div>
-            
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={handleStartMaturador}
-                size="lg"
-                className={isRunning ? "bg-red-500 hover:bg-red-600" : "bg-primary hover:bg-primary/90"}
-                disabled={dbPairs.filter(p => p.is_active).length === 0 && !isRunning}
-              >
-                {isRunning ? (
-                  <>
-                    <Square className="w-5 h-5 mr-2" />
-                    Parar Maturador
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-5 h-5 mr-2" />
-                    Iniciar Maturador
-                  </>
-                )}
-              </Button>
-            </div>
           </div>
+
+          <Button
+            onClick={handleAddPair}
+            className="w-full bg-[hsl(22,100%,50%)] hover:bg-[hsl(22,100%,45%)] text-white"
+            disabled={!newPair.firstChipId || !newPair.secondChipId}
+            size="lg"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Adicionar Dupla
+          </Button>
         </div>
       )}
 
-      {/* Sempre mostrar se houver duplas OU conexões disponíveis */}
-      {dbPairs.length > 0 || activeConnections.length > 0 ? (
-        <>
-          {/* Configuração de Nova Dupla - Apenas se houver conexões disponíveis */}
-          {activeConnections.length >= 2 && (
-            <div className="space-y-4 mb-6">
-              <div>
-                <h3 className="text-lg font-semibold mb-1">Configurar Nova Dupla</h3>
-                <p className="text-sm text-muted-foreground">
-                  Selecione duas conexões ativas para iniciar maturação
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Primeiro Chip</Label>
-                  <Select 
-                    value={newPair.firstChipId} 
-                    onValueChange={(value) => setNewPair(prev => ({ ...prev, firstChipId: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {activeConnections.map(conn => (
-                        <SelectItem key={conn.id} value={conn.id}>
-                          {conn.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Segundo Chip</Label>
-                  <Select 
-                    value={newPair.secondChipId} 
-                    onValueChange={(value) => setNewPair(prev => ({ ...prev, secondChipId: value }))}
-                    disabled={!newPair.firstChipId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getAvailableChipsForSecond().map(conn => (
-                        <SelectItem key={conn.id} value={conn.id}>
-                          {conn.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Info sobre modo ativo */}
-              <div className="bg-primary/10 border border-primary/30 rounded-lg p-3">
-                <div className="flex items-start gap-2">
-                  {globalMaturationMode === 'prompts' ? (
-                    <>
-                      <Brain className="w-4 h-4 text-primary mt-0.5" />
-                      <div className="text-sm">
-                        <p className="text-primary font-medium">Prompts Individuais</p>
-                        <p className="text-muted-foreground text-xs">
-                          Cada chip usará seu próprio prompt configurado na aba "Prompts de IA". Configure os prompts para criar personalidades únicas.
-                        </p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="w-4 h-4 text-blue-400 mt-0.5" />
-                      <div className="text-sm">
-                        <p className="text-blue-400 font-medium">Mensagens Definidas</p>
-                        <p className="text-muted-foreground text-xs">
-                          Dupla usará mensagens do arquivo selecionado. Configure arquivos na aba "Mensagens".
-                        </p>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Seletor de arquivo para modo messages */}
-              {globalMaturationMode === 'messages' && (
-                <div className="space-y-2">
-                  <Label>Arquivo de Mensagens</Label>
-                  <Select 
-                    value={newPair.messageFileId} 
-                    onValueChange={(value) => setNewPair(prev => ({ ...prev, messageFileId: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione um arquivo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {messageFiles.filter(f => f.is_active).length === 0 ? (
-                        <SelectItem value="none" disabled>
-                          Nenhum arquivo ativo
-                        </SelectItem>
-                      ) : (
-                        messageFiles
-                          .filter(f => f.is_active)
-                          .map(file => (
-                            <SelectItem key={file.id} value={file.id}>
-                              {file.nome} ({file.total_mensagens} mensagens)
-                            </SelectItem>
-                          ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              
-              <Button 
-                onClick={handleAddPair}
-                disabled={!newPair.firstChipId || !newPair.secondChipId || isRunning}
-                className="w-full bg-primary hover:bg-primary/90 h-12"
-              >
-                <Users className="w-4 h-4 mr-2" />
-                Adicionar Dupla
-              </Button>
+      {/* Duplas Configuradas */}
+      {dbPairs.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-xl font-semibold">Duplas Configuradas ({dbPairs.length})</h3>
+              <p className="text-sm text-muted-foreground">Gerencie as duplas</p>
             </div>
-          )}
+            <Button
+              onClick={handleStartMaturador}
+              size="lg"
+              className={isRunning ? "bg-red-500 hover:bg-red-600 text-white" : "bg-[hsl(22,100%,50%)] hover:bg-[hsl(22,100%,45%)] text-white"}
+              disabled={dbPairs.filter(p => p.is_active).length === 0 && !isRunning}
+            >
+              {isRunning ? (
+                <>
+                  <Square className="w-5 h-5 mr-2" />
+                  Parar Todos
+                </>
+              ) : (
+                <>
+                  <Play className="w-5 h-5 mr-2" />
+                  Iniciar Todos
+                </>
+              )}
+            </Button>
+          </div>
 
-          {/* Seleção de Pares para Maturação */}
-          {dbPairs.length > 0 && (
-            <div className="space-y-4 mb-6">
-              <div>
-                <h3 className="text-lg font-semibold mb-1">Selecionar Duplas para Maturação</h3>
-                <p className="text-sm text-muted-foreground">
-                  Ative as duplas que deseja incluir no processo de maturação
-                </p>
-              </div>
-
-              <div className="border rounded-lg p-4 space-y-3">
-                {dbPairs.map((pair) => (
-                  <div key={pair.id} className="flex items-center justify-between p-3 bg-card/50 rounded-lg hover:bg-accent/30 transition-colors">
+          <ScrollArea className="h-[500px]">
+            <div className="space-y-3 pr-4">
+              {dbPairs.map(pair => (
+                <div 
+                  key={pair.id} 
+                  className="border border-primary/30 rounded-lg p-4 bg-card hover:bg-card/80 transition-colors"
+                >
+                  {/* Header da dupla */}
+                  <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <Switch
-                        checked={pair.is_active}
-                        onCheckedChange={() => handleTogglePair(pair.id)}
-                        disabled={isRunning}
-                      />
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{pair.nome_chip1}</span>
-                        <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                        <span className="font-medium text-sm">{pair.nome_chip2}</span>
+                      <span className="font-medium text-base">{pair.nome_chip1}</span>
+                      <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                      <span className="font-medium text-base">{pair.nome_chip2}</span>
+                      
+                      <div className="ml-3">
+                        {pair.is_active ? (
+                          <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                            Em Execução
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">Parado</Badge>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <MessageCircle className="w-3 h-3" />
-                        <span>{pair.messages_count}</span>
+                    
+                    <span className="text-lg font-semibold">
+                      {pair.messages_count} mensagens
+                    </span>
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
+                    {pair.started_at && (
+                      <div className="flex items-center gap-1">
+                        <Activity className="w-3 h-3" />
+                        <span>Iniciado em: {new Date(pair.started_at).toLocaleString('pt-BR', { 
+                          day: '2-digit', 
+                          month: '2-digit', 
+                          year: 'numeric', 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}</span>
                       </div>
-                      {pair.maturation_mode === 'prompts' ? (
-                        <Badge variant="outline" className="text-xs">
-                          <Brain className="w-3 h-3 mr-1" />
-                          Prompts IA
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-xs">
-                          <FileText className="w-3 h-3 mr-1" />
-                          Mensagens
-                        </Badge>
-                      )}
-                      <Badge className={pair.is_active ? "bg-green-500/20 text-green-400 border-green-500/30 text-xs" : "text-xs"}>
-                        {pair.is_active ? 'Ativo' : 'Inativo'}
-                      </Badge>
+                    )}
+                    
+                    <div className="flex items-center gap-1">
+                      <Brain className="w-3 h-3" />
+                      <span>Cada chip usa seu prompt individual</span>
                     </div>
                   </div>
-                ))}
-              </div>
+
+                  {/* Botões de ação */}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => handleTogglePair(pair.id)}
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                    >
+                      {pair.is_active ? (
+                        <>
+                          <Square className="w-3 h-3 mr-1" />
+                          Parar
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3 h-3 mr-1" />
+                          Iniciar
+                        </>
+                      )}
+                    </Button>
+
+                    <Button
+                      onClick={() => handleTogglePair(pair.id)}
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                      disabled={!pair.is_active}
+                    >
+                      <Square className="w-3 h-3 mr-1" />
+                      Pausar
+                    </Button>
+
+                    <Button
+                      onClick={() => handleRemovePair(pair.id)}
+                      variant="destructive"
+                      size="sm"
+                      className="h-8"
+                      disabled={isRunning}
+                    >
+                      Remover
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
+          </ScrollArea>
+        </div>
+      )}
 
-          {/* Lista de Pares Configurados */}
-          {dbPairs.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold">Duplas Configuradas ({dbPairs.length})</h3>
-                  <p className="text-sm text-muted-foreground">Gerencie as duplas</p>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <Button
-                    onClick={handleStopAll}
-                    variant="outline"
-                    className="h-10"
-                    disabled={dbPairs.filter(p => p.is_active).length === 0 || isRunning}
-                  >
-                    <Square className="w-4 h-4 mr-2" />
-                    Parar Todos
-                  </Button>
-                  
-                  <Button
-                    onClick={handleDeleteAll}
-                    variant="destructive"
-                    className="h-10"
-                    disabled={isRunning}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Excluir Todas
-                  </Button>
-
-                  <Button
-                    onClick={async () => {
-                      const inactivePairs = dbPairs.filter(p => !p.is_active);
-                      for (const pair of inactivePairs) {
-                        await togglePairActive(pair.id);
-                      }
-                      toast({
-                        title: "Duplas Iniciadas",
-                        description: `${inactivePairs.length} dupla(s) foram ativadas`
-                      });
-                    }}
-                    className="bg-primary hover:bg-primary/90 h-10"
-                    disabled={isRunning || dbPairs.filter(p => !p.is_active).length === 0}
-                  >
-                    <Play className="w-4 h-4 mr-2" />
-                    Iniciar Todos
-                  </Button>
-                </div>
-              </div>
-
-              <ScrollArea className="h-[400px] w-full border rounded-lg">
-                <div className="space-y-2 p-4">
-                  {dbPairs.map((pair) => (
-                    <div key={pair.id} className="flex items-center justify-between p-4 bg-card border rounded-lg hover:bg-accent/50 transition-colors">
-                      <div className="flex items-center gap-4 flex-1">
-                        <Switch
-                          checked={pair.is_active}
-                          onCheckedChange={() => handleTogglePair(pair.id)}
-                          disabled={isRunning}
-                        />
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{pair.nome_chip1}</span>
-                          <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                          <span className="font-medium">{pair.nome_chip2}</span>
-                        </div>
-                        <Badge className={pair.is_active ? "bg-green-500/20 text-green-400 border-green-500/30" : ""}>
-                          {pair.is_active ? 'Em Execução' : 'Parado'}
-                        </Badge>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <MessageCircle className="w-4 h-4" />
-                          <span>{pair.messages_count} mensagens</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Iniciado em: {new Date(pair.started_at || pair.created_at).toLocaleString('pt-BR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </div>
-                        {pair.maturation_mode === 'prompts' ? (
-                          <Brain className="w-4 h-4 text-primary" />
-                        ) : (
-                          <FileText className="w-4 h-4 text-blue-500" />
-                        )}
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Brain className="w-3 h-3" />
-                          Cada chip usa seu prompt individual
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleTogglePair(pair.id)}
-                          disabled={isRunning}
-                        >
-                          {pair.is_active ? (
-                            <>
-                              <Square className="w-3 h-3 mr-1" />
-                              Parar
-                            </>
-                          ) : (
-                            <>
-                              <Play className="w-3 h-3 mr-1" />
-                              Iniciar
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleRemovePair(pair.id)}
-                          disabled={isRunning}
-                        >
-                          Remover
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-          )}
-        </>
-      ) : (
+      {activeConnections.length < 2 && dbPairs.length === 0 && (
         <Card>
           <CardContent className="text-center py-12">
             <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
