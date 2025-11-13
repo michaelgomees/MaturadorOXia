@@ -51,7 +51,13 @@ export const useMaturadorPairs = () => {
   };
 
   // Criar novo par
-  const createPair = async (chip1: string, chip2: string) => {
+  const createPair = async (
+    chip1: string, 
+    chip2: string, 
+    maturationMode: 'prompts' | 'messages' = 'prompts',
+    messageFileId?: string,
+    loopMessages: boolean = true
+  ) => {
     try {
       // Verificar se o par já existe
       const exists = pairs.some(p => 
@@ -68,17 +74,27 @@ export const useMaturadorPairs = () => {
         return null;
       }
 
+      const pairData: any = {
+        nome_chip1: chip1,
+        nome_chip2: chip2,
+        is_active: true,
+        status: 'stopped',
+        messages_count: 0,
+        use_instance_prompt: false,
+        maturation_mode: maturationMode,
+        usuario_id: (await supabase.auth.getUser()).data.user?.id
+      };
+
+      // Se modo mensagens, adicionar configurações de arquivo
+      if (maturationMode === 'messages' && messageFileId) {
+        pairData.message_file_id = messageFileId;
+        pairData.loop_messages = loopMessages;
+        pairData.current_message_index = 0;
+      }
+
       const { data, error } = await supabase
         .from('saas_pares_maturacao')
-        .insert([{
-          nome_chip1: chip1,
-          nome_chip2: chip2,
-          is_active: true,
-          status: 'stopped',
-          messages_count: 0,
-          use_instance_prompt: false,
-          usuario_id: (await supabase.auth.getUser()).data.user?.id
-        }])
+        .insert([pairData])
         .select()
         .single();
 
@@ -88,7 +104,7 @@ export const useMaturadorPairs = () => {
       
       toast({
         title: "Par adicionado",
-        description: `Conversa entre ${chip1} e ${chip2} configurada.`
+        description: `Conversa entre ${chip1} e ${chip2} configurada (${maturationMode === 'prompts' ? 'Prompts IA' : 'Mensagens + Dados'}).`
       });
 
       return data;

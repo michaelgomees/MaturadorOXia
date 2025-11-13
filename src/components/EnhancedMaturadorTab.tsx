@@ -102,8 +102,14 @@ export const EnhancedMaturadorTab: React.FC = () => {
     if (!firstChip || !secondChip) return;
 
     try {
-      // Usar o modo global ao criar o par
-      await createPair(firstChip.name, secondChip.name);
+      // SEMPRE usar o modo global ao criar o par
+      await createPair(
+        firstChip.name, 
+        secondChip.name, 
+        globalMaturationMode, 
+        newPair.messageFileId || undefined,
+        newPair.loopMessages
+      );
       
       setNewPair({ 
         firstChipId: '', 
@@ -115,7 +121,7 @@ export const EnhancedMaturadorTab: React.FC = () => {
       
       toast({
         title: "Par Configurado",
-        description: `${firstChip.name} <-> ${secondChip.name} (Modo: ${globalMaturationMode === 'prompts' ? '🧠 Prompts IA' : '💬 Mensagens + Dados'})`,
+        description: `${firstChip.name} <-> ${secondChip.name} (${globalMaturationMode === 'prompts' ? '🧠 Prompts IA' : '💬 Mensagens + Dados'})`,
       });
     } catch (error) {
       console.error('Erro ao criar par:', error);
@@ -132,8 +138,8 @@ export const EnhancedMaturadorTab: React.FC = () => {
 
   const handleStartMaturador = () => {
     if (!isRunning) {
-      // Verificar se há pares ativos
-      const activePairs = chipPairs.filter(pair => pair.isActive);
+      // Verificar se há pares ativos nos dbPairs (do banco de dados)
+      const activePairs = dbPairs.filter(pair => pair.is_active);
       
       if (activePairs.length === 0) {
         toast({
@@ -143,6 +149,17 @@ export const EnhancedMaturadorTab: React.FC = () => {
         });
         return;
       }
+
+      // Verificar requisitos baseados no modo global
+      if (globalMaturationMode === 'messages') {
+        // Temporariamente desabilitado - será implementado quando houver suporte a arquivos de mensagens
+        console.log('Modo mensagens ativado - implementação pendente');
+      }
+
+      toast({
+        title: "Maturador Iniciado",
+        description: `Modo: ${globalMaturationMode === 'prompts' ? '🧠 Prompts IA (usa tokens)' : '💬 Mensagens + Dados (offline)'}`,
+      });
 
       startMaturador();
     } else {
@@ -242,40 +259,76 @@ export const EnhancedMaturadorTab: React.FC = () => {
         </Card>
       </div>
 
-      {/* Controles Principais */}
-      <div className="flex items-center gap-4 mb-6">
-        <div className="flex items-center gap-2">
-          <div className={`w-3 h-3 rounded-full ${isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-          <span className="font-medium">
-            Status: {isRunning ? 'Ativo' : 'Parado'}
-          </span>
-        </div>
-        
-        <Button 
-          onClick={handleStartMaturador}
-          variant={isRunning ? "destructive" : "default"}
-          className="flex items-center gap-2"
-          disabled={chipPairs.filter(pair => pair.isActive).length === 0}
-        >
-          {isRunning ? (
-            <>
-              <Square className="w-4 h-4" />
-              Parar Maturador
-            </>
-          ) : (
-            <>
-              <Play className="w-4 h-4" />
-              Iniciar Maturador
-            </>
-          )}
-        </Button>
-        
-        {chipPairs.filter(pair => pair.isActive).length === 0 && !isRunning && (
-          <Badge variant="secondary" className="text-xs">
-            Ative pelo menos uma dupla para iniciar
-          </Badge>
-        )}
-      </div>
+      {/* Controles Principais com Indicador de Modo */}
+      <Card className="mb-6">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                <span className="font-medium">
+                  Status: {isRunning ? 'Ativo' : 'Parado'}
+                </span>
+              </div>
+              
+              <Button 
+                onClick={handleStartMaturador}
+                variant={isRunning ? "destructive" : "default"}
+                size="lg"
+                className="flex items-center gap-2"
+                disabled={dbPairs.filter(pair => pair.is_active).length === 0}
+              >
+                {isRunning ? (
+                  <>
+                    <Square className="w-5 h-5" />
+                    Parar Maturador
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-5 h-5" />
+                    Iniciar Maturador
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Indicador de Modo Ativo */}
+            <div className="flex items-center gap-3">
+              {dbPairs.filter(pair => pair.is_active).length === 0 && !isRunning && (
+                <Badge variant="secondary" className="text-xs">
+                  Ative pelo menos uma dupla
+                </Badge>
+              )}
+              
+              <div className={`px-4 py-2 rounded-lg border-2 ${
+                globalMaturationMode === 'prompts' 
+                  ? 'border-primary bg-primary/10' 
+                  : 'border-secondary bg-secondary/10'
+              }`}>
+                <div className="flex items-center gap-2">
+                  {globalMaturationMode === 'prompts' ? (
+                    <>
+                      <Brain className="w-5 h-5 text-primary" />
+                      <div>
+                        <p className="text-sm font-bold text-primary">Modo Prompts IA</p>
+                        <p className="text-xs text-muted-foreground">Usa tokens</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-5 h-5 text-secondary" />
+                      <div>
+                        <p className="text-sm font-bold text-secondary">Modo Mensagens + Dados</p>
+                        <p className="text-xs text-muted-foreground">Offline, sem tokens</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Cards de Status */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
