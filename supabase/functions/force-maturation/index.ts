@@ -126,6 +126,30 @@ serve(async (req) => {
         // Preparar histórico vazio (sem banco de dados)
         const conversationHistory: any[] = [];
 
+        // Carregar configurações de mídia do localStorage (se disponível)
+        let shouldSendMediaContent = false;
+        let mediaContent: any = null;
+        
+        try {
+          // Simular acesso ao localStorage através de configurações do par
+          // Na prática, isso seria passado via body ou configuração
+          const pairConfig = (pair as any).media_config || {};
+          
+          if (pairConfig.useMediaData) {
+            // Verificar se deve enviar mídia baseado no contador de mensagens
+            const messageCount = currentCount;
+            const mediaFrequency = pairConfig.mediaFrequency || 5;
+            
+            if (messageCount > 0 && messageCount % mediaFrequency === 0) {
+              shouldSendMediaContent = true;
+              mediaContent = pairConfig.nextMediaItem || null;
+              console.log(`📷 Momento de enviar mídia! Mensagem #${messageCount}`);
+            }
+          }
+        } catch (e) {
+          console.log('⚠️ Configuração de mídia não disponível, continuando apenas com texto');
+        }
+
         // Determinar o prompt a usar
         const systemPrompt = pair.use_instance_prompt && pair.instance_prompt
           ? pair.instance_prompt
@@ -184,22 +208,67 @@ serve(async (req) => {
           if (!evolutionEndpoint || !evolutionApiKey) {
             console.warn('⚠️ Evolution API não configurada, pulando envio');
           } else {
-            const sendMessageUrl = `${evolutionEndpoint}/message/sendText/${respondingChip.evolution_instance_name}`;
-            
+            // Determinar tipo de envio baseado em mídia
+            let sendMessageUrl: string;
+            let messageBody: any;
+
+            if (shouldSendMediaContent && mediaContent) {
+              // Enviar com mídia
+              if (mediaContent.type === 'image') {
+                sendMessageUrl = `${evolutionEndpoint}/message/sendMedia/${respondingChip.evolution_instance_name}`;
+                messageBody = {
+                  number: receivingChip.telefone,
+                  mediatype: 'image',
+                  media: mediaContent.url,
+                  caption: mediaContent.mode === 'image_text' ? responseText : ''
+                };
+                console.log(`📷 Enviando imagem: ${mediaContent.name}`);
+              } else if (mediaContent.type === 'link') {
+                sendMessageUrl = `${evolutionEndpoint}/message/sendText/${respondingChip.evolution_instance_name}`;
+                messageBody = {
+                  number: receivingChip.telefone,
+                  text: `${responseText}\n\n🔗 ${mediaContent.url}`
+                };
+                console.log(`🔗 Enviando link: ${mediaContent.name}`);
+              } else if (mediaContent.type === 'audio') {
+                sendMessageUrl = `${evolutionEndpoint}/message/sendMedia/${respondingChip.evolution_instance_name}`;
+                messageBody = {
+                  number: receivingChip.telefone,
+                  mediatype: 'audio',
+                  media: mediaContent.url
+                };
+                console.log(`🔊 Enviando áudio: ${mediaContent.name}`);
+              } else {
+                // Fallback para texto simples
+                sendMessageUrl = `${evolutionEndpoint}/message/sendText/${respondingChip.evolution_instance_name}`;
+                messageBody = {
+                  number: receivingChip.telefone,
+                  text: responseText
+                };
+              }
+            } else {
+              // Enviar apenas texto
+              sendMessageUrl = `${evolutionEndpoint}/message/sendText/${respondingChip.evolution_instance_name}`;
+              messageBody = {
+                number: receivingChip.telefone,
+                text: responseText
+              };
+            }
+
             const sendResponse = await fetch(sendMessageUrl, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'apikey': evolutionApiKey
               },
-              body: JSON.stringify({
-                number: receivingChip.telefone,
-                text: responseText
-              })
+              body: JSON.stringify(messageBody)
             });
 
             if (sendResponse.ok) {
-              console.log(`✅ Mensagem enviada via WhatsApp: ${respondingChip.nome} → ${receivingChip.telefone}`);
+              const contentType = shouldSendMediaContent && mediaContent 
+                ? `${mediaContent.type} (${mediaContent.name})` 
+                : 'texto';
+              console.log(`✅ Mensagem enviada via WhatsApp (${contentType}): ${respondingChip.nome} → ${receivingChip.telefone}`);
             } else {
               const errorData = await sendResponse.text();
               console.error(`❌ Erro ${sendResponse.status} ao enviar via Evolution API:`, errorData);

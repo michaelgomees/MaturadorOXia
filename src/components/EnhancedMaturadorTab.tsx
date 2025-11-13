@@ -7,11 +7,12 @@ import { Switch } from './ui/switch';
 import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { Play, Square, Settings, MessageCircle, Users, Activity, Zap, ArrowRight, Plus, FileText, Brain, Info } from 'lucide-react';
+import { Play, Square, Settings, MessageCircle, Users, Activity, Zap, ArrowRight, Plus, FileText, Brain, Info, Database, Image } from 'lucide-react';
 import { StatsCard } from './StatsCard';
 import { useMaturadorEngine } from '@/hooks/useMaturadorEngine';
 import { useMaturadorPairs } from '@/hooks/useMaturadorPairs';
 import { useMaturationMessages } from '@/hooks/useMaturationMessages';
+import { useMediaData } from '@/hooks/useMediaData';
 import { useToast } from '@/hooks/use-toast';
 
 interface ActiveConnection {
@@ -34,6 +35,7 @@ export const EnhancedMaturadorTab: React.FC = () => {
   
   const { pairs: dbPairs, createPair, updatePair, deletePair, togglePairActive } = useMaturadorPairs();
   const { messages: messageFiles } = useMaturationMessages();
+  const { config: mediaConfig, mediaItems } = useMediaData();
   
   const [newPair, setNewPair] = useState({
     firstChipId: '',
@@ -202,7 +204,7 @@ export const EnhancedMaturadorTab: React.FC = () => {
       </div>
 
       {/* Cards de Status */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
         <StatsCard
           title="Pares Configurados"
           value={chipPairs.length.toString()}
@@ -222,6 +224,12 @@ export const EnhancedMaturadorTab: React.FC = () => {
           icon={<MessageCircle className="w-5 h-5" />}
           description="Total de mensagens"
           trend={stats.totalMessages > 0 ? 'up' : undefined}
+        />
+        <StatsCard
+          title="Recursos Multimídia"
+          value={mediaItems.filter(item => item.isActive).length.toString()}
+          icon={<Image className="w-5 h-5" />}
+          description="Itens ativos da aba Dados"
         />
         <StatsCard
           title="Status do Sistema"
@@ -390,20 +398,45 @@ export const EnhancedMaturadorTab: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Info sobre Prompts */}
+          {/* Info sobre Prompts e Recursos Multimídia */}
           <Card className="border-primary/20 bg-primary/5">
             <CardContent className="pt-6">
               <div className="flex items-start gap-3">
                 <Zap className="w-5 h-5 text-primary mt-0.5" />
-                <div>
-                  <h3 className="font-semibold mb-1">Dois Modos de Maturação</h3>
-                  <div className="text-sm text-muted-foreground space-y-2">
-                    <p>
-                      <strong className="text-primary">🧠 Prompts Individuais:</strong> Cada chip usa IA para gerar mensagens naturais e variadas (consome tokens da Groq/OpenAI).
-                    </p>
-                    <p>
-                      <strong className="text-secondary">💬 Mensagens Definidas:</strong> Usa sequência de mensagens pré-definidas de arquivo (maturação offline, sem tokens).
-                    </p>
+                <div className="w-full space-y-4">
+                  <div>
+                    <h3 className="font-semibold mb-1">Dois Modos de Maturação</h3>
+                    <div className="text-sm text-muted-foreground space-y-2">
+                      <p>
+                        <strong className="text-primary">🧠 Prompts Individuais:</strong> Cada chip usa IA para gerar mensagens naturais e variadas (consome tokens da Groq/OpenAI).
+                      </p>
+                      <p>
+                        <strong className="text-secondary">💬 Mensagens Definidas:</strong> Usa sequência de mensagens pré-definidas de arquivo (maturação offline, sem tokens).
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="border-t pt-4">
+                    <h3 className="font-semibold mb-2 flex items-center gap-2">
+                      <Database className="w-4 h-4 text-purple-500" />
+                      Recursos Multimídia (Automático)
+                    </h3>
+                    <div className="text-sm text-muted-foreground space-y-2">
+                      <p>
+                        Durante a maturação, os chips usarão automaticamente os recursos configurados na aba "Dados":
+                      </p>
+                      <ul className="space-y-1 ml-4">
+                        <li>• 📷 Imagens: enviadas conforme frequência configurada (máx. {mediaConfig.maxImagesPerHour}/hora)</li>
+                        <li>• 🔗 Links: compartilhados respeitando limites (máx. {mediaConfig.maxLinksPerConversation}/conversa)</li>
+                        <li>• 🔊 Áudios: incluídos quando disponíveis</li>
+                        <li>• {mediaConfig.randomizeSelection ? '🎲 Seleção aleatória ativa' : '📋 Seleção sequencial'}</li>
+                      </ul>
+                      {mediaItems.filter(item => item.isActive).length === 0 && (
+                        <p className="text-xs text-amber-500 mt-2">
+                          ⚠️ Nenhum recurso multimídia ativo. Configure na aba "Dados" para enriquecer as conversas.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -443,7 +476,7 @@ export const EnhancedMaturadorTab: React.FC = () => {
                                   <ArrowRight className="w-4 h-4 text-muted-foreground" />
                                   {pair.nome_chip2}
                                 </div>
-                                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
                                   {pair.messages_count} mensagens • {getStatusBadge(pair.status)}
                                   {pair.maturation_mode === 'messages' ? (
                                     <Badge variant="secondary" className="text-xs">
@@ -504,6 +537,25 @@ export const EnhancedMaturadorTab: React.FC = () => {
                               </p>
                             </div>
                           ) : null}
+                          
+                          {/* Indicador de uso de dados multimídia */}
+                          {mediaItems.filter(item => item.isActive).length > 0 && (
+                            <div className="bg-purple-500/10 border border-purple-500/20 rounded p-2">
+                              <div className="flex items-start gap-2">
+                                <Database className="w-4 h-4 text-purple-500 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1">
+                                  <p className="text-xs font-medium text-purple-400 mb-1">
+                                    Usando Recursos Multimídia da Aba "Dados"
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    📷 {mediaItems.filter(item => item.isActive && item.type === 'image').length} imgs (máx {mediaConfig.maxImagesPerHour}/h) • 
+                                    🔗 {mediaItems.filter(item => item.isActive && item.type === 'link').length} links (máx {mediaConfig.maxLinksPerConversation}/conv) •
+                                    {mediaConfig.randomizeSelection ? ' 🎲 Aleatório' : ' 📋 Sequencial'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
