@@ -351,92 +351,126 @@ export const EnhancedMaturadorTab: React.FC = () => {
 
       {activeConnections.length > 0 ? (
         <>
-          {/* Seção de Adicionar Duplas - Simplificada */}
-          <div className="space-y-4 mb-6">
-            <div className="flex items-center gap-4">
-              <Select 
-                value={newPair.firstChipId} 
-                onValueChange={(value) => setNewPair(prev => ({ ...prev, firstChipId: value }))}
-              >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Primeiro Chip" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeConnections.map(conn => (
-                    <SelectItem key={conn.id} value={conn.id}>
-                      {conn.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <ArrowRight className="w-5 h-5 text-muted-foreground" />
-
-              <Select 
-                value={newPair.secondChipId} 
-                onValueChange={(value) => setNewPair(prev => ({ ...prev, secondChipId: value }))}
-                disabled={!newPair.firstChipId}
-              >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Segundo Chip" />
-                </SelectTrigger>
-                <SelectContent>
-                  {getAvailableChipsForSecond().map(conn => (
-                    <SelectItem key={conn.id} value={conn.id}>
-                      {conn.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {globalMaturationMode === 'messages' && (
-                <>
+          {/* Configuração de Nova Dupla - Card Format */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Plus className="w-5 h-5" />
+                Configurar Nova Dupla
+              </CardTitle>
+              <CardDescription>
+                Selecione duas conexões ativas para iniciar maturação
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Primeiro Chip</Label>
                   <Select 
-                    value={newPair.messageFileId} 
-                    onValueChange={(value) => setNewPair(prev => ({ ...prev, messageFileId: value }))}
+                    value={newPair.firstChipId} 
+                    onValueChange={(value) => setNewPair(prev => ({ ...prev, firstChipId: value }))}
                   >
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Arquivo de Mensagens" />
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {messageFiles.filter(f => f.is_active).map(file => (
-                        <SelectItem key={file.id} value={file.id}>
-                          {file.nome}
+                      {activeConnections.map(conn => (
+                        <SelectItem key={conn.id} value={conn.id}>
+                          {conn.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                </>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Segundo Chip</Label>
+                  <Select 
+                    value={newPair.secondChipId} 
+                    onValueChange={(value) => setNewPair(prev => ({ ...prev, secondChipId: value }))}
+                    disabled={!newPair.firstChipId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getAvailableChipsForSecond().map(conn => (
+                        <SelectItem key={conn.id} value={conn.id}>
+                          {conn.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Info sobre modo ativo */}
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  {globalMaturationMode === 'prompts' ? (
+                    <>
+                      <Brain className="w-4 h-4 text-blue-400 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="text-blue-400 font-medium">Prompts Individuais</p>
+                        <p className="text-muted-foreground text-xs">
+                          Cada chip usará seu próprio prompt configurado na aba "Prompts de IA". Configure os prompts para criar personalidades únicas.
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-4 h-4 text-purple-400 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="text-purple-400 font-medium">Mensagens Definidas</p>
+                        <p className="text-muted-foreground text-xs">
+                          Dupla usará mensagens do arquivo selecionado. Configure arquivos na aba "Mensagens".
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Seletor de arquivo para modo messages */}
+              {globalMaturationMode === 'messages' && (
+                <div className="space-y-2">
+                  <Label>Arquivo de Mensagens</Label>
+                  <Select 
+                    value={newPair.messageFileId} 
+                    onValueChange={(value) => setNewPair(prev => ({ ...prev, messageFileId: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um arquivo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {messageFiles.filter(f => f.is_active).length === 0 ? (
+                        <SelectItem value="none" disabled>
+                          Nenhum arquivo ativo
+                        </SelectItem>
+                      ) : (
+                        messageFiles
+                          .filter(f => f.is_active)
+                          .map(file => (
+                            <SelectItem key={file.id} value={file.id}>
+                              {file.nome} ({file.total_mensagens} mensagens)
+                            </SelectItem>
+                          ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
               
               <Button 
                 onClick={handleAddPair}
                 disabled={!newPair.firstChipId || !newPair.secondChipId || isRunning}
-                className="bg-primary hover:bg-primary/90 px-6"
+                className="w-full bg-primary hover:bg-primary/90"
               >
                 <Users className="w-4 h-4 mr-2" />
                 Adicionar Dupla
               </Button>
-            </div>
-
-            {globalMaturationMode === 'prompts' ? (
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded p-3 text-sm">
-                <Brain className="w-4 h-4 inline mr-2 text-blue-400" />
-                <span className="text-blue-400 font-medium">Prompts Individuais:</span>
-                <span className="text-muted-foreground ml-2">
-                  Cada chip usará seu próprio prompt configurado na aba "Prompts de IA". Configure os prompts para criar personalidades únicas.
-                </span>
-              </div>
-            ) : (
-              <div className="bg-purple-500/10 border border-purple-500/30 rounded p-3 text-sm">
-                <FileText className="w-4 h-4 inline mr-2 text-purple-400" />
-                <span className="text-purple-400 font-medium">Mensagens Definidas:</span>
-                <span className="text-muted-foreground ml-2">
-                  Dupla usará mensagens do arquivo selecionado. Configure arquivos na aba "Mensagens".
-                </span>
-              </div>
-            )}
-          </div>
+            </CardContent>
+          </Card>
 
         {/* Lista de Pares Configurados - Simplificada */}
         {dbPairs.length > 0 && (
