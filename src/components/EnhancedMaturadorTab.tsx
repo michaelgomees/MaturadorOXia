@@ -510,6 +510,57 @@ export const EnhancedMaturadorTab: React.FC = () => {
             </div>
           )}
 
+          {/* Seleção de Pares para Maturação */}
+          {dbPairs.length > 0 && (
+            <div className="space-y-4 mb-6">
+              <div>
+                <h3 className="text-lg font-semibold mb-1">Selecionar Duplas para Maturação</h3>
+                <p className="text-sm text-muted-foreground">
+                  Ative as duplas que deseja incluir no processo de maturação
+                </p>
+              </div>
+
+              <div className="border rounded-lg p-4 space-y-3">
+                {dbPairs.map((pair) => (
+                  <div key={pair.id} className="flex items-center justify-between p-3 bg-card/50 rounded-lg hover:bg-accent/30 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        checked={pair.is_active}
+                        onCheckedChange={() => handleTogglePair(pair.id)}
+                        disabled={isRunning}
+                      />
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{pair.nome_chip1}</span>
+                        <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                        <span className="font-medium text-sm">{pair.nome_chip2}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <MessageCircle className="w-3 h-3" />
+                        <span>{pair.messages_count}</span>
+                      </div>
+                      {pair.maturation_mode === 'prompts' ? (
+                        <Badge variant="outline" className="text-xs">
+                          <Brain className="w-3 h-3 mr-1" />
+                          Prompts IA
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">
+                          <FileText className="w-3 h-3 mr-1" />
+                          Mensagens
+                        </Badge>
+                      )}
+                      <Badge className={pair.is_active ? "bg-green-500/20 text-green-400 border-green-500/30 text-xs" : "text-xs"}>
+                        {pair.is_active ? 'Ativo' : 'Inativo'}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Lista de Pares Configurados */}
           {dbPairs.length > 0 && (
             <div className="space-y-4">
