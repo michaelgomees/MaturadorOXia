@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useConnections } from "@/contexts/ConnectionsContext";
 import { useAutoSync } from "@/hooks/useAutoSync";
 import { useChipMaturation } from "@/hooks/useChipMaturation";
+import { useMaturadorPairs } from "@/hooks/useMaturadorPairs";
 import { ConnectionsTab } from "@/components/ConnectionsTab";
 import { PromptsTab } from "@/components/PromptsTab";
 import { DadosTab } from "@/components/DadosTab";
@@ -34,10 +35,14 @@ const Index = () => {
   const { toast } = useToast();
   const { connections, activeConnectionsCount } = useConnections();
   const { user } = useAuth();
+  const { pairs } = useMaturadorPairs();
   
   // Usar hooks de sincronização automática e maturação
   useAutoSync();
   const { startChipConversation } = useChipMaturation();
+  
+  // Contar duplas ativas (com status 'running')
+  const activePairsCount = pairs.filter(pair => pair.status === 'running').length;
 
   // Verificar se usuário é admin
   useEffect(() => {
@@ -152,8 +157,8 @@ const Index = () => {
               />
               <StatsCard 
                 title="Total de Conversas"
-                value={connections.reduce((total, conn) => total + conn.conversationsCount, 0).toString()}
-                description={connections.length === 0 ? "Aguardando ativação" : "Conversas processadas"}
+                value={activePairsCount.toString()}
+                description={activePairsCount === 0 ? "Nenhuma dupla rodando" : "Duplas ativas em maturação"}
                 icon={<MessageCircle className="w-5 h-5 text-secondary" />}
               />
               <StatsCard 
