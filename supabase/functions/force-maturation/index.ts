@@ -158,19 +158,32 @@ async function processSinglePair(pair: ChipPair, supabase: any) {
       // Selecionar mensagem aleatória
       const randomIndex = Math.floor(Math.random() * mensagens.length);
       const selectedMessage = mensagens[randomIndex];
+      
+      console.log(`🔍 Debug: tipo da mensagem = ${typeof selectedMessage}, valor inicial:`, String(selectedMessage).substring(0, 50));
 
-      console.log(`🎲 Mensagem aleatória ${randomIndex + 1}/${mensagens.length}: ${selectedMessage.texto?.substring(0, 60) || selectedMessage.nome}...`);
+      // Verificar se a mensagem é string simples ou objeto
+      if (typeof selectedMessage === 'string') {
+        // Mensagem é string simples (formato padrão dos arquivos TXT/CSV)
+        messageToSend = selectedMessage;
+        console.log(`🎲 Mensagem aleatória ${randomIndex + 1}/${mensagens.length}: ${messageToSend.substring(0, 60)}...`);
+      } else if (typeof selectedMessage === 'object') {
+        // Mensagem é objeto (pode ter mídia)
+        console.log(`🎲 Mensagem aleatória ${randomIndex + 1}/${mensagens.length}: ${selectedMessage.texto?.substring(0, 60) || selectedMessage.nome || 'objeto'}...`);
 
-      // Verificar se é mídia
-      if (selectedMessage.tipo === 'image' || selectedMessage.tipo === 'video' || selectedMessage.tipo === 'audio') {
-        console.log(`📷 Momento de enviar mídia! Mensagem #${pair.messages_count + 1}, Tipo: ${selectedMessage.tipo}, Nome: ${selectedMessage.nome}`);
-        mediaToSend = {
-          type: selectedMessage.tipo,
-          url: selectedMessage.url || selectedMessage.nome,
-          caption: selectedMessage.texto || ''
-        };
+        // Verificar se é mídia
+        if (selectedMessage.tipo === 'image' || selectedMessage.tipo === 'video' || selectedMessage.tipo === 'audio') {
+          console.log(`📷 Momento de enviar mídia! Mensagem #${pair.messages_count + 1}, Tipo: ${selectedMessage.tipo}, Nome: ${selectedMessage.nome}`);
+          mediaToSend = {
+            type: selectedMessage.tipo,
+            url: selectedMessage.url || selectedMessage.nome,
+            caption: selectedMessage.texto || ''
+          };
+        } else {
+          messageToSend = selectedMessage.texto || selectedMessage.nome || 'Mensagem do arquivo';
+        }
       } else {
-        messageToSend = selectedMessage.texto || selectedMessage.nome || 'Mensagem aleatória';
+        console.error('❌ Formato de mensagem inválido:', typeof selectedMessage);
+        messageToSend = 'Olá! Tudo bem?';
       }
     } 
     // MODO PROMPTS: Gerar mensagem via AI (implementação simplificada)
