@@ -552,62 +552,57 @@ serve(async (req) => {
           console.log('📊 Instance data:', JSON.stringify(instance, null, 2));
           
           try {
-            // Chamar o endpoint de conexão que força geração do QR code
-            console.log('🔄 Calling /instance/connect to generate QR code...');
-            const connectResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
-              method: 'GET',
-              headers: {
-                'apikey': cleanApiKey,
-                'Accept': 'application/json'
-              }
-            });
+            // Fazer polling até o QR code aparecer (máximo 10 tentativas = 20 segundos)
+            let qrCode = null;
+            let attempts = 0;
+            const maxAttempts = 10;
             
-            if (connectResponse.ok) {
-              const connectData = await connectResponse.json();
-              console.log('📱 Connect response:', JSON.stringify(connectData, null, 2));
+            while (!qrCode && attempts < maxAttempts) {
+              attempts++;
+              console.log(`🔄 Tentativa ${attempts}/${maxAttempts} de buscar QR code...`);
               
-              // Procurar o QR code em diferentes campos da resposta
-              const qrCode = connectData.base64 || 
-                            connectData.qrcode || 
-                            connectData.code ||
-                            connectData.qr ||
-                            connectData.pairingCode ||
-                            (connectData.instance && connectData.instance.qrcode);
-              
-              if (qrCode) {
-                console.log('✅ QR code found successfully');
-                response.qrCode = qrCode;
-              } else {
-                console.log('⚠️ No QR code in connect response, waiting and trying again...');
-                
-                // Aguardar 2 segundos e tentar buscar novamente
+              // Aguardar 2 segundos antes de cada tentativa (exceto a primeira)
+              if (attempts > 1) {
                 await new Promise(resolve => setTimeout(resolve, 2000));
+              }
+              
+              // Buscar QR code via endpoint connect
+              const connectResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+                method: 'GET',
+                headers: {
+                  'apikey': cleanApiKey,
+                  'Accept': 'application/json'
+                }
+              });
+              
+              if (connectResponse.ok) {
+                const connectData = await connectResponse.json();
+                console.log(`📥 Resposta tentativa ${attempts}:`, JSON.stringify(connectData, null, 2));
                 
-                const retryResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
-                  method: 'GET',
-                  headers: {
-                    'apikey': cleanApiKey,
-                    'Accept': 'application/json'
-                  }
-                });
+                // Tentar extrair o QR code de múltiplos campos possíveis
+                qrCode = connectData.base64 || 
+                        connectData.qrcode?.base64 ||
+                        connectData.qrcode || 
+                        connectData.code ||
+                        connectData.qr ||
+                        connectData.pairingCode ||
+                        connectData.instance?.qrcode?.base64 ||
+                        connectData.instance?.qrcode;
                 
-                if (retryResponse.ok) {
-                  const retryData = await retryResponse.json();
-                  const retryInstance = retryData[0];
-                  
-                  const retryQr = retryInstance.instance?.qrcode || 
-                                 retryInstance.qrcode ||
-                                 (retryInstance.instance && retryInstance.instance.base64);
-                  
-                  if (retryQr) {
-                    console.log('✅ QR code found on retry');
-                    response.qrCode = retryQr;
-                  } else {
-                    console.log('❌ Still no QR code available');
-                    response.qrCode = null;
-                  }
+                if (qrCode) {
+                  console.log(`✅ QR Code encontrado na tentativa ${attempts}!`);
+                  response.qrCode = qrCode;
+                  break;
+                } else {
+                  console.log(`⏳ QR Code ainda não disponível (count: ${connectData.count || 0}), aguardando...`);
                 }
               }
+            }
+            
+            if (!qrCode) {
+              console.log('❌ QR Code não disponível após todas as tentativas');
+              response.qrCode = null;
+            }
             } else {
               console.log('❌ Connect endpoint failed:', connectResponse.status);
               response.qrCode = null;
