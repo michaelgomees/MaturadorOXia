@@ -51,7 +51,7 @@ export const useMaturadorPairs = () => {
   };
 
   // Criar novo par
-  const createPair = async (chip1: string, chip2: string) => {
+  const createPair = async (chip1: string, chip2: string, maturationMode?: 'prompts' | 'messages', messageFileId?: string) => {
     try {
       // Verificar se o par já existe
       const exists = pairs.some(p => 
@@ -68,6 +68,21 @@ export const useMaturadorPairs = () => {
         return null;
       }
 
+      // Se modo messages mas sem arquivo, buscar o primeiro arquivo ativo
+      let finalMessageFileId = messageFileId;
+      if (maturationMode === 'messages' && !messageFileId) {
+        const { data: messageFiles } = await supabase
+          .from('saas_maturation_messages')
+          .select('id')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (messageFiles && messageFiles.length > 0) {
+          finalMessageFileId = messageFiles[0].id;
+        }
+      }
+
       const { data, error } = await supabase
         .from('saas_pares_maturacao')
         .insert([{
@@ -77,6 +92,10 @@ export const useMaturadorPairs = () => {
           status: 'stopped',
           messages_count: 0,
           use_instance_prompt: false,
+          maturation_mode: maturationMode || 'prompts',
+          message_file_id: finalMessageFileId,
+          loop_messages: true,
+          current_message_index: 0,
           usuario_id: (await supabase.auth.getUser()).data.user?.id
         }])
         .select()

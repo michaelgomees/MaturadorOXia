@@ -102,8 +102,13 @@ export const EnhancedMaturadorTab: React.FC = () => {
     if (!firstChip || !secondChip) return;
 
     try {
-      // Usar o modo global ao criar o par
-      await createPair(firstChip.name, secondChip.name);
+      // Usar o modo global e arquivo de mensagens ao criar o par
+      await createPair(
+        firstChip.name, 
+        secondChip.name, 
+        globalMaturationMode,
+        newPair.messageFileId || undefined
+      );
       
       setNewPair({ 
         firstChipId: '', 
