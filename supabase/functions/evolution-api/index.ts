@@ -603,10 +603,6 @@ serve(async (req) => {
               console.log('❌ QR Code não disponível após todas as tentativas');
               response.qrCode = null;
             }
-            } else {
-              console.log('❌ Connect endpoint failed:', connectResponse.status);
-              response.qrCode = null;
-            }
           } catch (qrError) {
             console.error('❌ Error fetching QR code:', qrError);
             response.qrCode = null;
