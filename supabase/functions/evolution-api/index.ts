@@ -551,11 +551,8 @@ serve(async (req) => {
           console.log('🔍 Instance not connected, trying to get QR code...');
           
           try {
-            // Tentar conectar a instância para gerar o QR code
-            console.log(`🔄 Conectando instância ${instanceName} para gerar QR code...`);
-            
+            // Tentar conectar a instância (SEM DELAY - uma única tentativa rápida)
             const connectUrl = `${endpoint}/instance/connect/${instanceName}`;
-            console.log(`📡 URL de conexão: ${connectUrl}`);
             
             const connectResponse = await fetch(connectUrl, {
               method: 'GET',
@@ -565,71 +562,27 @@ serve(async (req) => {
               }
             });
             
-            console.log(`📊 Status da resposta connect: ${connectResponse.status}`);
-            
             if (connectResponse.ok) {
               const connectData = await connectResponse.json();
-              console.log('📥 Dados do connect:', JSON.stringify(connectData, null, 2));
+              console.log('📥 Connect response:', JSON.stringify(connectData, null, 2));
               
-              // Extrair QR code de todos os campos possíveis
-              let qrCode = null;
-              
-              // Tentar diferentes estruturas de resposta
-              if (connectData.base64) {
-                qrCode = connectData.base64;
-                console.log('✅ QR encontrado em: connectData.base64');
-              } else if (connectData.qrcode?.base64) {
-                qrCode = connectData.qrcode.base64;
-                console.log('✅ QR encontrado em: connectData.qrcode.base64');
-              } else if (connectData.qrcode) {
-                qrCode = connectData.qrcode;
-                console.log('✅ QR encontrado em: connectData.qrcode');
-              } else if (connectData.code) {
-                qrCode = connectData.code;
-                console.log('✅ QR encontrado em: connectData.code');
-              } else if (connectData.pairingCode) {
-                qrCode = connectData.pairingCode;
-                console.log('✅ QR encontrado em: connectData.pairingCode');
-              }
+              // Extrair QR code (tentar múltiplos campos)
+              const qrCode = connectData.base64 || 
+                            connectData.qrcode?.base64 ||
+                            connectData.qrcode || 
+                            connectData.code ||
+                            connectData.pairingCode ||
+                            null;
               
               if (qrCode) {
                 response.qrCode = qrCode;
-                console.log('✅ QR Code extraído com sucesso');
+                console.log('✅ QR Code found');
               } else {
-                console.log('⚠️ QR code não encontrado na resposta, tentando via fetchInstances...');
-                
-                // Tentar buscar via fetchInstances com um pequeno delay
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                const fetchResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
-                  method: 'GET',
-                  headers: {
-                    'apikey': cleanApiKey
-                  }
-                });
-                
-                if (fetchResponse.ok) {
-                  const fetchData = await fetchResponse.json();
-                  console.log('📥 Dados do fetchInstances:', JSON.stringify(fetchData, null, 2));
-                  
-                  const instanceData = Array.isArray(fetchData) ? fetchData[0] : fetchData;
-                  
-                  // Tentar extrair QR do fetchInstances
-                  if (instanceData?.qrcode?.base64) {
-                    response.qrCode = instanceData.qrcode.base64;
-                    console.log('✅ QR encontrado via fetchInstances');
-                  } else if (instanceData?.qrcode) {
-                    response.qrCode = instanceData.qrcode;
-                    console.log('✅ QR encontrado via fetchInstances (direto)');
-                  } else {
-                    console.log('❌ QR code não disponível em nenhum endpoint');
-                    response.qrCode = null;
-                  }
-                }
+                console.log('⚠️ QR code not available yet');
+                response.qrCode = null;
               }
             } else {
-              const errorText = await connectResponse.text();
-              console.error(`❌ Erro ao conectar: ${connectResponse.status} - ${errorText}`);
+              console.log(`⚠️ Connect failed: ${connectResponse.status}`);
               response.qrCode = null;
             }
           } catch (qrError) {
