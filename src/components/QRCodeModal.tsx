@@ -37,58 +37,104 @@ export const QRCodeModal = ({ open, onOpenChange, chipName, chipPhone }: QRCodeM
       
       console.log('🔄 Buscando QR Code da instância:', instanceName);
       
-      // Buscar QR Code da Evolution API via edge function
-      const response = await fetch(
-        `https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api?instanceName=${instanceName}&action=status`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`,
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM'
+      // Função para buscar QR Code
+      const fetchQR = async (): Promise<any> => {
+        const response = await fetch(
+          `https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api?instanceName=${instanceName}&action=status`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`,
+              'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM'
+            }
           }
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
         }
-      );
 
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
+        return await response.json();
+      };
+      
+      // Primeira tentativa
+      let data = await fetchQR();
+      
+      if (!data.success) {
         throw new Error(data.error || 'Falha ao buscar QR Code');
       }
 
-      console.log('📥 Dados recebidos da Evolution API:', data);
+      console.log('📥 Dados recebidos:', data);
+
+      // Se já está conectado
+      if (data.instance?.connectionStatus === 'open') {
+        setQrStatus("connected");
+        setTimeout(() => onOpenChange(false), 1000);
+        return;
+      }
 
       // Se tem QR code disponível
       if (data.qrCode) {
         setQrCodeUrl(data.qrCode);
         setQrStatus("waiting");
-        
-        console.log('✅ QR Code obtido com sucesso');
+        console.log('✅ QR Code obtido');
         
         // Iniciar polling para verificar conexão
         const interval = setInterval(async () => {
           await checkConnectionStatus(instanceName);
-        }, 3000); // Verificar a cada 3 segundos
+        }, 3000);
         
         setPollingInterval(interval);
-        
-      } else if (data.instance?.connectionStatus === 'open') {
-        // Já está conectado
-        setQrStatus("connected");
-        
-        // Fechar modal automaticamente após 1 segundo
-        setTimeout(() => {
-          onOpenChange(false);
-        }, 1000);
-      } else {
-        throw new Error('QR Code não disponível');
+        return;
       }
+
+      // QR code não disponível ainda - fazer polling até aparecer
+      console.log('⏳ QR code não disponível, iniciando polling...');
+      let attempts = 0;
+      const maxAttempts = 10;
+      
+      const pollInterval = setInterval(async () => {
+        attempts++;
+        console.log(`🔄 Tentativa ${attempts}/${maxAttempts} de buscar QR code...`);
+        
+        if (attempts >= maxAttempts) {
+          clearInterval(pollInterval);
+          setQrStatus("error");
+          toast({
+            title: "Timeout",
+            description: "QR Code não foi gerado a tempo. Tente novamente.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        try {
+          const pollData = await fetchQR();
+          
+          if (pollData.qrCode) {
+            clearInterval(pollInterval);
+            setQrCodeUrl(pollData.qrCode);
+            setQrStatus("waiting");
+            console.log(`✅ QR Code obtido na tentativa ${attempts}`);
+            
+            // Iniciar polling de conexão
+            const connInterval = setInterval(async () => {
+              await checkConnectionStatus(instanceName);
+            }, 3000);
+            
+            setPollingInterval(connInterval);
+          }
+        } catch (error) {
+          console.error('Erro no polling:', error);
+        }
+      }, 2000); // Tentar a cada 2 segundos
       
     } catch (error: any) {
       console.error('❌ Erro ao buscar QR Code:', error);
       setQrStatus("error");
       toast({
         title: "Erro ao gerar QR Code",
-        description: error.message || "Não foi possível conectar com a Evolution API. Verifique suas configurações.",
+        description: error.message || "Não foi possível conectar com a Evolution API.",
         variant: "destructive",
       });
     }
