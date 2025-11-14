@@ -31,6 +31,42 @@ interface Connection {
   status: string;
 }
 
+// 🔧 Verificar status da instância na Evolution API
+async function checkInstanceStatus(instanceName: string): Promise<boolean> {
+  try {
+    const EVOLUTION_API_ENDPOINT = Deno.env.get('EVOLUTION_API_ENDPOINT') || 'https://api.oxautomacoes.com.br';
+    const EVOLUTION_API_KEY = Deno.env.get('EVOLUTION_API_KEY') || '';
+
+    console.log(`🔍 Verificando status da instância ${instanceName}...`);
+
+    const response = await fetch(`${EVOLUTION_API_ENDPOINT}/instance/fetchInstances?instanceName=${instanceName}`, {
+      method: 'GET',
+      headers: {
+        'apikey': EVOLUTION_API_KEY
+      }
+    });
+
+    if (!response.ok) {
+      console.error(`❌ Erro ao verificar instância ${instanceName}: ${response.status}`);
+      return false;
+    }
+
+    const data = await response.json();
+    const instance = Array.isArray(data) ? data[0] : data;
+    
+    if (instance && instance.connectionStatus === 'open') {
+      console.log(`✅ Instância ${instanceName} está conectada`);
+      return true;
+    }
+
+    console.warn(`⚠️ Instância ${instanceName} não está conectada. Status: ${instance?.connectionStatus || 'desconhecido'}`);
+    return false;
+  } catch (error) {
+    console.error(`❌ Erro ao verificar instância ${instanceName}:`, error);
+    return false;
+  }
+}
+
 // 🔧 Função auxiliar para processar um único par
 async function processSinglePair(pair: ChipPair, supabase: any) {
   try {
@@ -58,6 +94,22 @@ async function processSinglePair(pair: ChipPair, supabase: any) {
     }
 
     console.log(`📊 Status conexões: ${chip1.nome}=${chip1.status}, ${chip2.nome}=${chip2.status}`);
+
+    // 🔐 Verificar se ambas as instâncias estão conectadas na Evolution API
+    const chip1Connected = await checkInstanceStatus(chip1.evolution_instance_name);
+    const chip2Connected = await checkInstanceStatus(chip2.evolution_instance_name);
+
+    if (!chip1Connected) {
+      console.error(`❌ Instância ${chip1.evolution_instance_name} não está conectada`);
+      return { error: `Instância ${chip1.nome} desconectada` };
+    }
+
+    if (!chip2Connected) {
+      console.error(`❌ Instância ${chip2.evolution_instance_name} não está conectada`);
+      return { error: `Instância ${chip2.nome} desconectada` };
+    }
+
+    console.log(`✅ Ambas as instâncias estão conectadas!`);
 
     // Verificar tempo desde última atividade
     const now = new Date();
@@ -128,7 +180,7 @@ async function processSinglePair(pair: ChipPair, supabase: any) {
     }
 
     // Enviar mensagem via Evolution API
-    const EVOLUTION_API_URL = Deno.env.get('EVOLUTION_API_URL') || 'https://evo.oxzap.net';
+    const EVOLUTION_API_ENDPOINT = Deno.env.get('EVOLUTION_API_ENDPOINT') || 'https://api.oxautomacoes.com.br';
     const EVOLUTION_API_KEY = Deno.env.get('EVOLUTION_API_KEY') || '';
 
     try {
@@ -139,7 +191,7 @@ async function processSinglePair(pair: ChipPair, supabase: any) {
         // Enviar mídia
         console.log(`📷 Enviando ${mediaToSend.type}: ${mediaToSend.url}`);
         
-        sendUrl = `${EVOLUTION_API_URL}/message/sendMedia/${sender.evolution_instance_name}`;
+        sendUrl = `${EVOLUTION_API_ENDPOINT}/message/sendMedia/${sender.evolution_instance_name}`;
         sendPayload = {
           number: receiver.telefone,
           mediatype: mediaToSend.type,
@@ -148,7 +200,7 @@ async function processSinglePair(pair: ChipPair, supabase: any) {
         };
       } else {
         // Enviar texto
-        sendUrl = `${EVOLUTION_API_URL}/message/sendText/${sender.evolution_instance_name}`;
+        sendUrl = `${EVOLUTION_API_ENDPOINT}/message/sendText/${sender.evolution_instance_name}`;
         sendPayload = {
           number: receiver.telefone,
           text: messageToSend
