@@ -266,28 +266,36 @@ serve(async (req) => {
           });
 
           if (!createResponse.ok) {
-            console.error('❌ Erro ao criar instância:', {
-              status: createResponse.status,
-              response: createData
-            });
-            return new Response(
-              JSON.stringify({ 
-                success: false, 
-                error: `Erro ao criar instância: ${createData.message || createData.error || 'Erro desconhecido'}`,
-                details: {
-                  status: createResponse.status,
-                  error: createData.error,
-                  response: createData.response || createData
+            // Se o erro for 403 e a mensagem indicar que já existe, continuar normalmente
+            if (createResponse.status === 403 && 
+                (createData.message?.some((m: string) => m.includes('already in use')) || 
+                 createData.error?.includes('already in use'))) {
+              console.log('ℹ️ Instância já existe (erro 403), continuando...');
+              instanceExists = true;
+            } else {
+              console.error('❌ Erro ao criar instância:', {
+                status: createResponse.status,
+                response: createData
+              });
+              return new Response(
+                JSON.stringify({ 
+                  success: false, 
+                  error: `Erro ao criar instância: ${createData.message || createData.error || 'Erro desconhecido'}`,
+                  details: {
+                    status: createResponse.status,
+                    error: createData.error,
+                    response: createData.response || createData
+                  }
+                }),
+                { 
+                  status: createResponse.status, 
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
                 }
-              }),
-              { 
-                status: createResponse.status, 
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-              }
-            );
+              );
+            }
+          } else {
+            console.log('✅ Instância criada com sucesso!');
           }
-
-          console.log('✅ Instância criada com sucesso!');
         } else {
           console.log('ℹ️ Instância já existe, buscando informações...');
         }
