@@ -162,7 +162,7 @@ export const EnhancedMaturadorTab: React.FC = () => {
   };
 
   const getAvailableChipsForSecond = (): ActiveConnection[] => {
-    return activeConnections.filter(conn => conn.id !== newPair.firstChipId);
+    return activeConnections.filter(conn => conn.id !== newPair.firstChipId).reverse();
   };
 
   // Calcular estatísticas usando o hook
