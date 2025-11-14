@@ -131,24 +131,29 @@ async function processSinglePair(pair: ChipPair, supabase: any) {
     let messageToSend = '';
     let mediaToSend: any = null;
 
-    // MODO MESSAGES: Buscar mensagem do arquivo
-    if (maturationMode === 'messages' && pair.message_file_id) {
-      console.log(`📋 Buscando mensagem aleatória do arquivo para o par ${pair.id}`);
+    // MODO MESSAGES: Buscar mensagem de TODOS os arquivos ativos
+    if (maturationMode === 'messages') {
+      console.log(`📋 Buscando mensagens de TODOS os arquivos ativos do usuário`);
       
-      const { data: messageFile, error: fileError } = await supabase
+      // Buscar TODOS os arquivos de mensagens ativos
+      const { data: messageFiles, error: fileError } = await supabase
         .from('saas_maturation_messages')
         .select('*')
-        .eq('id', pair.message_file_id)
         .eq('usuario_id', pair.usuario_id)
-        .single();
+        .eq('is_active', true);
 
-      if (fileError || !messageFile) {
-        console.error('❌ Erro ao buscar arquivo de mensagens:', fileError);
-        return { error: 'Arquivo de mensagens não encontrado' };
+      if (fileError || !messageFiles || messageFiles.length === 0) {
+        console.error('❌ Erro ao buscar arquivos de mensagens:', fileError);
+        return { error: 'Nenhum arquivo de mensagens ativo encontrado' };
       }
 
+      // Selecionar arquivo aleatório entre os disponíveis
+      const randomFileIndex = Math.floor(Math.random() * messageFiles.length);
+      const messageFile = messageFiles[randomFileIndex];
+      
+      console.log(`🎲 Selecionado arquivo ${randomFileIndex + 1}/${messageFiles.length}: ${messageFile.nome} (${messageFile.total_mensagens} mensagens)`);
+
       const mensagens = messageFile.mensagens as any[];
-      console.log(`📚 Arquivo: ${messageFile.nome}, Total: ${mensagens.length} mensagens`);
 
       if (!mensagens || mensagens.length === 0) {
         console.error('❌ Arquivo sem mensagens válidas');
