@@ -155,22 +155,109 @@ export const useMaturadorPairs = () => {
     }
   };
 
-  // Ativar/desativar par
+  // Ativar/desativar par COM FORÇA
   const togglePairActive = async (id: string) => {
     const pair = pairs.find(p => p.id === id);
     if (!pair) return;
 
-    const updates: any = {
-      is_active: !pair.is_active,
-      status: !pair.is_active ? 'running' : 'paused'
-    };
+    const isActivating = !pair.is_active;
 
-    // Registrar horário de início quando ativar
-    if (!pair.is_active && !pair.started_at) {
-      updates.started_at = new Date().toISOString();
+    try {
+      const updates: any = {
+        is_active: isActivating,
+        status: isActivating ? 'running' : 'paused',
+        last_activity: new Date().toISOString()
+      };
+
+      // Registrar horário de início quando ativar
+      if (isActivating && !pair.started_at) {
+        updates.started_at = new Date().toISOString();
+      }
+
+      console.log(`🚀 ${isActivating ? 'INICIANDO' : 'PAUSANDO'} par ${pair.nome_chip1} <-> ${pair.nome_chip2}`);
+
+      // Atualizar no banco com retry
+      let retryCount = 0;
+      const maxRetries = 3;
+      let success = false;
+
+      while (retryCount < maxRetries && !success) {
+        try {
+          const { error } = await supabase
+            .from('saas_pares_maturacao')
+            .update(updates)
+            .eq('id', id);
+
+          if (error) throw error;
+          success = true;
+          console.log(`✅ Status atualizado com sucesso no banco`);
+        } catch (error) {
+          retryCount++;
+          console.error(`❌ Tentativa ${retryCount}/${maxRetries} falhou:`, error);
+          if (retryCount < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      await loadPairs();
+
+      // Se estiver ATIVANDO, forçar chamada IMEDIATA da edge function
+      if (isActivating) {
+        console.log(`🔥 FORÇANDO início imediato da maturação via edge function...`);
+        
+        toast({
+          title: "🚀 Iniciando Maturação",
+          description: `Dupla ${pair.nome_chip1} ↔️ ${pair.nome_chip2} está sendo ativada...`
+        });
+
+        try {
+          const { data: forceData, error: forceError } = await supabase.functions.invoke('force-maturation', {
+            body: { pairId: id }
+          });
+
+          if (forceError) {
+            console.error('⚠️ Erro ao forçar maturação:', forceError);
+            // Não falhar silenciosamente - tentar novamente
+            setTimeout(async () => {
+              console.log('🔄 Retry: Tentando forçar maturação novamente...');
+              await supabase.functions.invoke('force-maturation', {
+                body: { pairId: id }
+              });
+            }, 3000);
+          } else {
+            console.log('✅ Maturação forçada com sucesso:', forceData);
+            toast({
+              title: "✅ Maturação Iniciada!",
+              description: `Dupla ${pair.nome_chip1} ↔️ ${pair.nome_chip2} está processando mensagens.`
+            });
+          }
+        } catch (invokeError) {
+          console.error('❌ Erro crítico ao invocar force-maturation:', invokeError);
+          // Ainda assim, o status foi atualizado, então o polling deve pegar
+          toast({
+            title: "⚠️ Aviso",
+            description: "Status atualizado, mas pode levar ~20s para iniciar. Aguarde...",
+            variant: "default"
+          });
+        }
+      } else {
+        toast({
+          title: "⏸️ Maturação Pausada",
+          description: `Dupla ${pair.nome_chip1} ↔️ ${pair.nome_chip2} foi pausada.`
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Erro fatal ao alternar status do par:', error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível alterar o status do par",
+        variant: "destructive"
+      });
+      throw error;
     }
-
-    await updatePair(id, updates);
   };
 
   // Incrementar contador de mensagens
