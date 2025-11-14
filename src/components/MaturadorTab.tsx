@@ -66,6 +66,7 @@ export const MaturadorTab = () => {
   const { pairs: dbPairs, updatePair, deletePair, togglePairActive, refreshPairs: loadPairs } = useMaturadorPairs();
   const { prompts } = usePrompts();
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'not-started' | 'running'>('all');
   
   // Estado global para controlar o modo de maturação
   const [globalMaturationMode, setGlobalMaturationMode] = useState<'prompts' | 'messages'>(() => {
@@ -89,11 +90,22 @@ export const MaturadorTab = () => {
   });
   const { toast } = useToast();
   
-  // Filtrar pares baseado no termo de busca
-  const filteredPairs = config.selectedPairs.filter(pair => 
-    pair.chip1.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    pair.chip2.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filtrar pares baseado no termo de busca e status
+  const filteredPairs = config.selectedPairs.filter(pair => {
+    // Filtro de busca por nome
+    const matchesSearch = pair.chip1.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         pair.chip2.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Filtro de status
+    let matchesStatus = true;
+    if (statusFilter === 'not-started') {
+      matchesStatus = pair.status !== 'running';
+    } else if (statusFilter === 'running') {
+      matchesStatus = pair.status === 'running';
+    }
+    
+    return matchesSearch && matchesStatus;
+  });
 
   // Salvar modo global no localStorage
   useEffect(() => {
@@ -582,22 +594,71 @@ export const MaturadorTab = () => {
         <CardContent>
           {/* Barra de busca */}
           {config.selectedPairs.length > 0 && (
-            <div className="mb-4">
-              <Input
-                type="text"
-                placeholder="Buscar dupla por nome do chip..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full"
-              />
-            </div>
+            <>
+              <div className="mb-4">
+                <Input
+                  type="text"
+                  placeholder="Buscar dupla por nome do chip..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              
+              {/* Botões de filtro */}
+              <div className="flex gap-2 mb-4">
+                <Button
+                  variant={statusFilter === 'all' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setStatusFilter('all')}
+                  className="flex items-center gap-2"
+                >
+                  <Users className="w-4 h-4" />
+                  Todas ({config.selectedPairs.length})
+                </Button>
+                
+                <Button
+                  variant={statusFilter === 'not-started' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setStatusFilter('not-started')}
+                  className="flex items-center gap-2"
+                >
+                  <Square className="w-4 h-4" />
+                  Não Iniciadas ({config.selectedPairs.filter(p => p.status !== 'running').length})
+                </Button>
+                
+                <Button
+                  variant={statusFilter === 'running' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setStatusFilter('running')}
+                  className="flex items-center gap-2"
+                >
+                  <Activity className="w-4 h-4" />
+                  Em Execução ({config.selectedPairs.filter(p => p.status === 'running').length})
+                </Button>
+              </div>
+            </>
           )}
           
           {filteredPairs.length === 0 ? (
             <div className="text-center py-12">
               <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="font-semibold mb-2">{searchTerm ? 'Nenhuma dupla encontrada' : 'Nenhuma dupla'}</h3>
-              <p className="text-sm text-muted-foreground">{searchTerm ? 'Tente outro termo de busca' : 'Configure a primeira dupla para começar'}</p>
+              <h3 className="font-semibold mb-2">
+                {searchTerm || statusFilter !== 'all' 
+                  ? 'Nenhuma dupla encontrada' 
+                  : 'Nenhuma dupla'
+                }
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {searchTerm 
+                  ? 'Tente outro termo de busca' 
+                  : statusFilter === 'not-started'
+                  ? 'Todas as duplas já foram iniciadas'
+                  : statusFilter === 'running'
+                  ? 'Nenhuma dupla em execução no momento'
+                  : 'Configure a primeira dupla para começar'
+                }
+              </p>
             </div>
           ) : (
             <ScrollArea className="h-[600px]">
