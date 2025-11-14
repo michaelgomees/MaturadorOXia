@@ -518,11 +518,29 @@ serve(async (req) => {
 
         const instanceData = await instanceResponse.json()
         
-        if (!instanceData || instanceData.length === 0) {
+        console.log('📊 Instance data received:', {
+          type: typeof instanceData,
+          isArray: Array.isArray(instanceData),
+          length: Array.isArray(instanceData) ? instanceData.length : 'N/A',
+          keys: instanceData ? Object.keys(instanceData) : [],
+          data: JSON.stringify(instanceData).substring(0, 500)
+        });
+        
+        // Se instanceData é um objeto (não array), transformar em array
+        let instances = Array.isArray(instanceData) ? instanceData : [instanceData];
+        
+        // Se o array está vazio OU se não há dados válidos
+        if (!instances || instances.length === 0 || !instances[0]) {
+          console.error('❌ Instance data is empty, null or invalid');
           return new Response(
             JSON.stringify({ 
               success: false, 
-              error: 'Instance not found' 
+              error: 'Instance not found',
+              debug: {
+                receivedData: instanceData,
+                isArray: Array.isArray(instanceData),
+                length: instances.length
+              }
             }),
             { 
               status: 404, 
@@ -531,7 +549,12 @@ serve(async (req) => {
           )
         }
 
-        const instance = instanceData[0]
+        const instance = instances[0];
+        console.log('✅ Instance found:', {
+          instanceName: instance.instanceName || instanceName,
+          connectionStatus: instance.connectionStatus,
+          ownerJid: instance.ownerJid
+        });
         
         // Build simple response
         const response: any = {
