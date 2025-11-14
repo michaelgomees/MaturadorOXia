@@ -531,22 +531,105 @@ serve(async (req) => {
         
         // Se o array está vazio OU se não há dados válidos
         if (!instances || instances.length === 0 || !instances[0]) {
-          console.error('❌ Instance data is empty, null or invalid');
+          console.log('⚠️ Instance not found in Evolution API, attempting to create...');
+          
+          // Tentar criar a instância automaticamente
+          const createPayload = {
+            instanceName: instanceName,
+            token: cleanApiKey,
+            qrcode: true,
+            integration: 'WHATSAPP-BAILEYS'
+          };
+
+          console.log('📤 Creating instance with payload:', createPayload);
+
+          const createResponse = await fetch(`${endpoint}/instance/create`, {
+            method: 'POST',
+            headers: {
+              'apikey': cleanApiKey,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(createPayload)
+          });
+
+          const createData = await createResponse.json();
+          console.log('📥 Create response:', { status: createResponse.status, data: createData });
+
+          if (!createResponse.ok) {
+            console.error('❌ Failed to create instance:', createData);
+            return new Response(
+              JSON.stringify({ 
+                success: false, 
+                error: `Failed to create instance: ${createData.message || 'Unknown error'}`,
+                details: createData
+              }),
+              { 
+                status: createResponse.status, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              }
+            );
+          }
+
+          // Buscar QR code após criar
+          console.log('✅ Instance created successfully, fetching QR code...');
+          
+          try {
+            const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+              method: 'GET',
+              headers: {
+                'apikey': cleanApiKey,
+                'Accept': 'application/json'
+              }
+            });
+
+            if (qrResponse.ok) {
+              const qrData = await qrResponse.json();
+              console.log('📱 QR Data after creation:', qrData);
+              
+              const qrCode = qrData.base64 || qrData.qrcode?.base64 || qrData.qrcode || qrData.code || qrData.pairingCode || null;
+              
+              return new Response(
+                JSON.stringify({
+                  success: true,
+                  qrCode: qrCode,
+                  instanceName: instanceName,
+                  created: true,
+                  instance: {
+                    connectionStatus: 'close',
+                    ownerJid: null,
+                    profileName: null,
+                    profilePicUrl: null
+                  }
+                }),
+                { 
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                }
+              );
+            }
+          } catch (e) {
+            console.log('⚠️ Could not fetch QR code after creation:', e);
+          }
+
+          // Retornar sucesso mesmo sem QR code imediato
           return new Response(
-            JSON.stringify({ 
-              success: false, 
-              error: 'Instance not found',
-              debug: {
-                receivedData: instanceData,
-                isArray: Array.isArray(instanceData),
-                length: instances.length
+            JSON.stringify({
+              success: true,
+              instanceName: instanceName,
+              created: true,
+              qrCode: null,
+              message: 'Instance created, QR code will be available shortly',
+              instance: {
+                connectionStatus: 'close',
+                ownerJid: null,
+                profileName: null,
+                profilePicUrl: null
               }
             }),
             { 
-              status: 404, 
               headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
             }
-          )
+          );
         }
 
         const instance = instances[0];
