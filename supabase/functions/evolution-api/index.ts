@@ -531,51 +531,11 @@ serve(async (req) => {
         
         // Se o array está vazio OU se não há dados válidos
         if (!instances || instances.length === 0 || !instances[0]) {
-          console.log('⚠️ Instance not found in Evolution API, attempting to create...');
+          console.log('⚠️ Instance not found in fetchInstances, trying direct connect...');
           
-          // Tentar criar a instância automaticamente
-          const createPayload = {
-            instanceName: instanceName,
-            token: cleanApiKey,
-            qrcode: true,
-            integration: 'WHATSAPP-BAILEYS'
-          };
-
-          console.log('📤 Creating instance with payload:', createPayload);
-
-          const createResponse = await fetch(`${endpoint}/instance/create`, {
-            method: 'POST',
-            headers: {
-              'apikey': cleanApiKey,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify(createPayload)
-          });
-
-          const createData = await createResponse.json();
-          console.log('📥 Create response:', { status: createResponse.status, data: createData });
-
-          if (!createResponse.ok) {
-            console.error('❌ Failed to create instance:', createData);
-            return new Response(
-              JSON.stringify({ 
-                success: false, 
-                error: `Failed to create instance: ${createData.message || 'Unknown error'}`,
-                details: createData
-              }),
-              { 
-                status: createResponse.status, 
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-              }
-            );
-          }
-
-          // Buscar QR code após criar
-          console.log('✅ Instance created successfully, fetching QR code...');
-          
+          // Tentar conectar diretamente primeiro (instância pode existir mas não aparecer no fetch)
           try {
-            const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+            const connectResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
               method: 'GET',
               headers: {
                 'apikey': cleanApiKey,
@@ -583,23 +543,24 @@ serve(async (req) => {
               }
             });
 
-            if (qrResponse.ok) {
-              const qrData = await qrResponse.json();
-              console.log('📱 QR Data after creation:', qrData);
+            console.log('📱 Connect response status:', connectResponse.status);
+
+            if (connectResponse.ok) {
+              const connectData = await connectResponse.json();
+              console.log('✅ Instance exists! Connect data:', connectData);
               
-              const qrCode = qrData.base64 || qrData.qrcode?.base64 || qrData.qrcode || qrData.code || qrData.pairingCode || null;
+              const qrCode = connectData.base64 || connectData.qrcode?.base64 || connectData.qrcode || connectData.code || connectData.pairingCode || null;
               
               return new Response(
                 JSON.stringify({
                   success: true,
                   qrCode: qrCode,
                   instanceName: instanceName,
-                  created: true,
                   instance: {
-                    connectionStatus: 'close',
-                    ownerJid: null,
-                    profileName: null,
-                    profilePicUrl: null
+                    connectionStatus: connectData.instance?.state || 'close',
+                    ownerJid: connectData.instance?.ownerJid || null,
+                    profileName: connectData.instance?.profileName || null,
+                    profilePicUrl: connectData.instance?.profilePicUrl || null
                   }
                 }),
                 { 
@@ -607,26 +568,114 @@ serve(async (req) => {
                 }
               );
             }
-          } catch (e) {
-            console.log('⚠️ Could not fetch QR code after creation:', e);
-          }
+            
+            // Se connect falhou com 404, aí sim a instância não existe
+            if (connectResponse.status === 404) {
+              console.log('🔨 Instance truly does not exist, creating new instance...');
+              
+              const createPayload = {
+                instanceName: instanceName,
+                token: cleanApiKey,
+                qrcode: true,
+                integration: 'WHATSAPP-BAILEYS'
+              };
 
-          // Retornar sucesso mesmo sem QR code imediato
-          return new Response(
-            JSON.stringify({
-              success: true,
-              instanceName: instanceName,
-              created: true,
-              qrCode: null,
-              message: 'Instance created, QR code will be available shortly',
-              instance: {
-                connectionStatus: 'close',
-                ownerJid: null,
-                profileName: null,
-                profilePicUrl: null
+              console.log('📤 Creating instance with payload:', createPayload);
+
+              const createResponse = await fetch(`${endpoint}/instance/create`, {
+                method: 'POST',
+                headers: {
+                  'apikey': cleanApiKey,
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json'
+                },
+                body: JSON.stringify(createPayload)
+              });
+
+              const createData = await createResponse.json();
+              console.log('📥 Create response:', { status: createResponse.status, data: createData });
+
+              if (!createResponse.ok) {
+                console.error('❌ Failed to create instance:', createData);
+                return new Response(
+                  JSON.stringify({ 
+                    success: false, 
+                    error: `Failed to create instance: ${createData.message || createData.error || 'Unknown error'}`,
+                    details: createData
+                  }),
+                  { 
+                    status: createResponse.status, 
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                  }
+                );
               }
+
+              console.log('✅ Instance created successfully!');
+              
+              // Tentar buscar QR code da nova instância
+              const newQrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+                method: 'GET',
+                headers: {
+                  'apikey': cleanApiKey,
+                  'Accept': 'application/json'
+                }
+              });
+
+              if (newQrResponse.ok) {
+                const newQrData = await newQrResponse.json();
+                const qrCode = newQrData.base64 || newQrData.qrcode?.base64 || newQrData.qrcode || newQrData.code || null;
+                
+                return new Response(
+                  JSON.stringify({
+                    success: true,
+                    qrCode: qrCode,
+                    instanceName: instanceName,
+                    created: true,
+                    instance: {
+                      connectionStatus: 'close',
+                      ownerJid: null,
+                      profileName: null,
+                      profilePicUrl: null
+                    }
+                  }),
+                  { 
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                  }
+                );
+              }
+              
+              // Retornar sucesso mesmo sem QR code imediato
+              return new Response(
+                JSON.stringify({
+                  success: true,
+                  instanceName: instanceName,
+                  created: true,
+                  qrCode: null,
+                  message: 'Instance created, QR code will be available shortly'
+                }),
+                { 
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                }
+              );
+            }
+            
+            // Outro erro no connect
+            const connectError = await connectResponse.text();
+            console.error('❌ Connect failed:', { status: connectResponse.status, error: connectError });
+            
+          } catch (connectError) {
+            console.error('❌ Error trying to connect:', connectError);
+          }
+          
+          // Se chegou aqui, não conseguimos nem conectar nem criar
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: 'Instance not found and could not create or connect',
+              instanceName: instanceName
             }),
             { 
+              status: 404, 
               headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
             }
           );
