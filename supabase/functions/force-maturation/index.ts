@@ -13,6 +13,7 @@ interface ChipPair {
   nome_chip2: string;
   status: string;
   usuario_id: string;
+  messages_count: number;
   use_instance_prompt: boolean;
   instance_prompt: string | null;
   maturation_mode: string;
@@ -27,41 +28,179 @@ interface Connection {
   telefone: string;
   prompt: string;
   evolution_instance_name: string;
+  status: string;
 }
 
-// 🔧 Função auxiliar para processar lista de pares
-async function processPairs(pairs: ChipPair[], supabase: any, now: Date) {
-  const results = [];
-  
-  for (const pair of pairs) {
-    try {
-      console.log(`\n🎯 Processando par: ${pair.nome_chip1} <-> ${pair.nome_chip2}`);
+// 🔧 Função auxiliar para processar um único par
+async function processSinglePair(pair: ChipPair, supabase: any) {
+  try {
+    console.log(`\n🎯 Processando par: ${pair.nome_chip1} <-> ${pair.nome_chip2}`);
+    console.log(`📊 Par ${pair.id}: messages_count=${pair.messages_count}, status=${pair.status}, is_active=true`);
+    
+    // Buscar conexões dos chips
+    const { data: connections, error: connError } = await supabase
+      .from('saas_conexoes')
+      .select('*')
+      .eq('usuario_id', pair.usuario_id)
+      .in('nome', [pair.nome_chip1, pair.nome_chip2]);
 
-      // Buscar conexões dos chips
-      const { data: connections, error: connError } = await supabase
-        .from('saas_conexoes')
-        .select('*')
-        .eq('usuario_id', pair.usuario_id)
-        .in('nome', [pair.nome_chip1, pair.nome_chip2]);
+    if (connError || !connections || connections.length !== 2) {
+      console.error(`❌ Erro ao buscar conexões do par ${pair.id}:`, connError);
+      return { error: 'Conexões não encontradas' };
+    }
 
-      if (connError || !connections || connections.length !== 2) {
-        console.error(`❌ Erro ao buscar conexões do par ${pair.id}:`, connError);
-        continue;
-      }
+    const chip1 = connections.find((c: Connection) => c.nome === pair.nome_chip1);
+    const chip2 = connections.find((c: Connection) => c.nome === pair.nome_chip2);
 
-      const chip1 = connections.find((c: Connection) => c.nome === pair.nome_chip1);
-      const chip2 = connections.find((c: Connection) => c.nome === pair.nome_chip2);
+    if (!chip1 || !chip2) {
+      console.error(`❌ Chips não encontrados para o par ${pair.id}`);
+      return { error: 'Chips não encontrados' };
+    }
 
-      if (!chip1 || !chip2) {
-        console.error(`❌ Chips não encontrados para o par ${pair.id}`);
-        continue;
-      }
+    console.log(`📊 Status conexões: ${chip1.nome}=${chip1.status}, ${chip2.nome}=${chip2.status}`);
 
-      // Apenas logar status das conexões, mas continuar tentando enviar
-      const chip1Connection = connections.find((c: any) => c.nome === pair.nome_chip1);
-      const chip2Connection = connections.find((c: any) => c.nome === pair.nome_chip2);
+    // Verificar tempo desde última atividade
+    const now = new Date();
+    const lastActivity = new Date(pair.last_activity || now);
+    const timeSinceLastMessage = Math.floor((now.getTime() - lastActivity.getTime()) / 1000);
+    console.log(`⏱️ Tempo desde última mensagem: ${timeSinceLastMessage}s`);
+
+    // Determinar turno (alterna entre chips)
+    const currentTurn = pair.messages_count % 2 === 0 ? 1 : 2;
+    const sender = currentTurn === 1 ? chip1 : chip2;
+    const receiver = currentTurn === 1 ? chip2 : chip1;
+
+    console.log(`💬 Turno ${pair.messages_count + 1}: ${sender.nome} (${sender.evolution_instance_name}) vai responder para ${receiver.nome} (${receiver.telefone})`);
+
+    // Verificar modo de maturação
+    const maturationMode = pair.maturation_mode || 'prompts';
+    console.log(`🎯 Modo de maturação: ${maturationMode}`);
+
+    let messageToSend = '';
+    let mediaToSend: any = null;
+
+    // MODO MESSAGES: Buscar mensagem do arquivo
+    if (maturationMode === 'messages' && pair.message_file_id) {
+      console.log(`📋 Buscando mensagem aleatória do arquivo para o par ${pair.id}`);
       
-      console.log(`📊 Status conexões: ${chip1Connection?.nome}=${chip1Connection?.status}, ${chip2Connection?.nome}=${chip2Connection?.status}`);
+      const { data: messageFile, error: fileError } = await supabase
+        .from('saas_maturation_messages')
+        .select('*')
+        .eq('id', pair.message_file_id)
+        .eq('usuario_id', pair.usuario_id)
+        .single();
+
+      if (fileError || !messageFile) {
+        console.error('❌ Erro ao buscar arquivo de mensagens:', fileError);
+        return { error: 'Arquivo de mensagens não encontrado' };
+      }
+
+      const mensagens = messageFile.mensagens as any[];
+      console.log(`📚 Arquivo: ${messageFile.nome}, Total: ${mensagens.length} mensagens`);
+
+      if (!mensagens || mensagens.length === 0) {
+        console.error('❌ Arquivo sem mensagens válidas');
+        return { error: 'Arquivo sem mensagens' };
+      }
+
+      // Selecionar mensagem aleatória
+      const randomIndex = Math.floor(Math.random() * mensagens.length);
+      const selectedMessage = mensagens[randomIndex];
+
+      console.log(`🎲 Mensagem aleatória ${randomIndex + 1}/${mensagens.length}: ${selectedMessage.texto?.substring(0, 60) || selectedMessage.nome}...`);
+
+      // Verificar se é mídia
+      if (selectedMessage.tipo === 'image' || selectedMessage.tipo === 'video' || selectedMessage.tipo === 'audio') {
+        console.log(`📷 Momento de enviar mídia! Mensagem #${pair.messages_count + 1}, Tipo: ${selectedMessage.tipo}, Nome: ${selectedMessage.nome}`);
+        mediaToSend = {
+          type: selectedMessage.tipo,
+          url: selectedMessage.url || selectedMessage.nome,
+          caption: selectedMessage.texto || ''
+        };
+      } else {
+        messageToSend = selectedMessage.texto || selectedMessage.nome || 'Mensagem aleatória';
+      }
+    } 
+    // MODO PROMPTS: Gerar mensagem via AI (implementação simplificada)
+    else {
+      console.log('🤖 Modo prompts - gerando mensagem simples');
+      messageToSend = `Olá! Como vai? ${new Date().toLocaleTimeString()}`;
+    }
+
+    // Enviar mensagem via Evolution API
+    const EVOLUTION_API_URL = Deno.env.get('EVOLUTION_API_URL') || 'https://evo.oxzap.net';
+    const EVOLUTION_API_KEY = Deno.env.get('EVOLUTION_API_KEY') || '';
+
+    try {
+      let sendPayload: any;
+      let sendUrl: string;
+
+      if (mediaToSend) {
+        // Enviar mídia
+        console.log(`📷 Enviando ${mediaToSend.type}: ${mediaToSend.url}`);
+        
+        sendUrl = `${EVOLUTION_API_URL}/message/sendMedia/${sender.evolution_instance_name}`;
+        sendPayload = {
+          number: receiver.telefone,
+          mediatype: mediaToSend.type,
+          media: mediaToSend.url,
+          caption: mediaToSend.caption || ''
+        };
+      } else {
+        // Enviar texto
+        sendUrl = `${EVOLUTION_API_URL}/message/sendText/${sender.evolution_instance_name}`;
+        sendPayload = {
+          number: receiver.telefone,
+          text: messageToSend
+        };
+      }
+
+      const sendResponse = await fetch(sendUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': EVOLUTION_API_KEY
+        },
+        body: JSON.stringify(sendPayload)
+      });
+
+      const sendResult = await sendResponse.json();
+
+      if (!sendResponse.ok) {
+        console.error(`❌ Erro ${sendResponse.status} ao enviar via Evolution API:`, JSON.stringify(sendResult));
+        return { error: 'Falha ao enviar mensagem' };
+      }
+
+      console.log(`✅ Mensagem enviada via WhatsApp (${mediaToSend ? mediaToSend.type : 'texto'}): ${sender.evolution_instance_name} → ${receiver.telefone}`);
+
+      // Atualizar contador de mensagens do par
+      const nextTurn = (pair.messages_count + 1) % 2 === 0 ? pair.nome_chip1 : pair.nome_chip2;
+      const { error: updateError } = await supabase
+        .from('saas_pares_maturacao')
+        .update({
+          messages_count: pair.messages_count + 1,
+          last_activity: new Date().toISOString()
+        })
+        .eq('id', pair.id);
+
+      if (updateError) {
+        console.error('❌ Erro ao atualizar contador:', updateError);
+      } else {
+        console.log(`✅ Par ${pair.id} atualizado: messages_count=${pair.messages_count + 1}, próximo turno: ${nextTurn}`);
+      }
+
+      return { success: true, messagesSent: 1 };
+    } catch (sendError) {
+      console.error('❌ Erro ao enviar mensagem:', sendError);
+      return { error: String(sendError) };
+    }
+  } catch (error) {
+    console.error('❌ Erro ao processar par:', error);
+    return { error: String(error) };
+  }
+}
+
+serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -100,98 +239,107 @@ async function processPairs(pairs: ChipPair[], supabase: any, now: Date) {
       }
 
       // Forçar status como running e is_active = true
-      if (specificPair.status !== 'running' || !specificPair.is_active) {
-        console.log(`🔧 Forçando par para running/active...`);
-        await supabase
-          .from('saas_pares_maturacao')
-          .update({ status: 'running', is_active: true, last_activity: now.toISOString() })
-          .eq('id', forcedPairId);
+      console.log(`🔧 Forçando par para running/active...`);
+      await supabase
+        .from('saas_pares_maturacao')
+        .update({ 
+          status: 'running', 
+          is_active: true, 
+          last_activity: now.toISOString(),
+          started_at: specificPair.started_at || now.toISOString()
+        })
+        .eq('id', forcedPairId);
+      
+      // Recarregar o par atualizado
+      const { data: updatedPair } = await supabase
+        .from('saas_pares_maturacao')
+        .select('*')
+        .eq('id', forcedPairId)
+        .single();
+
+      if (!updatedPair) {
+        return new Response(
+          JSON.stringify({ error: 'Erro ao recarregar par atualizado' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
-      const activePairs = [specificPair];
-      console.log(`✅ Par ${forcedPairId} carregado para processamento IMEDIATO`);
-
-      // Processar o par (código compartilhado abaixo)
-      const results = await processPairs(activePairs as ChipPair[], supabase, now);
+      // Processar o par imediatamente
+      console.log(`⚡ Processando par AGORA...`);
+      const result = await processSinglePair(updatedPair, supabase);
 
       return new Response(
         JSON.stringify({ 
-          message: '🔥 Par processado imediatamente via MODO FORÇADO',
-          forced: true,
+          success: !result.error,
           pairId: forcedPairId,
-          results
+          pairName: `${updatedPair.nome_chip1} <-> ${updatedPair.nome_chip2}`,
+          result 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 🔄 MODO NORMAL: Ciclo de 3 execuções
+    // 🔄 MODO CONTÍNUO: Processar todos os pares ativos em ciclos
     console.log('🔄 Iniciando ciclo de maturação contínua (3x por minuto)...');
 
-    // Executar 3 vezes com intervalo de 20 segundos (0s, 20s, 40s)
+    const allResults = [];
     for (let i = 0; i < 3; i++) {
-      if (i > 0) {
-        console.log(`⏳ Aguardando 20s para próxima execução (${i}/3)...`);
-        await new Promise(resolve => setTimeout(resolve, 20000));
+      console.log(`\n🎯 Execução ${i + 1}/3 - ${new Date().toISOString()}`);
+
+      // Buscar todos os pares ativos
+      const { data: activePairs, error: pairsError } = await supabase
+        .from('saas_pares_maturacao')
+        .select('*')
+        .eq('is_active', true)
+        .eq('status', 'running');
+
+      if (pairsError) {
+        console.error('❌ Erro ao buscar pares ativos:', pairsError);
+        continue;
       }
 
-      console.log(`\n🎯 Execução ${i + 1}/3 - ${new Date().toISOString()}`);
-      const now = new Date();
+      console.log(`✅ Encontrados ${activePairs?.length || 0} pares ativos para processar`);
+      console.log(`📊 Query retornou ${activePairs?.length || 0} pares ativos`);
 
-    // Buscar TODOS os pares ativos (sem filtro de intervalo)
-    // O cron job a cada 20s já controla o timing
-    const { data: activePairs, error: pairsError } = await supabase
-      .from('saas_pares_maturacao')
-      .select('*')
-      .in('status', ['running', 'active'])
-      .eq('is_active', true);
+      if (activePairs && activePairs.length > 0) {
+        for (const pair of activePairs) {
+          const now = new Date();
+          const lastActivity = new Date(pair.last_activity);
+          const timeSinceLastMessage = Math.floor((now.getTime() - lastActivity.getTime()) / 1000);
 
+          // Processar apenas se passaram mais de 30 segundos
+          if (timeSinceLastMessage >= 30) {
+            const result = await processSinglePair(pair, supabase);
+            allResults.push({ pairId: pair.id, result });
+          } else {
+            console.log(`⏭️ Aguardando intervalo mínimo (${30 - timeSinceLastMessage}s restantes)`);
+          }
+        }
+      }
 
-    if (pairsError) {
-      console.error('❌ Erro ao buscar pares:', pairsError);
-      throw pairsError;
-    }
-
-    console.log(`📊 Query retornou ${activePairs?.length || 0} pares ativos`);
-
-    if (!activePairs || activePairs.length === 0) {
-      console.log('⚠️ Nenhum par ativo encontrado');
-      return new Response(
-        JSON.stringify({ 
-          message: 'Nenhum par ativo para processar', 
-          processedPairs: 0 
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log(`✅ Encontrados ${activePairs.length} pares ativos para processar`);
-
-    // Processar cada par usando a função auxiliar
-    const results = await processPairs(activePairs as ChipPair[], supabase, now);
-
-      console.log(`✅ Execução ${i + 1}/3 concluída: ${results.length} pares processados`);
+      // Aguardar 20 segundos antes da próxima execução (exceto na última)
+      if (i < 2) {
+        console.log('⏳ Aguardando 20 segundos...');
+        await new Promise(resolve => setTimeout(resolve, 20000));
+      }
     }
 
     console.log(`\n🎉 Ciclo completo de maturação finalizado!`);
 
     return new Response(
       JSON.stringify({ 
-        message: 'Ciclo de maturação concluído (3 execuções)',
-        totalExecutions: 3,
-        results
+        success: true, 
+        executions: 3, 
+        results: allResults 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('❌ Erro geral:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      JSON.stringify({ error: String(error) }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
