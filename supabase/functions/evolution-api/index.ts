@@ -160,8 +160,10 @@ serve(async (req) => {
         return await handleSendMessage(normalized);
       }
       
-      // Caso contrário, é criação de instância
-      const { instanceName, connectionName }: CreateInstanceRequest = requestBody
+      // Criação de instância (action: 'create' ou sem action)
+      const { instanceName, connectionName, action }: CreateInstanceRequest & { action?: string } = requestBody
+      
+      console.log('📋 Request para criar instância:', { instanceName, connectionName, action });
       
       if (!instanceName || !connectionName) {
         return new Response(

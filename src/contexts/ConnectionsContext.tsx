@@ -299,11 +299,12 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const createEvolutionInstance = async (connection: WhatsAppConnection): Promise<void> => {
     try {
-      console.log(`Creating Evolution API instance: ${connection.evolutionInstanceName}`);
+      console.log(`🔨 Criando instância na Evolution API: ${connection.evolutionInstanceName}`);
       
-      // Chamar Edge Function (agora usa credenciais dos Supabase Secrets)
+      // Chamar Edge Function com action=create
       const { data, error } = await supabase.functions.invoke('evolution-api', {
         body: {
+          action: 'create',
           instanceName: connection.evolutionInstanceName,
           connectionName: connection.name
         }
@@ -312,16 +313,16 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       console.log('📥 Edge function response:', { data, error });
 
       if (error) {
-        console.error('Erro na Edge Function:', error);
+        console.error('❌ Erro na Edge Function:', error);
         throw new Error(`Erro na Edge Function: ${error.message}`);
       }
 
       if (!data || !data.success) {
-        console.error('Falha na criação da instância:', data?.error);
+        console.error('❌ Falha na criação da instância:', data?.error);
         throw new Error(data?.error || 'Falha na criação da instância na Evolution API');
       }
 
-      console.log('Instância criada com sucesso:', data);
+      console.log('✅ Instância criada com sucesso na Evolution API:', data);
 
       // Atualizar conexão com dados da Evolution API
       connection.qrCode = data.qrCode;
@@ -330,7 +331,7 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       return data;
 
     } catch (error) {
-      console.error('Erro ao criar instância Evolution:', error);
+      console.error('❌ Erro ao criar instância Evolution:', error);
       throw error;
     }
   };
