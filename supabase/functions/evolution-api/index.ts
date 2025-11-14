@@ -513,6 +513,88 @@ serve(async (req) => {
             console.log('📥 Create response:', { status: createResponse.status, data: createData });
 
             if (!createResponse.ok) {
+              // Se instância já existe (403 "already in use"), tentar conectar diretamente
+              if (createResponse.status === 403 && 
+                  createData.response?.message?.[0]?.includes('already in use')) {
+                console.log('⚠️ Instance already exists, attempting direct connection...');
+                
+                try {
+                  // Tentar buscar a instância existente
+                  const retryFetchResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
+                    method: 'GET',
+                    headers: {
+                      'apikey': cleanApiKey,
+                      'Accept': 'application/json'
+                    }
+                  });
+                  
+                  if (retryFetchResponse.ok) {
+                    const instancesData = await retryFetchResponse.json();
+                    const instance = Array.isArray(instancesData) ? instancesData[0] : instancesData;
+                    
+                    console.log('✅ Found existing instance after 403:', instance);
+                    
+                    // Se já está conectada, retornar sucesso
+                    if (instance.connectionStatus === 'open') {
+                      return new Response(
+                        JSON.stringify({
+                          success: true,
+                          instance: instance,
+                          message: 'Instance already connected'
+                        }),
+                        { 
+                          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                        }
+                      );
+                    }
+                    
+                    // Tentar gerar QR code para instância existente
+                    const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+                      method: 'GET',
+                      headers: {
+                        'apikey': cleanApiKey,
+                        'Accept': 'application/json'
+                      }
+                    });
+                    
+                    if (qrResponse.ok) {
+                      const qrData = await qrResponse.json();
+                      console.log('📱 QR Code generated for existing instance:', qrData);
+                      
+                      const qrCode = qrData.base64 || qrData.qrcode?.base64 || qrData.qrcode || qrData.code || null;
+                      
+                      if (qrCode) {
+                        return new Response(
+                          JSON.stringify({
+                            success: true,
+                            qrCode: qrCode,
+                            instance: instance,
+                            message: 'QR code generated for existing instance'
+                          }),
+                          { 
+                            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                          }
+                        );
+                      }
+                    } else {
+                      console.log('⚠️ QR code not available yet');
+                      return new Response(
+                        JSON.stringify({
+                          success: true,
+                          instance: instance,
+                          message: 'Instance exists but QR code not ready. Try again in a moment.'
+                        }),
+                        { 
+                          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                        }
+                      );
+                    }
+                  }
+                } catch (retryError) {
+                  console.error('❌ Error during retry after 403:', retryError);
+                }
+              }
+              
               console.error('❌ Failed to create instance:', createData);
               return new Response(
                 JSON.stringify({ 
