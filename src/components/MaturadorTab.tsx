@@ -4,6 +4,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { 
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
 } from "@/components/ui/select";
@@ -64,6 +65,7 @@ export const MaturadorTab = () => {
   const { connections: whatsappConnections } = useConnections();
   const { pairs: dbPairs, updatePair, deletePair, togglePairActive, refreshPairs: loadPairs } = useMaturadorPairs();
   const { prompts } = usePrompts();
+  const [searchTerm, setSearchTerm] = useState('');
   
   // Estado global para controlar o modo de maturação
   const [globalMaturationMode, setGlobalMaturationMode] = useState<'prompts' | 'messages'>(() => {
@@ -86,6 +88,12 @@ export const MaturadorTab = () => {
     promptId: '' 
   });
   const { toast } = useToast();
+  
+  // Filtrar pares baseado no termo de busca
+  const filteredPairs = config.selectedPairs.filter(pair => 
+    pair.chip1.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    pair.chip2.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   // Salvar modo global no localStorage
   useEffect(() => {
@@ -572,16 +580,29 @@ export const MaturadorTab = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {config.selectedPairs.length === 0 ? (
+          {/* Barra de busca */}
+          {config.selectedPairs.length > 0 && (
+            <div className="mb-4">
+              <Input
+                type="text"
+                placeholder="Buscar dupla por nome do chip..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full"
+              />
+            </div>
+          )}
+          
+          {filteredPairs.length === 0 ? (
             <div className="text-center py-12">
               <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="font-semibold mb-2">Nenhuma dupla</h3>
-              <p className="text-sm text-muted-foreground">Configure a primeira dupla para começar</p>
+              <h3 className="font-semibold mb-2">{searchTerm ? 'Nenhuma dupla encontrada' : 'Nenhuma dupla'}</h3>
+              <p className="text-sm text-muted-foreground">{searchTerm ? 'Tente outro termo de busca' : 'Configure a primeira dupla para começar'}</p>
             </div>
           ) : (
             <ScrollArea className="h-[600px]">
               <div className="space-y-4 pr-4">
-                {config.selectedPairs.map(pair => (
+                {filteredPairs.map(pair => (
                   <Card key={pair.id} className="border-l-4 border-l-primary/30">
                     <CardContent className="p-4">
                         <div className="space-y-3">

@@ -15,8 +15,16 @@ export const ConnectionsTab = () => {
   const [isCreatingConnection, setIsCreatingConnection] = useState(false);
   const [newConnectionName, setNewConnectionName] = useState('');
   const [showQRModal, setShowQRModal] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
   const { connections, addConnection, updateConnection, deleteConnection, syncWithEvolutionAPI } = useConnections();
+  
+  // Filtrar conexões baseado no termo de busca
+  const filteredConnections = connections.filter(connection => 
+    connection.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    connection.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    connection.displayName?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const handleCreateConnection = async () => {
     if (!newConnectionName.trim()) {
@@ -197,18 +205,29 @@ export const ConnectionsTab = () => {
         <CardHeader>
           <CardTitle className="text-lg">Conexões Ativas</CardTitle>
           <CardDescription>Gerencie suas instâncias do WhatsApp</CardDescription>
+          
+          {/* Barra de busca */}
+          <div className="mt-4">
+            <Input
+              type="text"
+              placeholder="Buscar por nome, telefone ou display name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full"
+            />
+          </div>
         </CardHeader>
         <CardContent>
-          {connections.length === 0 ? (
+          {filteredConnections.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Phone className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>Nenhuma conexão criada ainda.</p>
-              <p className="text-sm">Crie sua primeira conexão acima.</p>
+              <p>{searchTerm ? 'Nenhuma conexão encontrada' : 'Nenhuma conexão criada ainda.'}</p>
+              {!searchTerm && <p className="text-sm">Crie sua primeira conexão acima.</p>}
             </div>
           ) : (
             <ScrollArea className="h-[600px] pr-4">
               <div className="space-y-4">
-                {connections
+                {filteredConnections
                   .sort((a, b) => {
                     const numA = parseInt(a.name.match(/\d+/)?.[0] || '0');
                     const numB = parseInt(b.name.match(/\d+/)?.[0] || '0');
