@@ -429,6 +429,63 @@ serve(async (req) => {
           const errorData = await instanceResponse.text();
           console.error('❌ Failed to fetch instance:', { status: instanceResponse.status, error: errorData });
           
+          // Se erro 500 (erro interno da Evolution API), tentar conectar diretamente
+          if (instanceResponse.status === 500) {
+            console.log('⚠️ Evolution API internal error (500), trying direct connect as fallback...');
+            
+            try {
+              const connectResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+                method: 'GET',
+                headers: {
+                  'apikey': cleanApiKey,
+                  'Accept': 'application/json'
+                }
+              });
+
+              console.log('📱 Fallback connect response status:', connectResponse.status);
+
+              if (connectResponse.ok) {
+                const connectData = await connectResponse.json();
+                console.log('✅ Instance found via fallback! Connect data:', connectData);
+                
+                const qrCode = connectData.base64 || connectData.qrcode?.base64 || connectData.qrcode || connectData.code || connectData.pairingCode || null;
+                
+                return new Response(
+                  JSON.stringify({
+                    success: true,
+                    qrCode: qrCode,
+                    instanceName: instanceName,
+                    instance: {
+                      connectionStatus: connectData.instance?.state || 'close',
+                      ownerJid: connectData.instance?.ownerJid || null,
+                      profileName: connectData.instance?.profileName || null,
+                      profilePicUrl: connectData.instance?.profilePicUrl || null
+                    }
+                  }),
+                  { 
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                  }
+                );
+              }
+            } catch (fallbackError) {
+              console.error('❌ Fallback connect also failed:', fallbackError);
+            }
+            
+            // Se fallback falhou, retornar erro mais amigável
+            return new Response(
+              JSON.stringify({ 
+                success: false, 
+                error: 'Erro interno da Evolution API. Tente novamente em alguns segundos.',
+                details: 'Evolution API retornou erro 500 (problema de banco de dados)',
+                technicalDetails: errorData.substring(0, 200)
+              }),
+              { 
+                status: 503, // Service Unavailable
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              }
+            );
+          }
+          
           // Se a instância não existe (404), vamos criar ela
           if (instanceResponse.status === 404) {
             console.log('🔨 Instance not found, creating new instance...');
@@ -513,6 +570,7 @@ serve(async (req) => {
             );
           }
           
+          // Para outros erros, retornar erro genérico
           return new Response(
             JSON.stringify({ 
               success: false, 
