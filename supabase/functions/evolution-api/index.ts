@@ -559,38 +559,82 @@ serve(async (req) => {
             console.log('✅ QR code found in instance.qrcode');
             response.qrCode = instance.qrcode;
           } else {
-            // Tentar buscar QR code via endpoint connect
+            // Tentar buscar QR code via diferentes endpoints
             try {
-              console.log('🔄 Fetching QR code from /instance/connect...');
-              const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
-                method: 'GET',
+              // Primeiro: tentar restart para forçar geração de novo QR
+              console.log('🔄 Trying to restart instance to generate QR...');
+              const restartResponse = await fetch(`${endpoint}/instance/restart/${instanceName}`, {
+                method: 'PUT',
                 headers: {
                   'apikey': cleanApiKey,
                   'Accept': 'application/json'
                 }
               });
               
-              if (qrResponse.ok) {
-                const qrData = await qrResponse.json();
-                console.log('📱 QR Response data:', JSON.stringify(qrData, null, 2));
+              if (restartResponse.ok) {
+                const restartData = await restartResponse.json();
+                console.log('📱 Restart response:', JSON.stringify(restartData, null, 2));
                 
-                // Tentar diferentes formatos possíveis de resposta
-                const possibleQrCode = qrData.base64 || 
-                                      qrData.qrcode || 
-                                      qrData.code ||
-                                      qrData.qr ||
-                                      qrData.pairingCode ||
-                                      (qrData.instance && qrData.instance.qrcode);
+                // Verificar se o QR veio na resposta do restart
+                const qrFromRestart = restartData.base64 || 
+                                     restartData.qrcode || 
+                                     restartData.code ||
+                                     restartData.qr ||
+                                     (restartData.instance && restartData.instance.qrcode);
                 
-                if (possibleQrCode) {
-                  console.log('✅ QR code found in response');
-                  response.qrCode = possibleQrCode;
+                if (qrFromRestart) {
+                  console.log('✅ QR code found in restart response');
+                  response.qrCode = qrFromRestart;
                 } else {
-                  console.log('⚠️ No QR code found in response, will retry on next poll');
-                  response.qrCode = null;
+                  // Se não veio, tentar endpoint connectionState
+                  console.log('🔄 Fetching QR code from /instance/connectionState...');
+                  let qrResponse = await fetch(`${endpoint}/instance/connectionState/${instanceName}`, {
+                    method: 'GET',
+                    headers: {
+                      'apikey': cleanApiKey,
+                      'Accept': 'application/json'
+                    }
+                  });
+                  
+                  if (!qrResponse.ok) {
+                    // Se falhar, tentar endpoint connect
+                    console.log('🔄 Trying /instance/connect...');
+                    qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+                      method: 'GET',
+                      headers: {
+                        'apikey': cleanApiKey,
+                        'Accept': 'application/json'
+                      }
+                    });
+                  }
+                  
+                  if (qrResponse.ok) {
+                    const qrData = await qrResponse.json();
+                    console.log('📱 QR Response data:', JSON.stringify(qrData, null, 2));
+                    
+                    // Tentar diferentes formatos possíveis de resposta
+                    const possibleQrCode = qrData.base64 || 
+                                          qrData.qrcode || 
+                                          qrData.code ||
+                                          qrData.qr ||
+                                          qrData.pairingCode ||
+                                          (qrData.instance && qrData.instance.qrcode) ||
+                                          (qrData.instance && qrData.instance.qr);
+                    
+                    if (possibleQrCode) {
+                      console.log('✅ QR code found in response');
+                      response.qrCode = possibleQrCode;
+                    } else {
+                      console.log('⚠️ No QR code found in response, will retry on next poll');
+                      response.qrCode = null;
+                    }
+                  } else {
+                    console.log('❌ QR fetch failed:', qrResponse.status);
+                    response.qrCode = null;
+                  }
                 }
               } else {
-                console.log('❌ QR fetch failed:', qrResponse.status);
+                console.log('❌ Restart failed, trying direct QR fetch');
                 response.qrCode = null;
               }
             } catch (e) {
@@ -627,6 +671,91 @@ serve(async (req) => {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
           }
         )
+      }
+    }
+
+    // Handle DELETE requests - apagar instância
+    if (req.method === 'DELETE') {
+      const { instanceName } = await req.json();
+      
+      console.log('🗑️ DELETE Request:', { instanceName });
+      
+      if (!instanceName) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'instanceName is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const apiKey = Deno.env.get('EVOLUTION_API_KEY');
+      let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT');
+
+      if (!apiKey || !endpoint) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Evolution API credentials not configured' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+        endpoint = `https://${endpoint}`;
+      }
+      
+      const cleanApiKey = apiKey.trim();
+
+      try {
+        console.log('🗑️ Deleting instance from Evolution API...');
+        
+        const deleteResponse = await fetch(`${endpoint}/instance/delete/${instanceName}`, {
+          method: 'DELETE',
+          headers: {
+            'apikey': cleanApiKey,
+            'Accept': 'application/json'
+          }
+        });
+
+        const deleteData = await deleteResponse.json();
+        console.log('📥 Delete response:', { status: deleteResponse.status, data: deleteData });
+
+        if (!deleteResponse.ok) {
+          console.error('❌ Failed to delete instance:', deleteData);
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: `Failed to delete instance: ${deleteData.message || 'Unknown error'}`,
+              details: deleteData
+            }),
+            { 
+              status: deleteResponse.status, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: 'Instance deleted successfully',
+            instanceName: instanceName
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+
+      } catch (error) {
+        console.error('DELETE error:', error);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Internal server error',
+            message: error.message
+          }),
+          { 
+            status: 500, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
       }
     }
 

@@ -236,6 +236,45 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const deleteConnection = async (id: string) => {
     try {
+      // Buscar a conexão para pegar o evolutionInstanceName
+      const connection = connections.find(conn => conn.id === id);
+      
+      if (connection?.evolutionInstanceName) {
+        // Tentar deletar da Evolution API
+        try {
+          console.log(`🗑️ Deletando instância ${connection.evolutionInstanceName} da Evolution API...`);
+          
+          const { data: { session } } = await supabase.auth.getSession();
+          
+          const response = await fetch(
+            `https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api`,
+            {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session?.access_token}`,
+                'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM'
+              },
+              body: JSON.stringify({
+                instanceName: connection.evolutionInstanceName
+              })
+            }
+          );
+
+          const data = await response.json();
+          
+          if (!response.ok) {
+            console.error('❌ Erro ao deletar da Evolution API:', data);
+          } else {
+            console.log('✅ Instância deletada da Evolution API:', data);
+          }
+        } catch (error) {
+          console.error('❌ Erro ao deletar da Evolution API:', error);
+          // Continuar mesmo se falhar
+        }
+      }
+
+      // Deletar do Supabase
       const { error } = await supabase
         .from('saas_conexoes')
         .delete()
