@@ -291,7 +291,7 @@ serve(async (req) => {
         }
 
         // Buscar QR code
-        console.log('🔄 Buscando QR code...');
+        console.log('🔄 Buscando QR code da instância criada/existente...');
         let qrCode = null;
         
         try {
@@ -305,11 +305,26 @@ serve(async (req) => {
 
           if (qrResponse.ok) {
             const qrData = await qrResponse.json();
-            console.log('📱 QR Data:', qrData);
-            qrCode = qrData.base64 || qrData.qrcode || qrData.code;
+            console.log('📱 QR Data completo:', JSON.stringify(qrData, null, 2));
+            
+            // Tentar diferentes formatos possíveis
+            qrCode = qrData.base64 || 
+                    qrData.qrcode || 
+                    qrData.code ||
+                    qrData.qr ||
+                    qrData.pairingCode ||
+                    (qrData.instance && qrData.instance.qrcode);
+            
+            if (qrCode) {
+              console.log('✅ QR code encontrado!');
+            } else {
+              console.log('⚠️ QR code não encontrado na resposta. Campos disponíveis:', Object.keys(qrData));
+            }
+          } else {
+            console.log('❌ Falha ao buscar QR code:', qrResponse.status);
           }
         } catch (e) {
-          console.log('⚠️ Erro ao buscar QR, usando fallback');
+          console.log('❌ Erro ao buscar QR code:', e);
         }
 
         // Retornar sucesso com QR code
@@ -532,26 +547,56 @@ serve(async (req) => {
         }
 
         // Add QR code if not connected
-        if (instance.connectionStatus !== 'open' && instance.instance?.qrcode) {
-          response.qrCode = instance.instance.qrcode
-        } else if (instance.connectionStatus !== 'open') {
-          // Try to get QR code
-          try {
-            const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
-              method: 'GET',
-              headers: {
-                'apikey': cleanApiKey,
-                'Accept': 'application/json'
+        if (instance.connectionStatus !== 'open') {
+          console.log('🔍 Instance not connected, trying to get QR code...');
+          console.log('📊 Instance data:', JSON.stringify(instance, null, 2));
+          
+          // Primeiro, verificar se já tem QR no instance
+          if (instance.instance?.qrcode) {
+            console.log('✅ QR code found in instance.instance.qrcode');
+            response.qrCode = instance.instance.qrcode;
+          } else if (instance.qrcode) {
+            console.log('✅ QR code found in instance.qrcode');
+            response.qrCode = instance.qrcode;
+          } else {
+            // Tentar buscar QR code via endpoint connect
+            try {
+              console.log('🔄 Fetching QR code from /instance/connect...');
+              const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+                method: 'GET',
+                headers: {
+                  'apikey': cleanApiKey,
+                  'Accept': 'application/json'
+                }
+              });
+              
+              if (qrResponse.ok) {
+                const qrData = await qrResponse.json();
+                console.log('📱 QR Response data:', JSON.stringify(qrData, null, 2));
+                
+                // Tentar diferentes formatos possíveis de resposta
+                const possibleQrCode = qrData.base64 || 
+                                      qrData.qrcode || 
+                                      qrData.code ||
+                                      qrData.qr ||
+                                      qrData.pairingCode ||
+                                      (qrData.instance && qrData.instance.qrcode);
+                
+                if (possibleQrCode) {
+                  console.log('✅ QR code found in response');
+                  response.qrCode = possibleQrCode;
+                } else {
+                  console.log('⚠️ No QR code found in response, will retry on next poll');
+                  response.qrCode = null;
+                }
+              } else {
+                console.log('❌ QR fetch failed:', qrResponse.status);
+                response.qrCode = null;
               }
-            })
-            
-            if (qrResponse.ok) {
-              const qrData = await qrResponse.json()
-              response.qrCode = qrData.base64 || qrData.qrcode || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=evolution-qr-${instanceName}-${Date.now()}`
+            } catch (e) {
+              console.log('❌ Error fetching QR code:', e);
+              response.qrCode = null;
             }
-          } catch (e) {
-            // Ignore QR fetch errors
-            response.qrCode = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=evolution-qr-${instanceName}-${Date.now()}`
           }
         }
 
