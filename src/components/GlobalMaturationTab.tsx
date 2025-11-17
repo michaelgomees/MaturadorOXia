@@ -26,43 +26,62 @@ export const GlobalMaturationTab = () => {
   const { toast } = useToast();
   const { createPair, pairs } = useMaturadorPairs();
 
-  // Buscar todas as instâncias da Evolution API
+  // Buscar todas as instâncias diretamente da Evolution API
   const fetchAllInstances = async () => {
     setIsLoading(true);
     try {
-      // Buscar todas as conexões do banco de dados
-      const { data: connections, error } = await supabase
-        .from('saas_conexoes')
-        .select('*')
-        .eq('status', 'ativo');
+      console.log('🔄 Buscando instâncias da Evolution API...');
+      
+      const response = await fetch(
+        `https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api?action=fetchAll`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM',
+          }
+        }
+      );
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
 
-      if (connections && connections.length > 0) {
-        const instancesList: EvolutionInstance[] = connections.map(conn => ({
-          instanceName: conn.nome,
-          status: conn.status || 'active',
-          phoneNumber: conn.telefone,
-          displayName: conn.display_name
+      const data = await response.json();
+      console.log('📥 Resposta da API:', data);
+
+      if (data.success && data.instances && data.instances.length > 0) {
+        // Filtrar apenas instâncias conectadas
+        const connectedInstances = data.instances.filter((inst: any) => 
+          inst.instance?.state === 'open' || inst.connectionStatus === 'open'
+        );
+
+        const instancesList: EvolutionInstance[] = connectedInstances.map((inst: any) => ({
+          instanceName: inst.instance?.instanceName || inst.instanceName,
+          status: inst.instance?.state || inst.connectionStatus || 'unknown',
+          phoneNumber: inst.instance?.ownerJid?.split('@')[0] || '',
+          displayName: inst.instance?.profileName || inst.instanceName
         }));
 
         setInstances(instancesList);
         toast({
           title: "✅ Instâncias Carregadas",
-          description: `${instancesList.length} instâncias encontradas`,
+          description: `${instancesList.length} instâncias conectadas encontradas na Evolution API`,
         });
       } else {
+        setInstances([]);
         toast({
           title: "⚠️ Nenhuma Instância",
-          description: "Nenhuma instância ativa encontrada",
+          description: "Nenhuma instância conectada encontrada na Evolution API",
           variant: "destructive",
         });
       }
     } catch (error) {
-      console.error('Erro ao buscar instâncias:', error);
+      console.error('❌ Erro ao buscar instâncias:', error);
+      setInstances([]);
       toast({
         title: "❌ Erro",
-        description: "Não foi possível carregar as instâncias",
+        description: "Não foi possível carregar as instâncias da Evolution API",
         variant: "destructive",
       });
     } finally {
