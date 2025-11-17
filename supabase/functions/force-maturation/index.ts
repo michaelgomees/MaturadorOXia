@@ -32,7 +32,7 @@ interface Connection {
 }
 
 // 🔧 Verificar status da instância na Evolution API
-async function checkInstanceStatus(instanceName: string): Promise<boolean> {
+async function checkInstanceStatus(instanceName: string): Promise<{ connected: boolean; notFound: boolean }> {
   try {
     const EVOLUTION_API_ENDPOINT = Deno.env.get('EVOLUTION_API_ENDPOINT') || 'https://api.oxautomacoes.com.br';
     const EVOLUTION_API_KEY = Deno.env.get('EVOLUTION_API_KEY') || '';
@@ -46,9 +46,15 @@ async function checkInstanceStatus(instanceName: string): Promise<boolean> {
       }
     });
 
+    // Se retornar 404, a instância não existe
+    if (response.status === 404) {
+      console.warn(`⚠️ Instância ${instanceName} não existe na Evolution API (404)`);
+      return { connected: false, notFound: true };
+    }
+
     if (!response.ok) {
       console.error(`❌ Erro ao verificar instância ${instanceName}: ${response.status}`);
-      return false;
+      return { connected: false, notFound: false };
     }
 
     const data = await response.json();
@@ -56,14 +62,14 @@ async function checkInstanceStatus(instanceName: string): Promise<boolean> {
     
     if (instance && instance.connectionStatus === 'open') {
       console.log(`✅ Instância ${instanceName} está conectada`);
-      return true;
+      return { connected: true, notFound: false };
     }
 
     console.warn(`⚠️ Instância ${instanceName} não está conectada. Status: ${instance?.connectionStatus || 'desconhecido'}`);
-    return false;
+    return { connected: false, notFound: false };
   } catch (error) {
     console.error(`❌ Erro ao verificar instância ${instanceName}:`, error);
-    return false;
+    return { connected: false, notFound: false };
   }
 }
 
@@ -103,15 +109,35 @@ async function processSinglePair(pair: ChipPair, supabase: any) {
     console.log(`📊 Status conexões: ${chip1.nome}=${chip1.status}, ${chip2.nome}=${chip2.status}`);
 
     // 🔐 Verificar se ambas as instâncias estão conectadas na Evolution API
-    const chip1Connected = await checkInstanceStatus(chip1.evolution_instance_name);
-    const chip2Connected = await checkInstanceStatus(chip2.evolution_instance_name);
+    const chip1Status = await checkInstanceStatus(chip1.evolution_instance_name);
+    const chip2Status = await checkInstanceStatus(chip2.evolution_instance_name);
 
-    if (!chip1Connected) {
+    // Se alguma instância não foi encontrada, pausar o par
+    if (chip1Status.notFound || chip2Status.notFound) {
+      const notFoundInstances = [];
+      if (chip1Status.notFound) notFoundInstances.push(chip1.evolution_instance_name);
+      if (chip2Status.notFound) notFoundInstances.push(chip2.evolution_instance_name);
+      
+      console.error(`❌ Instâncias não encontradas: ${notFoundInstances.join(', ')}`);
+      
+      // Pausar o par automaticamente
+      await supabase
+        .from('saas_pares_maturacao')
+        .update({ 
+          status: 'stopped',
+          is_active: false
+        })
+        .eq('id', pair.id);
+      
+      return { error: `Instâncias não encontradas: ${notFoundInstances.join(', ')}. Par pausado automaticamente.` };
+    }
+
+    if (!chip1Status.connected) {
       console.error(`❌ Instância ${chip1.evolution_instance_name} não está conectada`);
       return { error: `Instância ${chip1.nome} desconectada` };
     }
 
-    if (!chip2Connected) {
+    if (!chip2Status.connected) {
       console.error(`❌ Instância ${chip2.evolution_instance_name} não está conectada`);
       return { error: `Instância ${chip2.nome} desconectada` };
     }
