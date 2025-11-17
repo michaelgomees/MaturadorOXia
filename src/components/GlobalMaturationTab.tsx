@@ -7,8 +7,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Globe, Play, Square, RefreshCw, Users, CheckSquare, Search } from "lucide-react";
+import { Globe, Play, Square, RefreshCw, Users, CheckSquare, Search, MessageSquare, Pause } from "lucide-react";
 import { useMaturadorPairs } from "@/hooks/useMaturadorPairs";
+import { useMaturationMessages } from "@/hooks/useMaturationMessages";
 
 interface EvolutionInstance {
   instanceName: string;
@@ -24,7 +25,15 @@ export const GlobalMaturationTab = () => {
   const [isMaturing, setIsMaturing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
-  const { createPair, pairs } = useMaturadorPairs();
+  const { createPair, pairs, togglePairActive } = useMaturadorPairs();
+  const { messages: maturationMessages } = useMaturationMessages();
+
+  // Calcular total de mensagens enviadas de todos os pares
+  const totalMessagesSent = pairs.reduce((sum, pair) => sum + (pair.messages_count || 0), 0);
+  
+  // Filtrar pares ativos/em execução
+  const activePairs = pairs.filter(pair => pair.is_active && pair.status === 'running');
+  const pausedPairs = pairs.filter(pair => pair.is_active && pair.status === 'stopped');
 
   // Buscar todas as instâncias diretamente da Evolution API
   const fetchAllInstances = async () => {
@@ -125,11 +134,24 @@ export const GlobalMaturationTab = () => {
       return;
     }
 
+    // Buscar arquivo de mensagens ativo
+    const activeMessageFile = maturationMessages.find(msg => msg.is_active);
+    if (!activeMessageFile) {
+      toast({
+        title: "⚠️ Nenhum Arquivo de Mensagens Ativo",
+        description: "Por favor, ative um arquivo de mensagens na aba 'Mensagens' antes de iniciar a maturação global",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsMaturing(true);
     let createdPairs = 0;
     let skippedPairs = 0;
 
     try {
+      console.log('🚀 Iniciando maturação global com arquivo:', activeMessageFile.nome);
+      
       // Criar todos os pares possíveis (combinações sem repetição)
       for (let i = 0; i < selectedInstances.length; i++) {
         for (let j = i + 1; j < selectedInstances.length; j++) {
@@ -145,7 +167,8 @@ export const GlobalMaturationTab = () => {
 
           if (!pairExists) {
             try {
-              await createPair(chip1, chip2, 'messages');
+              // Criar par no modo 'messages' com o arquivo ativo
+              await createPair(chip1, chip2, 'messages', activeMessageFile.id);
               createdPairs++;
               
               // Pequeno delay para não sobrecarregar
@@ -155,6 +178,7 @@ export const GlobalMaturationTab = () => {
               skippedPairs++;
             }
           } else {
+            console.log(`Par ${chip1} <-> ${chip2} já existe`);
             skippedPairs++;
           }
         }
@@ -162,7 +186,7 @@ export const GlobalMaturationTab = () => {
 
       toast({
         title: "🎉 Maturação Global Iniciada!",
-        description: `${createdPairs} pares criados, ${skippedPairs} já existiam`,
+        description: `${createdPairs} novos pares criados, ${skippedPairs} já existiam. Usando arquivo: ${activeMessageFile.nome}`,
       });
     } catch (error) {
       console.error('Erro na maturação global:', error);
@@ -259,11 +283,27 @@ export const GlobalMaturationTab = () => {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
+                <p className="text-sm text-muted-foreground">Mensagens Enviadas</p>
+                <p className="text-2xl font-bold text-primary">{totalMessagesSent}</p>
+              </div>
+              <MessageSquare className="w-8 h-8 text-primary opacity-50" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
                 <p className="text-sm text-muted-foreground">Status</p>
                 <p className="text-lg font-bold">
                   {isMaturing ? (
                     <Badge variant="default" className="animate-pulse">
                       Criando Pares
+                    </Badge>
+                  ) : activePairs.length > 0 ? (
+                    <Badge className="bg-green-600">
+                      {activePairs.length} Maturando
                     </Badge>
                   ) : (
                     <Badge variant="outline">Aguardando</Badge>
@@ -373,6 +413,80 @@ export const GlobalMaturationTab = () => {
         </CardContent>
       </Card>
 
+      {/* Pares em Maturação */}
+      {pairs.length > 0 && (
+        <Card className="border-primary/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              Duplas Configuradas ({pairs.length})
+            </CardTitle>
+            <CardDescription>
+              Pares criados e gerenciados pela maturação global
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[300px] pr-4">
+              <div className="space-y-2">
+                {pairs.map((pair) => (
+                  <div
+                    key={pair.id}
+                    className={`flex items-center justify-between p-4 rounded-lg border transition-all ${
+                      pair.status === 'running' && pair.is_active
+                        ? 'border-green-500 bg-green-50/50 dark:bg-green-950/20'
+                        : 'border-border bg-card'
+                    }`}
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">
+                          {pair.nome_chip1} ↔️ {pair.nome_chip2}
+                        </p>
+                        {pair.status === 'running' && pair.is_active && (
+                          <Badge className="bg-green-600 text-xs">
+                            Maturando
+                          </Badge>
+                        )}
+                        {pair.status === 'stopped' && pair.is_active && (
+                          <Badge variant="outline" className="text-xs">
+                            Pausado
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <MessageSquare className="w-3 h-3" />
+                          {pair.messages_count || 0} mensagens
+                        </span>
+                        <span>Modo: {pair.maturation_mode}</span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => togglePairActive(pair.id)}
+                      className="ml-2"
+                    >
+                      {pair.status === 'running' ? (
+                        <>
+                          <Pause className="w-4 h-4 mr-1" />
+                          Pausar
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4 mr-1" />
+                          Retomar
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Info Card */}
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="pt-6">
@@ -392,6 +506,9 @@ export const GlobalMaturationTab = () => {
                 </p>
                 <p>
                   <strong>⚡ Inteligente:</strong> O sistema detecta pares já existentes e não os duplica.
+                </p>
+                <p>
+                  <strong>📊 Dados e Mensagens:</strong> Respeita fortemente as configurações das abas "Mensagens" e "Dados" para envio de mídias e textos.
                 </p>
               </div>
             </div>
