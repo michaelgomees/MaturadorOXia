@@ -32,27 +32,18 @@ export const GlobalMaturationTab = () => {
     try {
       console.log('🔄 Buscando instâncias da Evolution API...');
       
-      const response = await fetch(
-        `https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api?action=fetchAll`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM',
-          }
-        }
-      );
+      const { data: apiData, error } = await supabase.functions.invoke('evolution-api', {
+        body: { action: 'fetchAll' }
+      });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+      if (error) {
+        throw error;
       }
+      console.log('📥 Resposta da API:', apiData);
 
-      const data = await response.json();
-      console.log('📥 Resposta da API:', data);
-
-      if (data.success && data.instances && data.instances.length > 0) {
+      if (apiData.success && apiData.instances && apiData.instances.length > 0) {
         // Filtrar apenas instâncias conectadas
-        const connectedInstances = data.instances.filter((inst: any) => 
+        const connectedInstances = apiData.instances.filter((inst: any) =>
           inst.instance?.state === 'open' || inst.connectionStatus === 'open'
         );
 
