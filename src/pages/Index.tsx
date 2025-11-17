@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Bot, MessageCircle, Zap, Settings, BarChart3, QrCode, Link, Brain, GitBranch, Users, Phone, FileText } from "lucide-react";
+import { Plus, Bot, MessageCircle, Zap, Settings, BarChart3, QrCode, Link, Brain, GitBranch, Users, Phone, FileText, Globe } from "lucide-react";
 import { Header } from "@/components/Header";
 import { ChipCard } from "@/components/ChipCard";
 import { StatsCard } from "@/components/StatsCard";
@@ -20,6 +20,7 @@ import { PromptsTab } from "@/components/PromptsTab";
 import { DadosTab } from "@/components/DadosTab";
 import { MaturadorTab } from "@/components/MaturadorTab";
 import { MessagesConfigTab } from "@/components/MessagesConfigTab";
+import { GlobalMaturationTab } from "@/components/GlobalMaturationTab";
 import { ProtectedRoute, useAuth } from "@/contexts/AuthContext";
 
 // Dados reais - sem demonstração
@@ -84,7 +85,7 @@ const Index = () => {
       <main className="container mx-auto px-6 py-8 space-y-8">
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <Bot className="w-4 h-4" />
               Dashboard
@@ -108,6 +109,10 @@ const Index = () => {
             <TabsTrigger value="maturador" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
               Maturador
+            </TabsTrigger>
+            <TabsTrigger value="global-maturation" className="flex items-center gap-2">
+              <Globe className="w-4 h-4" />
+              Global
             </TabsTrigger>
           </TabsList>
 
@@ -307,6 +312,10 @@ const Index = () => {
 
           <TabsContent value="maturador" className="mt-8">
             <MaturadorTab />
+          </TabsContent>
+
+          <TabsContent value="global-maturation" className="mt-8">
+            <GlobalMaturationTab />
           </TabsContent>
         </Tabs>
       </main>
