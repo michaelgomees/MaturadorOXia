@@ -79,10 +79,55 @@ export const GlobalMaturationTab = () => {
         }));
 
         setInstances(instancesList);
-        toast({
-          title: "✅ Instâncias Carregadas",
-          description: `${instancesList.length} instâncias conectadas encontradas na Evolution API`,
-        });
+
+        // Verificar e adicionar instâncias ao banco de dados
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          let addedCount = 0;
+          
+          for (const instance of instancesList) {
+            // Verificar se a instância já existe no banco
+            const { data: existingConnection } = await supabase
+              .from('saas_conexoes')
+              .select('id')
+              .eq('evolution_instance_name', instance.instanceName)
+              .eq('usuario_id', user.id)
+              .single();
+
+            // Se não existe, adicionar ao banco
+            if (!existingConnection) {
+              const { error: insertError } = await supabase
+                .from('saas_conexoes')
+                .insert({
+                  nome: instance.displayName || instance.instanceName,
+                  evolution_instance_name: instance.instanceName,
+                  telefone: instance.phoneNumber || '',
+                  display_name: instance.displayName || instance.instanceName,
+                  status: instance.status === 'open' ? 'ativo' : 'inativo',
+                  usuario_id: user.id
+                });
+
+              if (!insertError) {
+                addedCount++;
+                console.log(`✅ Instância ${instance.instanceName} adicionada ao banco`);
+              } else {
+                console.error(`❌ Erro ao adicionar instância ${instance.instanceName}:`, insertError);
+              }
+            }
+          }
+
+          if (addedCount > 0) {
+            toast({
+              title: "✅ Sincronização Completa",
+              description: `${instancesList.length} instâncias carregadas, ${addedCount} novas adicionadas ao banco`,
+            });
+          } else {
+            toast({
+              title: "✅ Instâncias Carregadas",
+              description: `${instancesList.length} instâncias conectadas encontradas`,
+            });
+          }
+        }
       } else {
         setInstances([]);
         toast({
