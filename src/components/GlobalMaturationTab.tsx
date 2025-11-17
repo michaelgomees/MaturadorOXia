@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Globe, Play, Square, RefreshCw, Users, CheckSquare, Search, MessageSquare, Pause } from "lucide-react";
+import { Globe, Play, Square, RefreshCw, Users, CheckSquare, Search, MessageSquare, Pause, Trash2 } from "lucide-react";
 import { useMaturadorPairs } from "@/hooks/useMaturadorPairs";
 import { useMaturationMessages } from "@/hooks/useMaturationMessages";
 
@@ -25,8 +25,13 @@ export const GlobalMaturationTab = () => {
   const [isMaturing, setIsMaturing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
-  const { createPair, pairs, togglePairActive } = useMaturadorPairs();
+  const { createPair, pairs, togglePairActive, deletePair, refreshPairs, loading: pairsLoading } = useMaturadorPairs();
   const { messages: maturationMessages } = useMaturationMessages();
+
+  // Carregar pares ao montar o componente
+  useEffect(() => {
+    refreshPairs();
+  }, []);
 
   // Calcular total de mensagens enviadas de todos os pares
   const totalMessagesSent = pairs.reduce((sum, pair) => sum + (pair.messages_count || 0), 0);
@@ -447,7 +452,7 @@ export const GlobalMaturationTab = () => {
                             Maturando
                           </Badge>
                         )}
-                        {pair.status === 'stopped' && pair.is_active && (
+                        {pair.status === 'stopped' && (
                           <Badge variant="outline" className="text-xs">
                             Pausado
                           </Badge>
@@ -461,24 +466,37 @@ export const GlobalMaturationTab = () => {
                         <span>Modo: {pair.maturation_mode}</span>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => togglePairActive(pair.id)}
-                      className="ml-2"
-                    >
-                      {pair.status === 'running' ? (
-                        <>
-                          <Pause className="w-4 h-4 mr-1" />
-                          Pausar
-                        </>
-                      ) : (
-                        <>
-                          <Play className="w-4 h-4 mr-1" />
-                          Retomar
-                        </>
-                      )}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => togglePairActive(pair.id)}
+                      >
+                        {pair.status === 'running' ? (
+                          <>
+                            <Pause className="w-4 h-4 mr-1" />
+                            Pausar
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-4 h-4 mr-1" />
+                            Iniciar
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          if (confirm(`Deseja remover a dupla ${pair.nome_chip1} ↔️ ${pair.nome_chip2}?`)) {
+                            deletePair(pair.id);
+                          }
+                        }}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
