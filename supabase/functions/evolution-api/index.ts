@@ -119,6 +119,25 @@ serve(async (req) => {
     if (action === 'status') {
       const result = await callEvolutionAPI(`/instance/fetchInstances?instanceName=${encodeURIComponent(instanceName)}`);
       
+      // Se a API retornou 404, a instância não existe
+      if (result.status === 404) {
+        console.log(`⚠️ Instância ${instanceName} não encontrada na Evolution API`);
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Instance not found',
+          instance: {
+            instanceName: instanceName,
+            connectionStatus: 'not_found',
+            ownerJid: null,
+            profileName: null,
+            qrCode: null
+          }
+        }), { 
+          status: 200, // Retorna 200 mas com success: false
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      
       if (result.ok && Array.isArray(result.data) && result.data.length > 0) {
         const instance = result.data[0];
         return new Response(JSON.stringify({
@@ -138,9 +157,15 @@ serve(async (req) => {
       return new Response(JSON.stringify({
         success: false,
         error: 'Instance not found',
-        instance: null
+        instance: {
+          instanceName: instanceName,
+          connectionStatus: 'not_found',
+          ownerJid: null,
+          profileName: null,
+          qrCode: null
+        }
       }), { 
-        status: 404,
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
