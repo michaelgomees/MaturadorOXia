@@ -5,9 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Globe, Play, Square, RefreshCw, Users, CheckSquare, Search, MessageSquare, Pause, Trash2 } from "lucide-react";
+import { Globe, Play, Square, RefreshCw, Users, CheckSquare, Search, MessageSquare, Pause, Trash2, Filter, AlertTriangle } from "lucide-react";
 import { useMaturadorPairs } from "@/hooks/useMaturadorPairs";
 import { useMaturationMessages } from "@/hooks/useMaturationMessages";
 
@@ -24,6 +25,7 @@ export const GlobalMaturationTab = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isMaturing, setIsMaturing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterTab, setFilterTab] = useState<"all" | "active" | "inactive">("all");
   const { toast } = useToast();
   const { createPair, pairs, togglePairActive, deletePair, refreshPairs, loading: pairsLoading, updatePair } = useMaturadorPairs();
   const { messages: maturationMessages } = useMaturationMessages();
@@ -293,6 +295,74 @@ export const GlobalMaturationTab = () => {
     }
   };
 
+  // Remover todas as duplas
+  const removeAllPairs = async () => {
+    if (!confirm(`Deseja realmente remover TODAS as ${pairs.length} duplas configuradas? Esta ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await Promise.all(pairs.map(pair => deletePair(pair.id)));
+      await refreshPairs();
+      
+      toast({
+        title: "🗑️ Todas as Duplas Removidas",
+        description: "Todas as duplas foram removidas com sucesso",
+      });
+    } catch (error) {
+      toast({
+        title: "❌ Erro",
+        description: "Erro ao remover duplas",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Remover duplas com instâncias inativas
+  const removeInactivePairs = async () => {
+    try {
+      setIsLoading(true);
+      const { disconnected } = await checkInstancesStatus();
+      
+      const inactivePairs = pairs.filter(pair => 
+        disconnected.includes(pair.nome_chip1) || disconnected.includes(pair.nome_chip2)
+      );
+
+      if (inactivePairs.length === 0) {
+        toast({
+          title: "ℹ️ Info",
+          description: "Não há duplas com instâncias inativas",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      if (!confirm(`Deseja remover ${inactivePairs.length} duplas com instâncias inativas?`)) {
+        setIsLoading(false);
+        return;
+      }
+
+      await Promise.all(inactivePairs.map(pair => deletePair(pair.id)));
+      await refreshPairs();
+      
+      toast({
+        title: "🗑️ Duplas Inativas Removidas",
+        description: `${inactivePairs.length} duplas com instâncias inativas foram removidas`,
+      });
+    } catch (error) {
+      toast({
+        title: "❌ Erro",
+        description: "Erro ao remover duplas inativas",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Iniciar todas as duplas pausadas
   const startAllPairs = async () => {
     try {
@@ -513,6 +583,13 @@ export const GlobalMaturationTab = () => {
       instance.phoneNumber?.includes(searchTerm);
     
     return existsInDB && matchesSearch;
+  });
+
+  // Filtrar pares por status
+  const filteredPairs = pairs.filter(pair => {
+    if (filterTab === "active") return pair.status === 'running';
+    if (filterTab === "inactive") return pair.status === 'stopped';
+    return true;
   });
 
   const totalPossiblePairs = selectedInstances.length >= 2 
@@ -760,13 +837,40 @@ export const GlobalMaturationTab = () => {
                     Pausar Todas
                   </Button>
                 )}
+                <Button
+                  onClick={removeInactivePairs}
+                  variant="outline"
+                  size="sm"
+                  className="text-yellow-600 border-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-950"
+                  disabled={isLoading}
+                >
+                  <AlertTriangle className="w-4 h-4 mr-2" />
+                  Remover Inativas
+                </Button>
+                <Button
+                  onClick={removeAllPairs}
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive border-destructive hover:bg-destructive/10"
+                  disabled={isLoading || pairs.length === 0}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Remover Todas
+                </Button>
               </div>
             </div>
+            <Tabs value={filterTab} onValueChange={(v) => setFilterTab(v as any)} className="mt-4">
+              <TabsList>
+                <TabsTrigger value="all">Todas ({pairs.length})</TabsTrigger>
+                <TabsTrigger value="active">Ativas ({activePairs.length})</TabsTrigger>
+                <TabsTrigger value="inactive">Pausadas ({pausedPairs.length})</TabsTrigger>
+              </TabsList>
+            </Tabs>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[300px] pr-4">
               <div className="space-y-2">
-                {pairs.map((pair) => (
+                {filteredPairs.map((pair) => (
                   <div
                     key={pair.id}
                     className={`flex items-center justify-between p-4 rounded-lg border transition-all ${
