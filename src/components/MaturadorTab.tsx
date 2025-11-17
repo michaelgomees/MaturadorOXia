@@ -264,6 +264,39 @@ export const MaturadorTab = () => {
     }
   };
 
+  const handlePauseAll = async () => {
+    try {
+      const runningPairs = config.selectedPairs.filter(pair => pair.status === 'running');
+      
+      if (runningPairs.length === 0) {
+        toast({ 
+          title: "Aviso", 
+          description: "Nenhuma dupla em execução encontrada.", 
+          variant: "destructive" 
+        });
+        return;
+      }
+
+      // Pausar todas as duplas em execução
+      for (const pair of runningPairs) {
+        await updatePair(pair.id, { 
+          status: 'paused'
+        });
+      }
+      
+      toast({ 
+        title: "⏸️ Todas as Duplas Pausadas!", 
+        description: `${runningPairs.length} duplas foram pausadas.` 
+      });
+    } catch (error) {
+      toast({ 
+        title: "Erro", 
+        description: "Não foi possível pausar todas as duplas.", 
+        variant: "destructive" 
+      });
+    }
+  };
+
   const handleRemoveAll = async () => {
     try {
       // Remover todas as duplas do banco de dados
@@ -552,6 +585,16 @@ export const MaturadorTab = () => {
             </div>
             {config.selectedPairs.length > 0 && (
               <div className="flex gap-2">
+                <Button 
+                  onClick={handlePauseAll}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                  disabled={config.selectedPairs.filter(pair => pair.status === 'running').length === 0}
+                >
+                  <Pause className="w-4 h-4" />
+                  Pausar Todos
+                </Button>
+                
                 <Button 
                   onClick={handleStartAll}
                   className="flex items-center gap-2"
