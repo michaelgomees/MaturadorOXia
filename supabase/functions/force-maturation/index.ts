@@ -280,7 +280,16 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // ✨ VERIFICAR SE É UMA CHAMADA FORÇADA PARA UM PAR ESPECÍFICO
+    // 🛑 VERIFICAÇÃO RÁPIDA: Se não há pares ativos, retornar imediatamente
+    // (economiza recursos e para todas as operações quando não há nada para processar)
+    const { data: quickCheck, error: quickCheckError } = await supabase
+      .from('saas_pares_maturacao')
+      .select('id')
+      .eq('is_active', true)
+      .eq('status', 'running')
+      .limit(1);
+
+    // Se não encontrou nenhum par ativo E não é uma chamada forçada, retornar
     let forcedPairId: string | null = null;
     try {
       const body = await req.json();
@@ -288,6 +297,19 @@ serve(async (req) => {
     } catch (e) {
       // Não é problema se não tem body
     }
+
+    if (!forcedPairId && (quickCheckError || !quickCheck || quickCheck.length === 0)) {
+      console.log('⏸️ Nenhum par ativo. Pulando execução da maturação.');
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'Nenhum par ativo para processar',
+        processed: 0 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // ✨ VERIFICAR SE É UMA CHAMADA FORÇADA PARA UM PAR ESPECÍFICO
 
     if (forcedPairId) {
       // 🔥 MODO FORÇADO: Processar APENAS este par IMEDIATAMENTE
