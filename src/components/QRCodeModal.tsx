@@ -33,14 +33,21 @@ export const QRCodeModal = ({ open, onOpenChange, chipName, chipPhone }: QRCodeM
         setPollingInterval(null);
       }
 
-      const instanceName = chipName.toLowerCase().replace(/\s+/g, '_');
+      // Usar o nome da instância diretamente, sem transformações
+      // pois ele já vem no formato correto do banco (evolutionInstanceName)
+      const instanceName = chipName;
       
       console.log('🔄 Buscando QR Code da instância:', instanceName);
+      
+      // Validar nome da instância
+      if (!instanceName || instanceName.trim() === '') {
+        throw new Error('Nome da instância inválido');
+      }
       
       // Função para buscar QR Code
       const fetchQR = async (): Promise<any> => {
         const response = await fetch(
-          `https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api?instanceName=${instanceName}&action=status`,
+          `https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api?instanceName=${encodeURIComponent(instanceName)}&action=status`,
           {
             method: 'GET',
             headers: {
@@ -51,7 +58,9 @@ export const QRCodeModal = ({ open, onOpenChange, chipName, chipPhone }: QRCodeM
         );
 
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+          const errorText = await response.text();
+          console.error('❌ Erro na requisição:', response.status, errorText);
+          throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}`);
         }
 
         return await response.json();
