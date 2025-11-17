@@ -506,40 +506,40 @@ export const EnhancedMaturadorTab: React.FC = () => {
         {dbPairs.length > 0 && (
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Users className="w-5 h-5" />
                   Duplas Configuradas ({dbPairs.length})
                 </CardTitle>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={handlePauseAll}
                     disabled={isRunning || dbPairs.filter(p => p.is_active).length === 0}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-1.5"
                   >
                     <Pause className="w-4 h-4" />
-                    Pausar Todos
+                    <span className="whitespace-nowrap">Pausar Todos</span>
                   </Button>
                   <Button
                     size="sm"
                     onClick={handleStartAll}
                     disabled={isRunning || dbPairs.filter(p => !p.is_active).length === 0}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-1.5"
                   >
                     <Play className="w-4 h-4" />
-                    Iniciar Todos
+                    <span className="whitespace-nowrap">Iniciar Todos</span>
                   </Button>
                   <Button
                     size="sm"
                     variant="destructive"
                     onClick={handleRemoveAll}
                     disabled={isRunning}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-1.5"
                   >
                     <Trash2 className="w-4 h-4" />
-                    Remover Todos
+                    <span className="whitespace-nowrap">Remover Todos</span>
                   </Button>
                 </div>
               </div>
