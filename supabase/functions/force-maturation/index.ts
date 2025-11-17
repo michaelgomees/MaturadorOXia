@@ -73,23 +73,30 @@ async function processSinglePair(pair: ChipPair, supabase: any) {
     console.log(`\n🎯 Processando par: ${pair.nome_chip1} <-> ${pair.nome_chip2}`);
     console.log(`📊 Par ${pair.id}: messages_count=${pair.messages_count}, status=${pair.status}, is_active=true`);
     
-    // Buscar conexões dos chips
+    // Buscar conexões dos chips pelo evolution_instance_name
     const { data: connections, error: connError } = await supabase
       .from('saas_conexoes')
       .select('*')
       .eq('usuario_id', pair.usuario_id)
-      .in('nome', [pair.nome_chip1, pair.nome_chip2]);
+      .in('evolution_instance_name', [pair.nome_chip1, pair.nome_chip2]);
 
-    if (connError || !connections || connections.length !== 2) {
+    if (connError) {
       console.error(`❌ Erro ao buscar conexões do par ${pair.id}:`, connError);
+      return { error: 'Erro ao buscar conexões' };
+    }
+
+    if (!connections || connections.length === 0) {
+      console.error(`❌ Nenhuma conexão encontrada para o par ${pair.id}`);
+      console.log(`🔍 Tentando buscar por: ${pair.nome_chip1} e ${pair.nome_chip2}`);
       return { error: 'Conexões não encontradas' };
     }
 
-    const chip1 = connections.find((c: Connection) => c.nome === pair.nome_chip1);
-    const chip2 = connections.find((c: Connection) => c.nome === pair.nome_chip2);
+    const chip1 = connections.find((c: Connection) => c.evolution_instance_name === pair.nome_chip1);
+    const chip2 = connections.find((c: Connection) => c.evolution_instance_name === pair.nome_chip2);
 
     if (!chip1 || !chip2) {
       console.error(`❌ Chips não encontrados para o par ${pair.id}`);
+      console.log(`📊 Conexões encontradas: ${connections.map(c => c.evolution_instance_name).join(', ')}`);
       return { error: 'Chips não encontrados' };
     }
 

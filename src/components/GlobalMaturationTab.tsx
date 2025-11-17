@@ -377,82 +377,29 @@ export const GlobalMaturationTab = () => {
       }
 
       setIsLoading(true);
+      console.log(`🚀 Iniciando ${stoppedPairs.length} duplas...`);
 
-      // Verificar status de cada instância das duplas
-      console.log('🔍 Verificando status das instâncias de cada dupla...');
-      const disconnectedInstances = new Set<string>();
-      
-      for (const pair of stoppedPairs) {
-        // Verificar chip1
-        const status1Url = new URL(`https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api`);
-        status1Url.searchParams.set('action', 'status');
-        status1Url.searchParams.set('instanceName', pair.nome_chip1);
-
-        const session = await supabase.auth.getSession();
-        const response1 = await fetch(status1Url.toString(), {
-          method: 'GET',
-          headers: {
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM',
-            'Authorization': `Bearer ${session.data.session?.access_token || ''}`
-          }
-        });
-
-        const data1 = await response1.json();
-        if (!data1.success || data1.status !== 'open') {
-          disconnectedInstances.add(pair.nome_chip1);
-        }
-
-        // Verificar chip2
-        const status2Url = new URL(`https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api`);
-        status2Url.searchParams.set('action', 'status');
-        status2Url.searchParams.set('instanceName', pair.nome_chip2);
-
-        const response2 = await fetch(status2Url.toString(), {
-          method: 'GET',
-          headers: {
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM',
-            'Authorization': `Bearer ${session.data.session?.access_token || ''}`
-          }
-        });
-
-        const data2 = await response2.json();
-        if (!data2.success || data2.status !== 'open') {
-          disconnectedInstances.add(pair.nome_chip2);
-        }
-      }
-      
-      if (disconnectedInstances.size > 0) {
-        toast({
-          title: "❌ Instâncias Desconectadas",
-          description: `Não é possível iniciar. Instâncias offline: ${Array.from(disconnectedInstances).join(', ')}. Reconecte-as primeiro.`,
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      // Todas as instâncias estão conectadas, iniciar os pares
-      await Promise.all(
-        stoppedPairs.map(pair => 
-          updatePair(pair.id, { 
-            status: 'running' as const,
-            is_active: true,
-            started_at: new Date().toISOString()
-          })
-        )
+      // Iniciar todos os pares em paralelo
+      const updatePromises = stoppedPairs.map(pair => 
+        updatePair(pair.id, { 
+          status: 'running' as const,
+          is_active: true,
+          started_at: new Date().toISOString()
+        })
       );
 
-      await refreshPairs();
+      await Promise.all(updatePromises);
+      console.log('✅ Todas as duplas foram atualizadas no banco');
 
-      // Forçar chamada imediata da maturação
-      await supabase.functions.invoke('force-maturation');
+      await refreshPairs();
+      console.log('✅ Lista de pares atualizada');
 
       toast({
         title: "▶️ Todas as Duplas Iniciadas",
-        description: `${stoppedPairs.length} duplas foram iniciadas com sucesso`,
+        description: `${stoppedPairs.length} duplas foram iniciadas e estão maturando`,
       });
     } catch (error) {
-      console.error('Erro ao iniciar todas as duplas:', error);
+      console.error('❌ Erro ao iniciar todas as duplas:', error);
       toast({
         title: "❌ Erro",
         description: "Erro ao iniciar duplas",
