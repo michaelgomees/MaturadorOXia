@@ -89,13 +89,14 @@ export const useMaturadorPairs = () => {
           nome_chip1: chip1,
           nome_chip2: chip2,
           is_active: true,
-          status: 'stopped',
+          status: 'running',
           messages_count: 0,
           use_instance_prompt: false,
           maturation_mode: maturationMode || 'prompts',
           message_file_id: finalMessageFileId,
           loop_messages: true,
           current_message_index: 0,
+          started_at: new Date().toISOString(),
           usuario_id: (await supabase.auth.getUser()).data.user?.id
         }])
         .select()
@@ -179,21 +180,21 @@ export const useMaturadorPairs = () => {
     const pair = pairs.find(p => p.id === id);
     if (!pair) return;
 
-    const isActivating = !pair.is_active;
+    const isRunning = pair.status === 'running';
 
     try {
       const updates: any = {
-        is_active: isActivating,
-        status: isActivating ? 'running' : 'paused',
+        is_active: !isRunning ? true : pair.is_active,
+        status: isRunning ? 'stopped' : 'running',
         last_activity: new Date().toISOString()
       };
 
       // Registrar horário de início quando ativar
-      if (isActivating && !pair.started_at) {
+      if (!isRunning && !pair.started_at) {
         updates.started_at = new Date().toISOString();
       }
 
-      console.log(`🚀 ${isActivating ? 'INICIANDO' : 'PAUSANDO'} par ${pair.nome_chip1} <-> ${pair.nome_chip2}`);
+      console.log(`🚀 ${!isRunning ? 'INICIANDO' : 'PAUSANDO'} par ${pair.nome_chip1} <-> ${pair.nome_chip2}`);
 
       // Atualizar no banco com retry
       let retryCount = 0;
@@ -224,7 +225,7 @@ export const useMaturadorPairs = () => {
       await loadPairs();
 
       // Se estiver ATIVANDO, forçar chamada IMEDIATA da edge function
-      if (isActivating) {
+      if (!isRunning) {
         console.log(`🔥 FORÇANDO início imediato da maturação via edge function...`);
         
         toast({
@@ -304,3 +305,6 @@ export const useMaturadorPairs = () => {
     refreshPairs: loadPairs
   };
 };
+
+// Auto-carregar pares ao iniciar o hook não é feito aqui
+// pois o componente que usa o hook deve chamar loadPairs() no useEffect
