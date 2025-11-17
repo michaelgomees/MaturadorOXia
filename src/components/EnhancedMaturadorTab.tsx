@@ -518,18 +518,20 @@ export const EnhancedMaturadorTab: React.FC = () => {
                     onClick={handlePauseAll}
                     disabled={isRunning || dbPairs.filter(p => p.is_active).length === 0}
                     className="flex items-center gap-1.5"
+                    title={isRunning ? "Pare o maturador primeiro" : dbPairs.filter(p => p.is_active).length === 0 ? "Nenhuma dupla ativa" : "Pausar todas as duplas ativas"}
                   >
                     <Pause className="w-4 h-4" />
-                    <span className="whitespace-nowrap">Pausar Todos</span>
+                    <span>Pausar Todos</span>
                   </Button>
                   <Button
                     size="sm"
                     onClick={handleStartAll}
                     disabled={isRunning || dbPairs.filter(p => !p.is_active).length === 0}
                     className="flex items-center gap-1.5"
+                    title={isRunning ? "Pare o maturador primeiro" : dbPairs.filter(p => !p.is_active).length === 0 ? "Todas as duplas já estão ativas" : "Iniciar todas as duplas"}
                   >
                     <Play className="w-4 h-4" />
-                    <span className="whitespace-nowrap">Iniciar Todos</span>
+                    <span>Iniciar Todos</span>
                   </Button>
                   <Button
                     size="sm"
@@ -537,9 +539,10 @@ export const EnhancedMaturadorTab: React.FC = () => {
                     onClick={handleRemoveAll}
                     disabled={isRunning}
                     className="flex items-center gap-1.5"
+                    title={isRunning ? "Pare o maturador primeiro" : "Remover todas as duplas"}
                   >
                     <Trash2 className="w-4 h-4" />
-                    <span className="whitespace-nowrap">Remover Todos</span>
+                    <span>Remover Todos</span>
                   </Button>
                 </div>
               </div>
