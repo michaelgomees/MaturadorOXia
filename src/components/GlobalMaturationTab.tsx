@@ -248,6 +248,158 @@ export const GlobalMaturationTab = () => {
     }
   };
 
+  // Iniciar todas as duplas pausadas
+  const startAllPairs = async () => {
+    try {
+      const stoppedPairs = pairs.filter(p => p.status === 'stopped');
+      
+      if (stoppedPairs.length === 0) {
+        toast({
+          title: "ℹ️ Info",
+          description: "Não há duplas pausadas para iniciar",
+        });
+        return;
+      }
+
+      setIsLoading(true);
+
+      // Verificar status das instâncias primeiro
+      const { disconnected } = await checkInstancesStatus();
+      
+      if (disconnected.length > 0) {
+        toast({
+          title: "❌ Instâncias Desconectadas",
+          description: `Não é possível iniciar. Instâncias offline: ${disconnected.join(', ')}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Iniciar todos os pares em paralelo
+      await Promise.all(
+        stoppedPairs.map(pair => 
+          updatePair(pair.id, { 
+            status: 'running' as const,
+            is_active: true,
+            started_at: new Date().toISOString()
+          })
+        )
+      );
+
+      await refreshPairs();
+
+      // Forçar chamada imediata da maturação
+      await supabase.functions.invoke('force-maturation');
+
+      toast({
+        title: "▶️ Todas as Duplas Iniciadas",
+        description: `${stoppedPairs.length} duplas foram iniciadas com sucesso`,
+      });
+    } catch (error) {
+      console.error('Erro ao iniciar todas as duplas:', error);
+      toast({
+        title: "❌ Erro",
+        description: "Erro ao iniciar duplas",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Verificar status das instâncias via Evolution API
+  const checkInstancesStatus = async () => {
+    try {
+      const supabaseUrl = 'https://rltkxwswlvuzwmmbqwkr.supabase.co';
+      const url = new URL(`${supabaseUrl}/functions/v1/evolution-api`);
+      url.searchParams.set('action', 'fetchAll');
+
+      const session = await supabase.auth.getSession();
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM',
+          'Authorization': `Bearer ${session.data.session?.access_token || ''}`
+        }
+      });
+
+      if (!response.ok) {
+        return { disconnected: [] };
+      }
+
+      const apiData = await response.json();
+      
+      if (!apiData.success || !apiData.instances) {
+        return { disconnected: [] };
+      }
+
+      // Coletar todas as instâncias dos pares ativos
+      const activePairInstances = new Set<string>();
+      activePairs.forEach(pair => {
+        activePairInstances.add(pair.nome_chip1);
+        activePairInstances.add(pair.nome_chip2);
+      });
+
+      // Verificar quais estão desconectadas
+      const disconnectedInstances: string[] = [];
+      activePairInstances.forEach(instanceName => {
+        const instance = apiData.instances.find((i: any) => i.instanceName === instanceName);
+        if (!instance || instance.connectionStatus !== 'open') {
+          disconnectedInstances.push(instanceName);
+        }
+      });
+
+      return { disconnected: disconnectedInstances };
+    } catch (error) {
+      console.error('Erro ao verificar status das instâncias:', error);
+      return { disconnected: [] };
+    }
+  };
+
+  // Sincronização automática a cada 2 minutos
+  useEffect(() => {
+    if (activePairs.length === 0) return;
+
+    const syncInterval = setInterval(async () => {
+      console.log('🔄 Sincronização automática: verificando instâncias...');
+      
+      const { disconnected } = await checkInstancesStatus();
+      
+      if (disconnected.length > 0) {
+        console.error('❌ Instâncias desconectadas detectadas:', disconnected);
+        
+        // Pausar todos os pares que usam instâncias desconectadas
+        const pairsToStop = activePairs.filter(pair => 
+          disconnected.includes(pair.nome_chip1) || disconnected.includes(pair.nome_chip2)
+        );
+
+        if (pairsToStop.length > 0) {
+          await Promise.all(
+            pairsToStop.map(pair => 
+              updatePair(pair.id, { 
+                status: 'stopped' as const,
+                is_active: false 
+              })
+            )
+          );
+
+          await refreshPairs();
+
+          toast({
+            title: "⚠️ Maturação Pausada Automaticamente",
+            description: `Instâncias desconectadas: ${disconnected.join(', ')}. Reconecte para continuar.`,
+            variant: "destructive",
+          });
+        }
+      } else {
+        console.log('✅ Todas as instâncias estão conectadas');
+      }
+    }, 120000); // 2 minutos = 120000ms
+
+    return () => clearInterval(syncInterval);
+  }, [activePairs]);
+
   // Filtrar instâncias por busca
   // Buscar todas as conexões existentes no banco para validação
   const [validConnections, setValidConnections] = useState<string[]>([]);
@@ -497,18 +649,32 @@ export const GlobalMaturationTab = () => {
                   Pares criados e gerenciados pela maturação global
                 </CardDescription>
               </div>
-              {activePairs.length > 0 && (
-                <Button
-                  onClick={pauseAllPairs}
-                  variant="outline"
-                  size="sm"
-                  className="text-orange-600 border-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950"
-                  disabled={isLoading}
-                >
-                  <Pause className="w-4 h-4 mr-2" />
-                  Pausar Todas
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {pausedPairs.length > 0 && (
+                  <Button
+                    onClick={startAllPairs}
+                    variant="outline"
+                    size="sm"
+                    className="text-green-600 border-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+                    disabled={isLoading}
+                  >
+                    <Play className="w-4 h-4 mr-2" />
+                    Iniciar Todas
+                  </Button>
+                )}
+                {activePairs.length > 0 && (
+                  <Button
+                    onClick={pauseAllPairs}
+                    variant="outline"
+                    size="sm"
+                    className="text-orange-600 border-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950"
+                    disabled={isLoading}
+                  >
+                    <Pause className="w-4 h-4 mr-2" />
+                    Pausar Todas
+                  </Button>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent>
