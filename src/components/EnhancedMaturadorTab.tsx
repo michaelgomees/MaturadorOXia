@@ -7,7 +7,7 @@ import { Switch } from './ui/switch';
 import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { Play, Square, Settings, MessageCircle, Users, Activity, Zap, ArrowRight, Plus, FileText, Brain, Info, Database, Image } from 'lucide-react';
+import { Play, Square, Settings, MessageCircle, Users, Activity, Zap, ArrowRight, Plus, FileText, Brain, Info, Database, Image, Trash2, Pause } from 'lucide-react';
 import { StatsCard } from './StatsCard';
 import { useMaturadorEngine } from '@/hooks/useMaturadorEngine';
 import { useMaturadorPairs } from '@/hooks/useMaturadorPairs';
@@ -133,6 +133,45 @@ export const EnhancedMaturadorTab: React.FC = () => {
 
   const handleTogglePair = async (pairId: string) => {
     await togglePairActive(pairId);
+  };
+
+  const handleStartAll = async () => {
+    // Ativar todas as duplas
+    for (const pair of dbPairs) {
+      if (!pair.is_active) {
+        await togglePairActive(pair.id);
+      }
+    }
+    toast({
+      title: "Sucesso",
+      description: `Todas as ${dbPairs.length} duplas foram iniciadas`,
+    });
+  };
+
+  const handlePauseAll = async () => {
+    // Pausar todas as duplas ativas
+    const activePairs = dbPairs.filter(p => p.is_active);
+    for (const pair of activePairs) {
+      await togglePairActive(pair.id);
+    }
+    toast({
+      title: "Sucesso",
+      description: `${activePairs.length} duplas foram pausadas`,
+    });
+  };
+
+  const handleRemoveAll = async () => {
+    // Remover todas as duplas
+    if (!confirm(`Tem certeza que deseja remover todas as ${dbPairs.length} duplas?`)) {
+      return;
+    }
+    for (const pair of dbPairs) {
+      await deletePair(pair.id);
+    }
+    toast({
+      title: "Sucesso",
+      description: "Todas as duplas foram removidas",
+    });
   };
 
   const handleStartMaturador = () => {
@@ -467,10 +506,43 @@ export const EnhancedMaturadorTab: React.FC = () => {
         {dbPairs.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Duplas Configuradas ({dbPairs.length})
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  Duplas Configuradas ({dbPairs.length})
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handlePauseAll}
+                    disabled={isRunning || dbPairs.filter(p => p.is_active).length === 0}
+                    className="flex items-center gap-2"
+                  >
+                    <Pause className="w-4 h-4" />
+                    Pausar Todos
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleStartAll}
+                    disabled={isRunning || dbPairs.filter(p => !p.is_active).length === 0}
+                    className="flex items-center gap-2"
+                  >
+                    <Play className="w-4 h-4" />
+                    Iniciar Todos
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={handleRemoveAll}
+                    disabled={isRunning}
+                    className="flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Remover Todos
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <ScrollArea className="h-[400px] w-full">
