@@ -38,7 +38,7 @@ export const GlobalMaturationTab = () => {
   
   // Filtrar pares ativos/em execução
   const activePairs = pairs.filter(pair => pair.is_active && pair.status === 'running');
-  const pausedPairs = pairs.filter(pair => pair.is_active && pair.status === 'stopped');
+  const pausedPairs = pairs.filter(pair => pair.status === 'stopped');
 
   // Buscar todas as instâncias diretamente da Evolution API
   const fetchAllInstances = async () => {
@@ -308,19 +308,60 @@ export const GlobalMaturationTab = () => {
 
       setIsLoading(true);
 
-      // Verificar status das instâncias primeiro
-      const { disconnected } = await checkInstancesStatus();
+      // Verificar status de cada instância das duplas
+      console.log('🔍 Verificando status das instâncias de cada dupla...');
+      const disconnectedInstances = new Set<string>();
       
-      if (disconnected.length > 0) {
+      for (const pair of stoppedPairs) {
+        // Verificar chip1
+        const status1Url = new URL(`https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api`);
+        status1Url.searchParams.set('action', 'status');
+        status1Url.searchParams.set('instanceName', pair.nome_chip1);
+
+        const session = await supabase.auth.getSession();
+        const response1 = await fetch(status1Url.toString(), {
+          method: 'GET',
+          headers: {
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM',
+            'Authorization': `Bearer ${session.data.session?.access_token || ''}`
+          }
+        });
+
+        const data1 = await response1.json();
+        if (!data1.success || data1.status !== 'open') {
+          disconnectedInstances.add(pair.nome_chip1);
+        }
+
+        // Verificar chip2
+        const status2Url = new URL(`https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api`);
+        status2Url.searchParams.set('action', 'status');
+        status2Url.searchParams.set('instanceName', pair.nome_chip2);
+
+        const response2 = await fetch(status2Url.toString(), {
+          method: 'GET',
+          headers: {
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM',
+            'Authorization': `Bearer ${session.data.session?.access_token || ''}`
+          }
+        });
+
+        const data2 = await response2.json();
+        if (!data2.success || data2.status !== 'open') {
+          disconnectedInstances.add(pair.nome_chip2);
+        }
+      }
+      
+      if (disconnectedInstances.size > 0) {
         toast({
           title: "❌ Instâncias Desconectadas",
-          description: `Não é possível iniciar. Instâncias offline: ${disconnected.join(', ')}`,
+          description: `Não é possível iniciar. Instâncias offline: ${Array.from(disconnectedInstances).join(', ')}. Reconecte-as primeiro.`,
           variant: "destructive",
         });
+        setIsLoading(false);
         return;
       }
 
-      // Iniciar todos os pares em paralelo
+      // Todas as instâncias estão conectadas, iniciar os pares
       await Promise.all(
         stoppedPairs.map(pair => 
           updatePair(pair.id, { 
@@ -750,12 +791,12 @@ export const GlobalMaturationTab = () => {
                           </Badge>
                         )}
                       </div>
-                      <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <MessageSquare className="w-3 h-3" />
-                          {pair.messages_count || 0} mensagens
-                        </span>
-                        <span>Modo: {pair.maturation_mode}</span>
+                      <div className="flex flex-col gap-1 mt-2">
+                        <div className="flex items-center gap-1 text-sm font-medium text-primary">
+                          <MessageSquare className="w-4 h-4" />
+                          {pair.messages_count || 0} mensagens trocadas
+                        </div>
+                        <span className="text-xs text-muted-foreground">Modo: {pair.maturation_mode}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
