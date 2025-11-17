@@ -355,7 +355,7 @@ export const ConnectionsTab = () => {
           <QRCodeModal
             open={!!showQRModal}
             onOpenChange={(open) => !open && setShowQRModal(null)}
-            chipName={connection.name}
+            chipName={connection.evolutionInstanceName || connection.name}
             chipPhone={connection.phone || ''}
           />
         ) : null;
