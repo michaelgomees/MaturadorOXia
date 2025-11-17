@@ -375,6 +375,72 @@ serve(async (req) => {
       
       console.log('📥 GET Request:', { instanceName, action });
       
+      // Endpoint para listar todas as instâncias
+      if (action === 'fetchAll') {
+        console.log('📋 Buscando todas as instâncias da Evolution API...');
+        
+        const apiKey = Deno.env.get('EVOLUTION_API_KEY');
+        let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT');
+        
+        if (!apiKey || !endpoint) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: 'Evolution API credentials not configured' 
+            }),
+            { 
+              status: 500, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+        }
+
+        if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+          endpoint = `https://${endpoint}`;
+        }
+        
+        const cleanApiKey = apiKey.trim();
+        
+        try {
+          const response = await fetch(`${endpoint}/instance/fetchInstances`, {
+            method: 'GET',
+            headers: {
+              'apikey': cleanApiKey,
+              'Accept': 'application/json'
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
+          const instances = await response.json();
+          console.log('✅ Instâncias encontradas:', instances.length);
+          
+          return new Response(
+            JSON.stringify({
+              success: true,
+              instances: instances || []
+            }),
+            { 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+        } catch (error) {
+          console.error('❌ Erro ao buscar instâncias:', error);
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: error.message 
+            }),
+            { 
+              status: 500, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+        }
+      }
+      
       if (!instanceName) {
         return new Response(
           JSON.stringify({ success: false, error: 'instanceName parameter is required' }),
