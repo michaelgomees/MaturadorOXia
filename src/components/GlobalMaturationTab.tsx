@@ -25,7 +25,7 @@ export const GlobalMaturationTab = () => {
   const [isMaturing, setIsMaturing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
-  const { createPair, pairs, togglePairActive, deletePair, refreshPairs, loading: pairsLoading } = useMaturadorPairs();
+  const { createPair, pairs, togglePairActive, deletePair, refreshPairs, loading: pairsLoading, updatePair } = useMaturadorPairs();
   const { messages: maturationMessages } = useMaturationMessages();
 
   // Carregar pares ao montar o componente
@@ -205,12 +205,77 @@ export const GlobalMaturationTab = () => {
     }
   };
 
+  // Pausar todas as duplas configuradas
+  const pauseAllPairs = async () => {
+    try {
+      const runningPairs = pairs.filter(p => p.status === 'running');
+      
+      if (runningPairs.length === 0) {
+        toast({
+          title: "ℹ️ Info",
+          description: "Não há duplas ativas para pausar",
+        });
+        return;
+      }
+
+      setIsLoading(true);
+
+      // Pausar todos os pares em paralelo
+      await Promise.all(
+        runningPairs.map(pair => 
+          updatePair(pair.id, { 
+            status: 'stopped' as const,
+            is_active: false 
+          })
+        )
+      );
+
+      await refreshPairs();
+
+      toast({
+        title: "⏸️ Todas as Duplas Pausadas",
+        description: `${runningPairs.length} duplas foram pausadas com sucesso`,
+      });
+    } catch (error) {
+      console.error('Erro ao pausar todas as duplas:', error);
+      toast({
+        title: "❌ Erro",
+        description: "Erro ao pausar duplas",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Filtrar instâncias por busca
-  const filteredInstances = instances.filter(instance =>
-    instance.instanceName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    instance.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    instance.phoneNumber?.includes(searchTerm)
-  );
+  // Buscar todas as conexões existentes no banco para validação
+  const [validConnections, setValidConnections] = useState<string[]>([]);
+  
+  useEffect(() => {
+    const fetchConnections = async () => {
+      const { data } = await supabase
+        .from('saas_conexoes')
+        .select('nome')
+        .eq('status', 'ativo');
+      
+      if (data) {
+        setValidConnections(data.map(c => c.nome));
+      }
+    };
+    
+    fetchConnections();
+  }, [instances]);
+
+  const filteredInstances = instances.filter(instance => {
+    // Apenas mostrar instâncias que existem no banco de dados
+    const existsInDB = validConnections.includes(instance.instanceName);
+    const matchesSearch = instance.instanceName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      instance.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      instance.phoneNumber?.includes(searchTerm);
+    
+    return existsInDB && matchesSearch;
+  });
 
   const totalPossiblePairs = selectedInstances.length >= 2 
     ? (selectedInstances.length * (selectedInstances.length - 1)) / 2 
@@ -422,13 +487,29 @@ export const GlobalMaturationTab = () => {
       {pairs.length > 0 && (
         <Card className="border-primary/20">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              Duplas Configuradas ({pairs.length})
-            </CardTitle>
-            <CardDescription>
-              Pares criados e gerenciados pela maturação global
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  Duplas Configuradas ({pairs.length})
+                </CardTitle>
+                <CardDescription>
+                  Pares criados e gerenciados pela maturação global
+                </CardDescription>
+              </div>
+              {activePairs.length > 0 && (
+                <Button
+                  onClick={pauseAllPairs}
+                  variant="outline"
+                  size="sm"
+                  className="text-orange-600 border-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950"
+                  disabled={isLoading}
+                >
+                  <Pause className="w-4 h-4 mr-2" />
+                  Pausar Todas
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[300px] pr-4">
