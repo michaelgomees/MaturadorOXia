@@ -32,26 +32,36 @@ export const GlobalMaturationTab = () => {
     try {
       console.log('🔄 Buscando instâncias da Evolution API...');
       
-      const { data: apiData, error } = await supabase.functions.invoke('evolution-api', {
-        body: { action: 'fetchAll' }
+      // Fazer requisição com query params
+      const supabaseUrl = 'https://rltkxwswlvuzwmmbqwkr.supabase.co';
+      const url = new URL(`${supabaseUrl}/functions/v1/evolution-api`);
+      url.searchParams.set('action', 'fetchAll');
+
+      const session = await supabase.auth.getSession();
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM',
+          'Authorization': `Bearer ${session.data.session?.access_token || ''}`
+        }
       });
 
-      if (error) {
-        throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ Erro na requisição:', errorData);
+        throw new Error(errorData.error || 'Failed to fetch instances');
       }
+
+      const apiData = await response.json();
       console.log('📥 Resposta da API:', apiData);
 
       if (apiData.success && apiData.instances && apiData.instances.length > 0) {
-        // Filtrar apenas instâncias conectadas
-        const connectedInstances = apiData.instances.filter((inst: any) =>
-          inst.instance?.state === 'open' || inst.connectionStatus === 'open'
-        );
-
-        const instancesList: EvolutionInstance[] = connectedInstances.map((inst: any) => ({
-          instanceName: inst.instance?.instanceName || inst.instanceName,
-          status: inst.instance?.state || inst.connectionStatus || 'unknown',
-          phoneNumber: inst.instance?.ownerJid?.split('@')[0] || '',
-          displayName: inst.instance?.profileName || inst.instanceName
+        const instancesList: EvolutionInstance[] = apiData.instances.map((inst: any) => ({
+          instanceName: inst.instanceName,
+          status: inst.connectionStatus,
+          phoneNumber: inst.phoneNumber || '',
+          displayName: inst.displayName || inst.instanceName
         }));
 
         setInstances(instancesList);

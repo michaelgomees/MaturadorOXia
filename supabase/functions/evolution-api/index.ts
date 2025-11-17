@@ -68,9 +68,16 @@ serve(async (req) => {
       const result = await callEvolutionAPI('/instance/fetchInstances');
       
       if (result.ok && Array.isArray(result.data)) {
+        // Filtrar apenas instâncias conectadas (state === 'open')
+        const connectedInstances = result.data.filter((inst: any) => 
+          inst.connectionStatus === 'open'
+        );
+
+        console.log(`✅ Encontradas ${connectedInstances.length} instâncias conectadas de ${result.data.length} total`);
+
         return new Response(JSON.stringify({
           success: true,
-          instances: result.data.map((inst: any) => ({
+          instances: connectedInstances.map((inst: any) => ({
             instanceName: inst.name,
             connectionStatus: inst.connectionStatus,
             phoneNumber: inst.ownerJid?.split('@')[0] || '',
