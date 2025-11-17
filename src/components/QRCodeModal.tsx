@@ -44,21 +44,30 @@ export const QRCodeModal = ({ open, onOpenChange, chipName, chipPhone }: QRCodeM
         throw new Error('Nome da instância inválido');
       }
       
-      // Função para buscar QR Code via connect action
+      // Função para buscar QR Code via connect action (usando query params)
       const fetchQR = async (): Promise<any> => {
-        const { data, error } = await supabase.functions.invoke('evolution-api', {
-          body: {
-            action: 'connect',
-            instanceName: instanceName
+        const supabaseUrl = 'https://rltkxwswlvuzwmmbqwkr.supabase.co';
+        const url = new URL(`${supabaseUrl}/functions/v1/evolution-api`);
+        url.searchParams.set('action', 'connect');
+        url.searchParams.set('instanceName', instanceName);
+
+        const session = await supabase.auth.getSession();
+        const response = await fetch(url.toString(), {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM',
+            'Authorization': `Bearer ${session.data.session?.access_token || ''}`
           }
         });
 
-        if (error) {
-          console.error('❌ Erro na requisição:', error);
-          throw new Error(error.message || 'Failed to connect');
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('❌ Erro na requisição:', errorData);
+          throw new Error(errorData.error || 'Failed to connect');
         }
 
-        return data;
+        return await response.json();
       };
       
       // Primeira tentativa
