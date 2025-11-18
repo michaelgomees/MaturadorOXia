@@ -51,13 +51,14 @@ serve(async (req) => {
       console.log(`\n🎯 Execução ${i + 1}/3 - ${new Date().toISOString()}`);
       const now = new Date();
 
-    // Buscar TODOS os pares ativos
-    // Sistema simples: alterna automaticamente entre chips baseado no contador
+    // Buscar pares ativos que NÃO estão esperando resposta
+    // Sistema garante troca real: envia → espera resposta → envia próxima
     const { data: activePairs, error: pairsError } = await supabase
       .from('saas_pares_maturacao')
       .select('*')
       .in('status', ['running', 'active'])
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .or('waiting_response.is.null,waiting_response.eq.false');
 
     if (pairsError) {
       console.error('❌ Erro ao buscar pares:', pairsError);
@@ -111,12 +112,20 @@ serve(async (req) => {
         
         console.log(`📊 Status conexões: ${chip1Connection?.nome}=${chip1Connection?.status}, ${chip2Connection?.nome}=${chip2Connection?.status}`);
 
-        // Determinar qual chip deve responder baseado no contador de mensagens
-        // Sistema simples e eficiente: alterna automaticamente
-        // Se messages_count é par (0, 2, 4...), chip1 responde
-        // Se messages_count é ímpar (1, 3, 5...), chip2 responde
+        // Determinar qual chip deve responder baseado no último remetente
+        // Sistema garante alternância real entre os chips
         const currentCount = (pair as any).messages_count || 0;
-        const isChip1Turn = currentCount % 2 === 0;
+        const lastSender = (pair as any).last_sender;
+        
+        // Primeira mensagem: chip1 sempre começa
+        // Próximas: sempre alterna para o outro chip
+        let isChip1Turn: boolean;
+        if (currentCount === 0 || !lastSender) {
+          isChip1Turn = true; // chip1 inicia conversa
+        } else {
+          // Se chip1 enviou por último, agora é vez do chip2 e vice-versa
+          isChip1Turn = lastSender === pair.nome_chip2;
+        }
         
         let respondingChip = isChip1Turn ? chip1 : chip2;
         let receivingChip = isChip1Turn ? chip2 : chip1;
@@ -348,13 +357,20 @@ serve(async (req) => {
           }
         }
 
-        // Atualizar última atividade do par e incrementar contador
-        // Sistema continua alternando automaticamente entre os chips
+        // Atualizar par: incrementar contador + marcar esperando resposta
+        // Sistema agora ESPERA a resposta antes de enviar próxima mensagem
         const newCount = currentCount + 1;
+        
+        // Delay humanizado de 30-90 segundos como fallback
+        const delaySeconds = Math.floor(Math.random() * 61) + 30;
+        const nextMessageTime = new Date(now.getTime() + delaySeconds * 1000);
 
         const updateData: any = {
           last_activity: new Date().toISOString(),
-          messages_count: newCount
+          messages_count: newCount,
+          last_sender: respondingChip.nome,
+          waiting_response: true, // CRUCIAL: espera resposta do outro chip
+          next_message_time: nextMessageTime.toISOString()
         };
 
         const { error: updateError } = await supabase
@@ -365,8 +381,9 @@ serve(async (req) => {
         if (updateError) {
           console.error(`❌ Erro ao atualizar par ${pair.id}:`, updateError);
         } else {
-          console.log(`✅ Par ${pair.id} atualizado: messages_count=${newCount}`);
-          console.log(`   🔄 Próximo turno: ${newCount % 2 === 0 ? chip1.nome : chip2.nome}`);
+          console.log(`✅ Par ${pair.id} atualizado: messages_count=${newCount}, waiting_response=true`);
+          console.log(`   📤 ${respondingChip.nome} enviou para ${receivingChip.nome}`);
+          console.log(`   ⏳ Aguardando resposta de ${receivingChip.nome} (fallback em ${delaySeconds}s)`);
         }
 
         // Enviar mensagem via Evolution API

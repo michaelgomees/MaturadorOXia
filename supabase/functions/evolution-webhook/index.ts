@@ -66,16 +66,17 @@ serve(async (req) => {
               if (pair.last_sender === expectedSender) {
                 console.log(`🔓 Desbloqueando par ${pair.id} - resposta recebida de ${expectedSender}`);
 
-                // Calcular próximo horário com delay humanizado (30-90 segundos)
-                const delaySeconds = Math.floor(Math.random() * 61) + 30;
+                // Calcular próximo horário com delay humanizado (20-60 segundos)
+                const delaySeconds = Math.floor(Math.random() * 41) + 20;
                 const nextMessageTime = new Date(Date.now() + delaySeconds * 1000);
 
                 // Desbloquear o par para permitir próxima mensagem
                 await supabase
                   .from('saas_pares_maturacao')
                   .update({
-                    waiting_response: false,
-                    next_message_time: nextMessageTime.toISOString()
+                    waiting_response: false, // ✅ DESBLOQUEADO! Resposta detectada
+                    next_message_time: nextMessageTime.toISOString(),
+                    last_activity: new Date().toISOString()
                   })
                   .eq('id', pair.id);
 
