@@ -298,10 +298,12 @@ export type Database = {
           instance_prompt: string | null
           is_active: boolean
           last_activity: string
+          last_sender: string | null
           loop_messages: boolean
           maturation_mode: string
           message_file_id: string | null
           messages_count: number
+          next_message_time: string | null
           nome_chip1: string
           nome_chip2: string
           started_at: string | null
@@ -309,6 +311,7 @@ export type Database = {
           updated_at: string
           use_instance_prompt: boolean
           usuario_id: string
+          waiting_response: boolean | null
         }
         Insert: {
           created_at?: string
@@ -317,10 +320,12 @@ export type Database = {
           instance_prompt?: string | null
           is_active?: boolean
           last_activity?: string
+          last_sender?: string | null
           loop_messages?: boolean
           maturation_mode?: string
           message_file_id?: string | null
           messages_count?: number
+          next_message_time?: string | null
           nome_chip1: string
           nome_chip2: string
           started_at?: string | null
@@ -328,6 +333,7 @@ export type Database = {
           updated_at?: string
           use_instance_prompt?: boolean
           usuario_id: string
+          waiting_response?: boolean | null
         }
         Update: {
           created_at?: string
@@ -336,10 +342,12 @@ export type Database = {
           instance_prompt?: string | null
           is_active?: boolean
           last_activity?: string
+          last_sender?: string | null
           loop_messages?: boolean
           maturation_mode?: string
           message_file_id?: string | null
           messages_count?: number
+          next_message_time?: string | null
           nome_chip1?: string
           nome_chip2?: string
           started_at?: string | null
@@ -347,6 +355,7 @@ export type Database = {
           updated_at?: string
           use_instance_prompt?: boolean
           usuario_id?: string
+          waiting_response?: boolean | null
         }
         Relationships: []
       }
