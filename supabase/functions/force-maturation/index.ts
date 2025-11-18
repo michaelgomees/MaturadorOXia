@@ -51,14 +51,13 @@ serve(async (req) => {
       console.log(`\n🎯 Execução ${i + 1}/3 - ${new Date().toISOString()}`);
       const now = new Date();
 
-    // Buscar pares que estão prontos para enviar mensagem
-    // Agora verificamos: status ativo E (não está esperando resposta OU já passou o tempo da próxima mensagem)
+    // Buscar TODOS os pares ativos
+    // Sistema simples: alterna automaticamente entre chips baseado no contador
     const { data: activePairs, error: pairsError } = await supabase
       .from('saas_pares_maturacao')
       .select('*')
       .in('status', ['running', 'active'])
-      .eq('is_active', true)
-      .or('waiting_response.eq.false,next_message_time.lte.' + now.toISOString());
+      .eq('is_active', true);
 
     if (pairsError) {
       console.error('❌ Erro ao buscar pares:', pairsError);
@@ -112,27 +111,12 @@ serve(async (req) => {
         
         console.log(`📊 Status conexões: ${chip1Connection?.nome}=${chip1Connection?.status}, ${chip2Connection?.nome}=${chip2Connection?.status}`);
 
-        // Determinar qual chip deve responder baseado no último remetente
-        // Isso garante alternância real de mensagens
+        // Determinar qual chip deve responder baseado no contador de mensagens
+        // Sistema simples e eficiente: alterna automaticamente
+        // Se messages_count é par (0, 2, 4...), chip1 responde
+        // Se messages_count é ímpar (1, 3, 5...), chip2 responde
         const currentCount = (pair as any).messages_count || 0;
-        const lastSender = (pair as any).last_sender;
-        const waitingResponse = (pair as any).waiting_response || false;
-        
-        // Se estamos esperando resposta do outro chip, pular este par
-        if (waitingResponse) {
-          console.log(`⏳ Par ${pair.id} aguardando resposta - pulando...`);
-          continue;
-        }
-        
-        // Primeira mensagem: chip1 começa
-        // Mensagens seguintes: sempre o chip que NÃO enviou por último
-        let isChip1Turn: boolean;
-        if (currentCount === 0 || !lastSender) {
-          isChip1Turn = true; // chip1 sempre começa
-        } else {
-          // Alternar: se chip1 enviou por último, agora é vez do chip2 e vice-versa
-          isChip1Turn = lastSender === pair.nome_chip2;
-        }
+        const isChip1Turn = currentCount % 2 === 0;
         
         let respondingChip = isChip1Turn ? chip1 : chip2;
         let receivingChip = isChip1Turn ? chip2 : chip1;
@@ -364,20 +348,13 @@ serve(async (req) => {
           }
         }
 
-        // Atualizar última atividade do par e configurar para esperar resposta
-        // Sistema agora espera resposta antes de enviar próxima mensagem
+        // Atualizar última atividade do par e incrementar contador
+        // Sistema continua alternando automaticamente entre os chips
         const newCount = currentCount + 1;
-        
-        // Calcular próximo horário de mensagem (delay humanizado entre 30-90 segundos)
-        const delaySeconds = Math.floor(Math.random() * 61) + 30; // 30-90 segundos
-        const nextMessageTime = new Date(now.getTime() + delaySeconds * 1000);
 
         const updateData: any = {
           last_activity: new Date().toISOString(),
-          messages_count: newCount,
-          last_sender: respondingChip.nome,
-          waiting_response: true, // Agora vamos esperar a resposta
-          next_message_time: nextMessageTime.toISOString()
+          messages_count: newCount
         };
 
         const { error: updateError } = await supabase
@@ -389,8 +366,7 @@ serve(async (req) => {
           console.error(`❌ Erro ao atualizar par ${pair.id}:`, updateError);
         } else {
           console.log(`✅ Par ${pair.id} atualizado: messages_count=${newCount}`);
-          console.log(`   🔄 Aguardando resposta de ${receivingChip.nome}`);
-          console.log(`   ⏱️ Próxima janela em ${delaySeconds}s (${nextMessageTime.toLocaleTimeString()})`);
+          console.log(`   🔄 Próximo turno: ${newCount % 2 === 0 ? chip1.nome : chip2.nome}`);
         }
 
         // Enviar mensagem via Evolution API
