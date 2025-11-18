@@ -33,38 +33,25 @@ export const QRCodeModal = ({ open, onOpenChange, chipName, chipPhone }: QRCodeM
         setPollingInterval(null);
       }
 
-      // Usar o nome da instância diretamente, sem transformações
-      // pois ele já vem no formato correto do banco (evolutionInstanceName)
-      const instanceName = chipName;
+      const instanceName = chipName.toLowerCase().replace(/\s+/g, '_');
       
       console.log('🔄 Buscando QR Code da instância:', instanceName);
       
-      // Validar nome da instância
-      if (!instanceName || instanceName.trim() === '') {
-        throw new Error('Nome da instância inválido');
-      }
-      
-      // Função para buscar QR Code via connect action (usando query params)
+      // Função para buscar QR Code
       const fetchQR = async (): Promise<any> => {
-        const supabaseUrl = 'https://rltkxwswlvuzwmmbqwkr.supabase.co';
-        const url = new URL(`${supabaseUrl}/functions/v1/evolution-api`);
-        url.searchParams.set('action', 'connect');
-        url.searchParams.set('instanceName', instanceName);
-
-        const session = await supabase.auth.getSession();
-        const response = await fetch(url.toString(), {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM',
-            'Authorization': `Bearer ${session.data.session?.access_token || ''}`
+        const response = await fetch(
+          `https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api?instanceName=${instanceName}&action=status`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`,
+              'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM'
+            }
           }
-        });
+        );
 
         if (!response.ok) {
-          const errorData = await response.json();
-          console.error('❌ Erro na requisição:', errorData);
-          throw new Error(errorData.error || 'Failed to connect');
+          throw new Error(`HTTP ${response.status}`);
         }
 
         return await response.json();

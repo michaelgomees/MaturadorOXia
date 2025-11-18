@@ -7,7 +7,7 @@ import { Switch } from './ui/switch';
 import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { Play, Square, Settings, MessageCircle, Users, Activity, Zap, ArrowRight, Plus, FileText, Brain, Info, Database, Image, Trash2, Pause } from 'lucide-react';
+import { Play, Square, Settings, MessageCircle, Users, Activity, Zap, ArrowRight, Plus, FileText, Brain, Info, Database, Image } from 'lucide-react';
 import { StatsCard } from './StatsCard';
 import { useMaturadorEngine } from '@/hooks/useMaturadorEngine';
 import { useMaturadorPairs } from '@/hooks/useMaturadorPairs';
@@ -102,13 +102,8 @@ export const EnhancedMaturadorTab: React.FC = () => {
     if (!firstChip || !secondChip) return;
 
     try {
-      // Usar o modo global e arquivo de mensagens ao criar o par
-      await createPair(
-        firstChip.name, 
-        secondChip.name, 
-        globalMaturationMode,
-        newPair.messageFileId || undefined
-      );
+      // Usar o modo global ao criar o par
+      await createPair(firstChip.name, secondChip.name);
       
       setNewPair({ 
         firstChipId: '', 
@@ -133,45 +128,6 @@ export const EnhancedMaturadorTab: React.FC = () => {
 
   const handleTogglePair = async (pairId: string) => {
     await togglePairActive(pairId);
-  };
-
-  const handleStartAll = async () => {
-    // Ativar todas as duplas
-    for (const pair of dbPairs) {
-      if (!pair.is_active) {
-        await togglePairActive(pair.id);
-      }
-    }
-    toast({
-      title: "Sucesso",
-      description: `Todas as ${dbPairs.length} duplas foram iniciadas`,
-    });
-  };
-
-  const handlePauseAll = async () => {
-    // Pausar todas as duplas ativas
-    const activePairs = dbPairs.filter(p => p.is_active);
-    for (const pair of activePairs) {
-      await togglePairActive(pair.id);
-    }
-    toast({
-      title: "Sucesso",
-      description: `${activePairs.length} duplas foram pausadas`,
-    });
-  };
-
-  const handleRemoveAll = async () => {
-    // Remover todas as duplas
-    if (!confirm(`Tem certeza que deseja remover todas as ${dbPairs.length} duplas?`)) {
-      return;
-    }
-    for (const pair of dbPairs) {
-      await deletePair(pair.id);
-    }
-    toast({
-      title: "Sucesso",
-      description: "Todas as duplas foram removidas",
-    });
   };
 
   const handleStartMaturador = () => {
@@ -506,46 +462,10 @@ export const EnhancedMaturadorTab: React.FC = () => {
         {dbPairs.length > 0 && (
           <Card>
             <CardHeader>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  Duplas Configuradas ({dbPairs.length})
-                </CardTitle>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handlePauseAll}
-                    disabled={isRunning || dbPairs.filter(p => p.is_active).length === 0}
-                    className="flex items-center gap-1.5"
-                    title={isRunning ? "Pare o maturador primeiro" : dbPairs.filter(p => p.is_active).length === 0 ? "Nenhuma dupla ativa" : "Pausar todas as duplas ativas"}
-                  >
-                    <Pause className="w-4 h-4" />
-                    <span>Pausar Todos</span>
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleStartAll}
-                    disabled={isRunning || dbPairs.filter(p => !p.is_active).length === 0}
-                    className="flex items-center gap-1.5"
-                    title={isRunning ? "Pare o maturador primeiro" : dbPairs.filter(p => !p.is_active).length === 0 ? "Todas as duplas já estão ativas" : "Iniciar todas as duplas"}
-                  >
-                    <Play className="w-4 h-4" />
-                    <span>Iniciar Todos</span>
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={handleRemoveAll}
-                    disabled={isRunning}
-                    className="flex items-center gap-1.5"
-                    title={isRunning ? "Pare o maturador primeiro" : "Remover todas as duplas"}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span>Remover Todos</span>
-                  </Button>
-                </div>
-              </div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Duplas Configuradas ({dbPairs.length})
+              </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <ScrollArea className="h-[400px] w-full">

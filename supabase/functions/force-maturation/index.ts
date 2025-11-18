@@ -13,7 +13,6 @@ interface ChipPair {
   nome_chip2: string;
   status: string;
   usuario_id: string;
-  messages_count: number;
   use_instance_prompt: boolean;
   instance_prompt: string | null;
   maturation_mode: string;
@@ -28,279 +27,6 @@ interface Connection {
   telefone: string;
   prompt: string;
   evolution_instance_name: string;
-  status: string;
-}
-
-// 🔧 Verificar status da instância na Evolution API
-async function checkInstanceStatus(instanceName: string): Promise<{ connected: boolean; notFound: boolean }> {
-  try {
-    const EVOLUTION_API_ENDPOINT = Deno.env.get('EVOLUTION_API_ENDPOINT') || 'https://api.oxautomacoes.com.br';
-    const EVOLUTION_API_KEY = Deno.env.get('EVOLUTION_API_KEY') || '';
-
-    console.log(`🔍 Verificando status da instância ${instanceName}...`);
-
-    const response = await fetch(`${EVOLUTION_API_ENDPOINT}/instance/fetchInstances?instanceName=${instanceName}`, {
-      method: 'GET',
-      headers: {
-        'apikey': EVOLUTION_API_KEY
-      }
-    });
-
-    // Se retornar 404, a instância não existe
-    if (response.status === 404) {
-      console.warn(`⚠️ Instância ${instanceName} não existe na Evolution API (404)`);
-      return { connected: false, notFound: true };
-    }
-
-    if (!response.ok) {
-      console.error(`❌ Erro ao verificar instância ${instanceName}: ${response.status}`);
-      return { connected: false, notFound: false };
-    }
-
-    const data = await response.json();
-    const instance = Array.isArray(data) ? data[0] : data;
-    
-    if (instance && instance.connectionStatus === 'open') {
-      console.log(`✅ Instância ${instanceName} está conectada`);
-      return { connected: true, notFound: false };
-    }
-
-    console.warn(`⚠️ Instância ${instanceName} não está conectada. Status: ${instance?.connectionStatus || 'desconhecido'}`);
-    return { connected: false, notFound: false };
-  } catch (error) {
-    console.error(`❌ Erro ao verificar instância ${instanceName}:`, error);
-    return { connected: false, notFound: false };
-  }
-}
-
-// 🔧 Função auxiliar para processar um único par
-async function processSinglePair(pair: ChipPair, supabase: any) {
-  try {
-    console.log(`\n🎯 Processando par: ${pair.nome_chip1} <-> ${pair.nome_chip2}`);
-    console.log(`📊 Par ${pair.id}: messages_count=${pair.messages_count}, status=${pair.status}, is_active=true`);
-    
-    // Buscar conexões dos chips pelo evolution_instance_name
-    const { data: connections, error: connError } = await supabase
-      .from('saas_conexoes')
-      .select('*')
-      .eq('usuario_id', pair.usuario_id)
-      .in('evolution_instance_name', [pair.nome_chip1, pair.nome_chip2]);
-
-    if (connError) {
-      console.error(`❌ Erro ao buscar conexões do par ${pair.id}:`, connError);
-      return { error: 'Erro ao buscar conexões' };
-    }
-
-    if (!connections || connections.length === 0) {
-      console.error(`❌ Nenhuma conexão encontrada para o par ${pair.id}`);
-      console.log(`🔍 Tentando buscar por: ${pair.nome_chip1} e ${pair.nome_chip2}`);
-      return { error: 'Conexões não encontradas' };
-    }
-
-    const chip1 = connections.find((c: Connection) => c.evolution_instance_name === pair.nome_chip1);
-    const chip2 = connections.find((c: Connection) => c.evolution_instance_name === pair.nome_chip2);
-
-    if (!chip1 || !chip2) {
-      console.error(`❌ Chips não encontrados para o par ${pair.id}`);
-      console.log(`📊 Conexões encontradas: ${connections.map(c => c.evolution_instance_name).join(', ')}`);
-      return { error: 'Chips não encontrados' };
-    }
-
-    console.log(`📊 Status conexões: ${chip1.nome}=${chip1.status}, ${chip2.nome}=${chip2.status}`);
-
-    // 🔐 Verificar se ambas as instâncias estão conectadas na Evolution API
-    const chip1Status = await checkInstanceStatus(chip1.evolution_instance_name);
-    const chip2Status = await checkInstanceStatus(chip2.evolution_instance_name);
-
-    // Se alguma instância não foi encontrada, pausar o par
-    if (chip1Status.notFound || chip2Status.notFound) {
-      const notFoundInstances = [];
-      if (chip1Status.notFound) notFoundInstances.push(chip1.evolution_instance_name);
-      if (chip2Status.notFound) notFoundInstances.push(chip2.evolution_instance_name);
-      
-      console.error(`❌ Instâncias não encontradas: ${notFoundInstances.join(', ')}`);
-      
-      // Pausar o par automaticamente
-      await supabase
-        .from('saas_pares_maturacao')
-        .update({ 
-          status: 'stopped',
-          is_active: false
-        })
-        .eq('id', pair.id);
-      
-      return { error: `Instâncias não encontradas: ${notFoundInstances.join(', ')}. Par pausado automaticamente.` };
-    }
-
-    if (!chip1Status.connected) {
-      console.error(`❌ Instância ${chip1.evolution_instance_name} não está conectada`);
-      return { error: `Instância ${chip1.nome} desconectada` };
-    }
-
-    if (!chip2Status.connected) {
-      console.error(`❌ Instância ${chip2.evolution_instance_name} não está conectada`);
-      return { error: `Instância ${chip2.nome} desconectada` };
-    }
-
-    console.log(`✅ Ambas as instâncias estão conectadas!`);
-
-    // Verificar tempo desde última atividade
-    const now = new Date();
-    const lastActivity = new Date(pair.last_activity || now);
-    const timeSinceLastMessage = Math.floor((now.getTime() - lastActivity.getTime()) / 1000);
-    console.log(`⏱️ Tempo desde última mensagem: ${timeSinceLastMessage}s`);
-
-    // Determinar turno (alterna entre chips)
-    const currentTurn = pair.messages_count % 2 === 0 ? 1 : 2;
-    const sender = currentTurn === 1 ? chip1 : chip2;
-    const receiver = currentTurn === 1 ? chip2 : chip1;
-
-    console.log(`💬 Turno ${pair.messages_count + 1}: ${sender.nome} (${sender.evolution_instance_name}) vai responder para ${receiver.nome} (${receiver.telefone})`);
-
-    // Verificar modo de maturação
-    const maturationMode = pair.maturation_mode || 'prompts';
-    console.log(`🎯 Modo de maturação: ${maturationMode}`);
-
-    let messageToSend = '';
-    let mediaToSend: any = null;
-
-    // MODO MESSAGES: Buscar mensagem de TODOS os arquivos ativos
-    if (maturationMode === 'messages') {
-      console.log(`📋 Buscando mensagens de TODOS os arquivos ativos do usuário`);
-      
-      // Buscar TODOS os arquivos de mensagens ativos
-      const { data: messageFiles, error: fileError } = await supabase
-        .from('saas_maturation_messages')
-        .select('*')
-        .eq('usuario_id', pair.usuario_id)
-        .eq('is_active', true);
-
-      if (fileError || !messageFiles || messageFiles.length === 0) {
-        console.error('❌ Erro ao buscar arquivos de mensagens:', fileError);
-        return { error: 'Nenhum arquivo de mensagens ativo encontrado' };
-      }
-
-      // Selecionar arquivo aleatório entre os disponíveis
-      const randomFileIndex = Math.floor(Math.random() * messageFiles.length);
-      const messageFile = messageFiles[randomFileIndex];
-      
-      console.log(`🎲 Selecionado arquivo ${randomFileIndex + 1}/${messageFiles.length}: ${messageFile.nome} (${messageFile.total_mensagens} mensagens)`);
-
-      const mensagens = messageFile.mensagens as any[];
-
-      if (!mensagens || mensagens.length === 0) {
-        console.error('❌ Arquivo sem mensagens válidas');
-        return { error: 'Arquivo sem mensagens' };
-      }
-
-      // Selecionar mensagem aleatória
-      const randomIndex = Math.floor(Math.random() * mensagens.length);
-      const selectedMessage = mensagens[randomIndex];
-      
-      console.log(`🔍 Debug: tipo da mensagem = ${typeof selectedMessage}, valor inicial:`, String(selectedMessage).substring(0, 50));
-
-      // Verificar se a mensagem é string simples ou objeto
-      if (typeof selectedMessage === 'string') {
-        // Mensagem é string simples (formato padrão dos arquivos TXT/CSV)
-        messageToSend = selectedMessage;
-        console.log(`🎲 Mensagem aleatória ${randomIndex + 1}/${mensagens.length}: ${messageToSend.substring(0, 60)}...`);
-      } else if (typeof selectedMessage === 'object') {
-        // Mensagem é objeto (pode ter mídia)
-        console.log(`🎲 Mensagem aleatória ${randomIndex + 1}/${mensagens.length}: ${selectedMessage.texto?.substring(0, 60) || selectedMessage.nome || 'objeto'}...`);
-
-        // Verificar se é mídia
-        if (selectedMessage.tipo === 'image' || selectedMessage.tipo === 'video' || selectedMessage.tipo === 'audio') {
-          console.log(`📷 Momento de enviar mídia! Mensagem #${pair.messages_count + 1}, Tipo: ${selectedMessage.tipo}, Nome: ${selectedMessage.nome}`);
-          mediaToSend = {
-            type: selectedMessage.tipo,
-            url: selectedMessage.url || selectedMessage.nome,
-            caption: selectedMessage.texto || ''
-          };
-        } else {
-          messageToSend = selectedMessage.texto || selectedMessage.nome || 'Mensagem do arquivo';
-        }
-      } else {
-        console.error('❌ Formato de mensagem inválido:', typeof selectedMessage);
-        messageToSend = 'Olá! Tudo bem?';
-      }
-    } 
-    // MODO PROMPTS: Gerar mensagem via AI (implementação simplificada)
-    else {
-      console.log('🤖 Modo prompts - gerando mensagem simples');
-      messageToSend = `Olá! Como vai? ${new Date().toLocaleTimeString()}`;
-    }
-
-    // Enviar mensagem via Evolution API
-    const EVOLUTION_API_ENDPOINT = Deno.env.get('EVOLUTION_API_ENDPOINT') || 'https://api.oxautomacoes.com.br';
-    const EVOLUTION_API_KEY = Deno.env.get('EVOLUTION_API_KEY') || '';
-
-    try {
-      let sendPayload: any;
-      let sendUrl: string;
-
-      if (mediaToSend) {
-        // Enviar mídia
-        console.log(`📷 Enviando ${mediaToSend.type}: ${mediaToSend.url}`);
-        
-        sendUrl = `${EVOLUTION_API_ENDPOINT}/message/sendMedia/${sender.evolution_instance_name}`;
-        sendPayload = {
-          number: receiver.telefone,
-          mediatype: mediaToSend.type,
-          media: mediaToSend.url,
-          caption: mediaToSend.caption || ''
-        };
-      } else {
-        // Enviar texto
-        sendUrl = `${EVOLUTION_API_ENDPOINT}/message/sendText/${sender.evolution_instance_name}`;
-        sendPayload = {
-          number: receiver.telefone,
-          text: messageToSend
-        };
-      }
-
-      const sendResponse = await fetch(sendUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': EVOLUTION_API_KEY
-        },
-        body: JSON.stringify(sendPayload)
-      });
-
-      const sendResult = await sendResponse.json();
-
-      if (!sendResponse.ok) {
-        console.error(`❌ Erro ${sendResponse.status} ao enviar via Evolution API:`, JSON.stringify(sendResult));
-        return { error: 'Falha ao enviar mensagem' };
-      }
-
-      console.log(`✅ Mensagem enviada via WhatsApp (${mediaToSend ? mediaToSend.type : 'texto'}): ${sender.evolution_instance_name} → ${receiver.telefone}`);
-
-      // Atualizar contador de mensagens do par
-      const nextTurn = (pair.messages_count + 1) % 2 === 0 ? pair.nome_chip1 : pair.nome_chip2;
-      const { error: updateError } = await supabase
-        .from('saas_pares_maturacao')
-        .update({
-          messages_count: pair.messages_count + 1,
-          last_activity: new Date().toISOString()
-        })
-        .eq('id', pair.id);
-
-      if (updateError) {
-        console.error('❌ Erro ao atualizar contador:', updateError);
-      } else {
-        console.log(`✅ Par ${pair.id} atualizado: messages_count=${pair.messages_count + 1}, próximo turno: ${nextTurn}`);
-      }
-
-      return { success: true, messagesSent: 1 };
-    } catch (sendError) {
-      console.error('❌ Erro ao enviar mensagem:', sendError);
-      return { error: String(sendError) };
-    }
-  } catch (error) {
-    console.error('❌ Erro ao processar par:', error);
-    return { error: String(error) };
-  }
 }
 
 serve(async (req) => {
@@ -313,158 +39,458 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 🛑 VERIFICAÇÃO RÁPIDA: Se não há pares ativos, retornar imediatamente
-    // (economiza recursos e para todas as operações quando não há nada para processar)
-    const { data: quickCheck, error: quickCheckError } = await supabase
-      .from('saas_pares_maturacao')
-      .select('id')
-      .eq('is_active', true)
-      .eq('status', 'running')
-      .limit(1);
+    console.log('🔄 Iniciando ciclo de maturação contínua (3x por minuto)...');
 
-    // Se não encontrou nenhum par ativo E não é uma chamada forçada, retornar
-    let forcedPairId: string | null = null;
-    try {
-      const body = await req.json();
-      forcedPairId = body?.pairId || null;
-    } catch (e) {
-      // Não é problema se não tem body
-    }
+    // Executar 3 vezes com intervalo de 20 segundos (0s, 20s, 40s)
+    for (let i = 0; i < 3; i++) {
+      if (i > 0) {
+        console.log(`⏳ Aguardando 20s para próxima execução (${i}/3)...`);
+        await new Promise(resolve => setTimeout(resolve, 20000));
+      }
 
-    if (!forcedPairId && (quickCheckError || !quickCheck || quickCheck.length === 0)) {
-      console.log('⏸️ Nenhum par ativo. Pulando execução da maturação.');
-      return new Response(JSON.stringify({ 
-        success: true, 
-        message: 'Nenhum par ativo para processar',
-        processed: 0 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // ✨ VERIFICAR SE É UMA CHAMADA FORÇADA PARA UM PAR ESPECÍFICO
-
-    if (forcedPairId) {
-      // 🔥 MODO FORÇADO: Processar APENAS este par IMEDIATAMENTE
-      console.log(`🔥 MODO FORÇADO ATIVADO! Processando par específico: ${forcedPairId}`);
+      console.log(`\n🎯 Execução ${i + 1}/3 - ${new Date().toISOString()}`);
       const now = new Date();
 
-      const { data: specificPair, error: pairError } = await supabase
-        .from('saas_pares_maturacao')
-        .select('*')
-        .eq('id', forcedPairId)
-        .single();
+    // Buscar TODOS os pares ativos (sem filtro de intervalo)
+    // O cron job a cada 20s já controla o timing
+    const { data: activePairs, error: pairsError } = await supabase
+      .from('saas_pares_maturacao')
+      .select('*')
+      .in('status', ['running', 'active'])
+      .eq('is_active', true);
 
-      if (pairError || !specificPair) {
-        console.error('❌ Par não encontrado:', pairError);
-        return new Response(
-          JSON.stringify({ error: 'Par não encontrado', pairId: forcedPairId }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+    if (pairsError) {
+      console.error('❌ Erro ao buscar pares:', pairsError);
+      throw pairsError;
+    }
 
-      // Forçar status como running e is_active = true
-      console.log(`🔧 Forçando par para running/active...`);
-      await supabase
-        .from('saas_pares_maturacao')
-        .update({ 
-          status: 'running', 
-          is_active: true, 
-          last_activity: now.toISOString(),
-          started_at: specificPair.started_at || now.toISOString()
-        })
-        .eq('id', forcedPairId);
-      
-      // Recarregar o par atualizado
-      const { data: updatedPair } = await supabase
-        .from('saas_pares_maturacao')
-        .select('*')
-        .eq('id', forcedPairId)
-        .single();
+    console.log(`📊 Query retornou ${activePairs?.length || 0} pares ativos`);
 
-      if (!updatedPair) {
-        return new Response(
-          JSON.stringify({ error: 'Erro ao recarregar par atualizado' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Processar o par imediatamente
-      console.log(`⚡ Processando par AGORA...`);
-      const result = await processSinglePair(updatedPair, supabase);
-
+    if (!activePairs || activePairs.length === 0) {
+      console.log('⚠️ Nenhum par ativo encontrado');
       return new Response(
         JSON.stringify({ 
-          success: !result.error,
-          pairId: forcedPairId,
-          pairName: `${updatedPair.nome_chip1} <-> ${updatedPair.nome_chip2}`,
-          result 
+          message: 'Nenhum par ativo para processar', 
+          processedPairs: 0 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 🔄 MODO CONTÍNUO: Processar todos os pares ativos em ciclos
-    console.log('🔄 Iniciando ciclo de maturação contínua (3x por minuto)...');
+    console.log(`✅ Encontrados ${activePairs.length} pares ativos para processar`);
 
-    const allResults = [];
-    for (let i = 0; i < 3; i++) {
-      console.log(`\n🎯 Execução ${i + 1}/3 - ${new Date().toISOString()}`);
+    // Processar cada par
+    const results = [];
+    for (const pair of activePairs as ChipPair[]) {
+      try {
+        console.log(`\n🎯 Processando par: ${pair.nome_chip1} <-> ${pair.nome_chip2}`);
 
-      // Buscar todos os pares ativos
-      const { data: activePairs, error: pairsError } = await supabase
-        .from('saas_pares_maturacao')
-        .select('*')
-        .eq('is_active', true)
-        .eq('status', 'running');
+        // Buscar conexões dos chips
+        const { data: connections, error: connError } = await supabase
+          .from('saas_conexoes')
+          .select('*')
+          .eq('usuario_id', pair.usuario_id)
+          .in('nome', [pair.nome_chip1, pair.nome_chip2]);
 
-      if (pairsError) {
-        console.error('❌ Erro ao buscar pares ativos:', pairsError);
-        continue;
-      }
+        if (connError || !connections || connections.length !== 2) {
+          console.error(`❌ Erro ao buscar conexões do par ${pair.id}:`, connError);
+          continue;
+        }
 
-      console.log(`✅ Encontrados ${activePairs?.length || 0} pares ativos para processar`);
-      console.log(`📊 Query retornou ${activePairs?.length || 0} pares ativos`);
+        const chip1 = connections.find((c: Connection) => c.nome === pair.nome_chip1);
+        const chip2 = connections.find((c: Connection) => c.nome === pair.nome_chip2);
 
-      if (activePairs && activePairs.length > 0) {
-        for (const pair of activePairs) {
-          const now = new Date();
-          const lastActivity = new Date(pair.last_activity);
-          const timeSinceLastMessage = Math.floor((now.getTime() - lastActivity.getTime()) / 1000);
+        if (!chip1 || !chip2) {
+          console.error(`❌ Chips não encontrados para o par ${pair.id}`);
+          continue;
+        }
 
-          // Processar apenas se passaram mais de 30 segundos
-          if (timeSinceLastMessage >= 30) {
-            const result = await processSinglePair(pair, supabase);
-            allResults.push({ pairId: pair.id, result });
+        // Apenas logar status das conexões, mas continuar tentando enviar
+        const chip1Connection = connections.find((c: any) => c.nome === pair.nome_chip1);
+        const chip2Connection = connections.find((c: any) => c.nome === pair.nome_chip2);
+        
+        console.log(`📊 Status conexões: ${chip1Connection?.nome}=${chip1Connection?.status}, ${chip2Connection?.nome}=${chip2Connection?.status}`);
+
+        // Determinar qual chip deve responder baseado no contador de mensagens
+        // Se messages_count é par (0, 2, 4...), chip1 responde
+        // Se messages_count é ímpar (1, 3, 5...), chip2 responde
+        const currentCount = (pair as any).messages_count || 0;
+        const isChip1Turn = currentCount % 2 === 0;
+        
+        let respondingChip = isChip1Turn ? chip1 : chip2;
+        let receivingChip = isChip1Turn ? chip2 : chip1;
+
+        const lastActivity = (pair as any).last_activity ? new Date((pair as any).last_activity) : null;
+        const timeSinceLastMessage = lastActivity ? Math.floor((now.getTime() - lastActivity.getTime()) / 1000) : null;
+        
+        console.log(`💬 Turno ${currentCount + 1}: ${respondingChip.nome} (${respondingChip.evolution_instance_name}) vai responder para ${receivingChip.nome} (${receivingChip.telefone})`);
+        console.log(`📊 Par ${pair.id}: messages_count=${currentCount}, status=${pair.status}, is_active=${pair.is_active}`);
+        console.log(`⏱️ Tempo desde última mensagem: ${timeSinceLastMessage ? `${timeSinceLastMessage}s` : 'primeira mensagem'}`);
+
+        // Preparar histórico vazio (sem banco de dados)
+        const conversationHistory: any[] = [];
+
+        // Buscar e gerenciar mídia
+        let shouldSendMediaContent = false;
+        let mediaContent: any = null;
+        
+        try {
+          // Buscar configuração de mídia do usuário
+          const { data: mediaConfig, error: configError } = await supabase
+            .from('saas_media_config')
+            .select('*')
+            .eq('usuario_id', pair.usuario_id)
+            .single();
+
+          if (!configError && mediaConfig) {
+            // Buscar ou criar tracker para este par
+            let { data: tracker, error: trackerError } = await supabase
+              .from('saas_media_usage_trackers')
+              .select('*')
+              .eq('pair_id', pair.id)
+              .single();
+
+            const currentHour = new Date().getHours();
+
+            if (trackerError || !tracker) {
+              // Criar novo tracker
+              const { data: newTracker, error: createError } = await supabase
+                .from('saas_media_usage_trackers')
+                .insert({
+                  pair_id: pair.id,
+                  usuario_id: pair.usuario_id,
+                  images_used_this_hour: 0,
+                  links_used_in_conversation: 0,
+                  message_count: currentCount,
+                  last_reset_hour: currentHour
+                })
+                .select()
+                .single();
+
+              if (!createError) tracker = newTracker;
+            } else {
+              // Reset contador de imagens se mudou a hora
+              if (tracker.last_reset_hour !== currentHour) {
+                await supabase
+                  .from('saas_media_usage_trackers')
+                  .update({
+                    images_used_this_hour: 0,
+                    last_reset_hour: currentHour
+                  })
+                  .eq('id', tracker.id);
+                
+                tracker.images_used_this_hour = 0;
+              }
+
+              // Atualizar contador de mensagens
+              await supabase
+                .from('saas_media_usage_trackers')
+                .update({ message_count: currentCount })
+                .eq('id', tracker.id);
+            }
+
+            if (tracker) {
+              // Buscar itens de mídia ativos
+              const { data: mediaItems, error: itemsError } = await supabase
+                .from('saas_media_items')
+                .select('*')
+                .eq('usuario_id', pair.usuario_id)
+                .eq('is_active', true);
+
+              if (!itemsError && mediaItems && mediaItems.length > 0) {
+                // Verificar cada tipo de mídia
+                for (const item of mediaItems) {
+                  // Verificar se deve enviar baseado na frequência
+                  if (currentCount > 0 && currentCount % item.frequency === 0) {
+                    // Verificar limites
+                    if (item.type === 'image' && tracker.images_used_this_hour >= mediaConfig.max_images_per_hour) {
+                      console.log(`⚠️ Limite de imagens atingido (${tracker.images_used_this_hour}/${mediaConfig.max_images_per_hour})`);
+                      continue;
+                    }
+                    
+                    if (item.type === 'link' && tracker.links_used_in_conversation >= mediaConfig.max_links_per_conversation) {
+                      console.log(`⚠️ Limite de links atingido (${tracker.links_used_in_conversation}/${mediaConfig.max_links_per_conversation})`);
+                      continue;
+                    }
+
+                    // Selecionar item aleatório ou por ordem
+                    const eligibleItems = mediaItems.filter(m => 
+                      m.type === item.type && 
+                      m.is_active &&
+                      currentCount % m.frequency === 0
+                    );
+
+                    if (eligibleItems.length > 0) {
+                      if (mediaConfig.randomize_selection) {
+                        mediaContent = eligibleItems[Math.floor(Math.random() * eligibleItems.length)];
+                      } else {
+                        // Ordenar por usage_count (menor primeiro)
+                        eligibleItems.sort((a, b) => a.usage_count - b.usage_count);
+                        mediaContent = eligibleItems[0];
+                      }
+
+                      shouldSendMediaContent = true;
+                      console.log(`📷 Momento de enviar mídia! Mensagem #${currentCount}, Tipo: ${mediaContent.type}, Nome: ${mediaContent.name}`);
+
+                      // Atualizar contadores
+                      if (mediaContent.type === 'image') {
+                        await supabase
+                          .from('saas_media_usage_trackers')
+                          .update({ 
+                            images_used_this_hour: tracker.images_used_this_hour + 1,
+                            last_image_time: new Date().toISOString()
+                          })
+                          .eq('id', tracker.id);
+                      } else if (mediaContent.type === 'link') {
+                        await supabase
+                          .from('saas_media_usage_trackers')
+                          .update({ 
+                            links_used_in_conversation: tracker.links_used_in_conversation + 1
+                          })
+                          .eq('id', tracker.id);
+                      }
+
+                      // Atualizar item de mídia
+                      await supabase
+                        .from('saas_media_items')
+                        .update({ 
+                          usage_count: mediaContent.usage_count + 1,
+                          last_used: new Date().toISOString()
+                        })
+                        .eq('id', mediaContent.id);
+
+                      break; // Enviar apenas um tipo de mídia por mensagem
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.log('⚠️ Erro ao processar mídia:', e);
+          console.log('⚠️ Continuando apenas com texto');
+        }
+
+        let responseText = '';
+
+        // Verificar modo de maturação
+        const maturationMode = (pair as any).maturation_mode || 'prompts';
+        console.log(`🎯 Modo de maturação: ${maturationMode}`);
+
+        if (maturationMode === 'messages') {
+          // Modo mensagens: buscar mensagem ALEATÓRIA do arquivo
+          console.log(`📋 Buscando mensagem aleatória do arquivo para o par ${pair.id}`);
+          
+          // Buscar arquivo de mensagens ativo do usuário
+          const { data: messageFile, error: messageFileError } = await supabase
+            .from('saas_maturation_messages')
+            .select('*')
+            .eq('usuario_id', pair.usuario_id)
+            .eq('is_active', true)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (messageFileError || !messageFile) {
+            console.error(`❌ Nenhum arquivo de mensagens ativo encontrado:`, messageFileError);
+            responseText = 'oi, tudo bem?';
           } else {
-            console.log(`⏭️ Aguardando intervalo mínimo (${30 - timeSinceLastMessage}s restantes)`);
+            const messages = messageFile.mensagens || [];
+            const totalMessages = messages.length;
+            
+            console.log(`📚 Arquivo: ${messageFile.nome}, Total: ${totalMessages} mensagens`);
+            
+            if (totalMessages === 0) {
+              console.error(`❌ Arquivo de mensagens vazio`);
+              responseText = 'oi, tudo bem?';
+            } else {
+              // Pegar mensagem ALEATÓRIA
+              const randomIndex = Math.floor(Math.random() * totalMessages);
+              responseText = messages[randomIndex];
+              
+              console.log(`🎲 Mensagem aleatória ${randomIndex + 1}/${totalMessages}: ${responseText}`);
+            }
+          }
+        } else {
+          // Modo prompts: usar IA
+          console.log(`🤖 Usando IA para gerar mensagem`);
+          
+          const systemPrompt = pair.use_instance_prompt && pair.instance_prompt
+            ? pair.instance_prompt
+            : respondingChip.prompt;
+
+          console.log(`📝 Prompt sendo usado para ${respondingChip.nome}:`);
+          console.log(`   - Tipo: ${pair.use_instance_prompt ? 'INSTANCE PROMPT' : 'CHIP PROMPT'}`);
+          console.log(`   - Preview: ${systemPrompt?.substring(0, 100) || 'NENHUM'}...`);
+          console.log(`   - Tamanho: ${systemPrompt?.length || 0} caracteres`);
+
+          const isFirstMessage = true;
+
+          // Chamar OpenAI para gerar resposta
+          const { data: aiResponse, error: aiError } = await supabase.functions.invoke('openai-chat', {
+            body: {
+              prompt: systemPrompt,
+              chipName: respondingChip.nome,
+              conversationHistory,
+              isFirstMessage,
+              responseDelay: 30
+            }
+          });
+
+          if (aiError) {
+            console.error(`❌ Erro ao chamar OpenAI para ${respondingChip.nome}:`, aiError);
+            responseText = 'oi, tudo bem?';
+          } else {
+            responseText = aiResponse.message;
+            console.log(`✅ Resposta gerada (${responseText.length} chars, ${responseText.split('\n').length} linhas):`);
+            console.log(`   ${responseText}`);
           }
         }
-      }
 
-      // Aguardar 20 segundos antes da próxima execução (exceto na última)
-      if (i < 2) {
-        console.log('⏳ Aguardando 20 segundos...');
-        await new Promise(resolve => setTimeout(resolve, 20000));
+        // Atualizar última atividade do par e incrementar contador
+        // Sistema continua indefinidamente alternando entre os chips
+        const newCount = currentCount + 1;
+
+        const updateData: any = {
+          last_activity: new Date().toISOString(),
+          messages_count: newCount
+        };
+
+        // Não precisa mais atualizar índice pois é aleatório
+
+        const { error: updateError } = await supabase
+          .from('saas_pares_maturacao')
+          .update(updateData)
+          .eq('id', pair.id);
+
+        if (updateError) {
+          console.error(`❌ Erro ao atualizar par ${pair.id}:`, updateError);
+        } else {
+          console.log(`✅ Par ${pair.id} atualizado: messages_count=${newCount}, próximo turno: ${newCount % 2 === 0 ? chip1.nome : chip2.nome}`);
+        }
+
+        // Enviar mensagem via Evolution API
+        try {
+          const evolutionEndpoint = Deno.env.get('EVOLUTION_API_ENDPOINT');
+          const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
+
+          if (!evolutionEndpoint || !evolutionApiKey) {
+            console.warn('⚠️ Evolution API não configurada, pulando envio');
+          } else {
+            // Determinar tipo de envio baseado em mídia
+            let sendMessageUrl: string;
+            let messageBody: any;
+
+            if (shouldSendMediaContent && mediaContent) {
+              // Enviar com mídia
+              if (mediaContent.type === 'image') {
+                sendMessageUrl = `${evolutionEndpoint}/message/sendMedia/${respondingChip.evolution_instance_name}`;
+                messageBody = {
+                  number: receivingChip.telefone,
+                  mediatype: 'image',
+                  media: mediaContent.url,
+                  caption: mediaContent.mode === 'image_text' ? responseText : ''
+                };
+                console.log(`📷 Enviando imagem: ${mediaContent.name}`);
+              } else if (mediaContent.type === 'link') {
+                sendMessageUrl = `${evolutionEndpoint}/message/sendText/${respondingChip.evolution_instance_name}`;
+                messageBody = {
+                  number: receivingChip.telefone,
+                  text: `${responseText}\n\n🔗 ${mediaContent.url}`
+                };
+                console.log(`🔗 Enviando link: ${mediaContent.name}`);
+              } else if (mediaContent.type === 'audio') {
+                sendMessageUrl = `${evolutionEndpoint}/message/sendMedia/${respondingChip.evolution_instance_name}`;
+                messageBody = {
+                  number: receivingChip.telefone,
+                  mediatype: 'audio',
+                  media: mediaContent.url
+                };
+                console.log(`🔊 Enviando áudio: ${mediaContent.name}`);
+              } else {
+                // Fallback para texto simples
+                sendMessageUrl = `${evolutionEndpoint}/message/sendText/${respondingChip.evolution_instance_name}`;
+                messageBody = {
+                  number: receivingChip.telefone,
+                  text: responseText
+                };
+              }
+            } else {
+              // Enviar apenas texto
+              sendMessageUrl = `${evolutionEndpoint}/message/sendText/${respondingChip.evolution_instance_name}`;
+              messageBody = {
+                number: receivingChip.telefone,
+                text: responseText
+              };
+            }
+
+            const sendResponse = await fetch(sendMessageUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': evolutionApiKey
+              },
+              body: JSON.stringify(messageBody)
+            });
+
+            if (sendResponse.ok) {
+              const contentType = shouldSendMediaContent && mediaContent 
+                ? `${mediaContent.type} (${mediaContent.name})` 
+                : 'texto';
+              console.log(`✅ Mensagem enviada via WhatsApp (${contentType}): ${respondingChip.nome} → ${receivingChip.telefone}`);
+            } else {
+              const errorData = await sendResponse.text();
+              console.error(`❌ Erro ${sendResponse.status} ao enviar via Evolution API:`, errorData);
+              
+              // Logar o erro mas CONTINUAR tentando
+              if (errorData.includes('Connection Closed')) {
+                console.warn(`⚠️ Connection Closed para par ${pair.id} - sistema continuará tentando no próximo ciclo`);
+              }
+            }
+          }
+        } catch (evolutionError) {
+          console.error(`❌ Erro ao enviar via Evolution API:`, evolutionError);
+        }
+
+        results.push({
+          pairId: pair.id,
+          from: respondingChip.nome,
+          to: receivingChip.nome,
+          success: true
+        });
+
+      } catch (pairError) {
+        console.error(`❌ Erro ao processar par ${pair.id}:`, pairError);
+        results.push({
+          pairId: pair.id,
+          success: false,
+          error: pairError.message
+        });
       }
+    }
+
+      console.log(`✅ Execução ${i + 1}/3 concluída: ${results.length} pares processados`);
     }
 
     console.log(`\n🎉 Ciclo completo de maturação finalizado!`);
 
     return new Response(
       JSON.stringify({ 
-        success: true, 
-        executions: 3, 
-        results: allResults 
+        message: 'Ciclo de maturação concluído (3 execuções)',
+        totalExecutions: 3,
+        results
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Erro geral:', error);
     return new Response(
-      JSON.stringify({ error: String(error) }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: error.message }),
+      { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
     );
   }
 });

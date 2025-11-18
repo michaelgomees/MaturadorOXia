@@ -14,7 +14,6 @@ import { useToast } from "@/hooks/use-toast";
 import { AlertsPanel } from "./AlertsPanel";
 import { SystemConfigModal } from "./SystemConfigModal";
 import { ProfileModal } from "./ProfileModal";
-import { ClearCacheButton } from "./ClearCacheButton";
 import { useConnections } from "@/contexts/ConnectionsContext";
 import { useAuth } from "@/contexts/AuthContext";
 import oxLogo from "/ox-logo-full.png";
@@ -60,9 +59,6 @@ export const Header = () => {
 
             {/* Alertas do Sistema */}
             <AlertsPanel />
-
-            {/* Botão Limpar Cache */}
-            <ClearCacheButton />
 
             {/* Settings */}
             <Button 

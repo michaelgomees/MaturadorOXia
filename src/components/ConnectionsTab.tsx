@@ -121,42 +121,6 @@ export const ConnectionsTab = () => {
     }
   };
 
-  const handleSyncAll = async () => {
-    if (connections.length === 0) {
-      toast({
-        title: "Nenhuma conexão",
-        description: "Não há conexões para sincronizar.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    toast({
-      title: "Sincronizando...",
-      description: `Iniciando sincronização de ${connections.length} conexões...`
-    });
-
-    let syncedCount = 0;
-    let errorCount = 0;
-
-    for (const connection of connections) {
-      try {
-        await updateConnection(connection.id, { status: 'connecting' });
-        await syncWithEvolutionAPI(connection.id);
-        syncedCount++;
-      } catch (error) {
-        console.error(`Erro ao sincronizar ${connection.name}:`, error);
-        errorCount++;
-      }
-    }
-
-    toast({
-      title: "Sincronização Concluída",
-      description: `${syncedCount} conexão(ões) sincronizada(s)${errorCount > 0 ? `, ${errorCount} erro(s)` : ''}.`,
-      variant: errorCount > 0 ? "destructive" : "default"
-    });
-  };
-
   const handleShowQR = (connectionId: string) => {
     setShowQRModal(connectionId);
   };
@@ -239,22 +203,8 @@ export const ConnectionsTab = () => {
       {/* Lista de Conexões */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">Conexões Ativas</CardTitle>
-              <CardDescription>Gerencie suas instâncias do WhatsApp</CardDescription>
-            </div>
-            <Button
-              onClick={handleSyncAll}
-              variant="outline"
-              size="sm"
-              disabled={connections.length === 0}
-              className="gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Sincronizar Todas
-            </Button>
-          </div>
+          <CardTitle className="text-lg">Conexões Ativas</CardTitle>
+          <CardDescription>Gerencie suas instâncias do WhatsApp</CardDescription>
           
           {/* Barra de busca */}
           <div className="mt-4">
@@ -355,7 +305,7 @@ export const ConnectionsTab = () => {
           <QRCodeModal
             open={!!showQRModal}
             onOpenChange={(open) => !open && setShowQRModal(null)}
-            chipName={connection.evolutionInstanceName || connection.name}
+            chipName={connection.name}
             chipPhone={connection.phone || ''}
           />
         ) : null;

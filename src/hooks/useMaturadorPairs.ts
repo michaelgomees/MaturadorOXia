@@ -51,7 +51,7 @@ export const useMaturadorPairs = () => {
   };
 
   // Criar novo par
-  const createPair = async (chip1: string, chip2: string, maturationMode?: 'prompts' | 'messages', messageFileId?: string) => {
+  const createPair = async (chip1: string, chip2: string) => {
     try {
       // Verificar se o par já existe
       const exists = pairs.some(p => 
@@ -68,35 +68,15 @@ export const useMaturadorPairs = () => {
         return null;
       }
 
-      // Se modo messages mas sem arquivo, buscar o primeiro arquivo ativo
-      let finalMessageFileId = messageFileId;
-      if (maturationMode === 'messages' && !messageFileId) {
-        const { data: messageFiles } = await supabase
-          .from('saas_maturation_messages')
-          .select('id')
-          .eq('is_active', true)
-          .order('created_at', { ascending: false })
-          .limit(1);
-        
-        if (messageFiles && messageFiles.length > 0) {
-          finalMessageFileId = messageFiles[0].id;
-        }
-      }
-
       const { data, error } = await supabase
         .from('saas_pares_maturacao')
         .insert([{
           nome_chip1: chip1,
           nome_chip2: chip2,
           is_active: true,
-          status: 'running',
+          status: 'stopped',
           messages_count: 0,
           use_instance_prompt: false,
-          maturation_mode: maturationMode || 'prompts',
-          message_file_id: finalMessageFileId,
-          loop_messages: true,
-          current_message_index: 0,
-          started_at: new Date().toISOString(),
           usuario_id: (await supabase.auth.getUser()).data.user?.id
         }])
         .select()
@@ -175,109 +155,22 @@ export const useMaturadorPairs = () => {
     }
   };
 
-  // Ativar/desativar par COM FORÇA
+  // Ativar/desativar par
   const togglePairActive = async (id: string) => {
     const pair = pairs.find(p => p.id === id);
     if (!pair) return;
 
-    const isRunning = pair.status === 'running';
+    const updates: any = {
+      is_active: !pair.is_active,
+      status: !pair.is_active ? 'running' : 'paused'
+    };
 
-    try {
-      const updates: any = {
-        is_active: !isRunning ? true : pair.is_active,
-        status: isRunning ? 'stopped' : 'running',
-        last_activity: new Date().toISOString()
-      };
-
-      // Registrar horário de início quando ativar
-      if (!isRunning && !pair.started_at) {
-        updates.started_at = new Date().toISOString();
-      }
-
-      console.log(`🚀 ${!isRunning ? 'INICIANDO' : 'PAUSANDO'} par ${pair.nome_chip1} <-> ${pair.nome_chip2}`);
-
-      // Atualizar no banco com retry
-      let retryCount = 0;
-      const maxRetries = 3;
-      let success = false;
-
-      while (retryCount < maxRetries && !success) {
-        try {
-          const { error } = await supabase
-            .from('saas_pares_maturacao')
-            .update(updates)
-            .eq('id', id);
-
-          if (error) throw error;
-          success = true;
-          console.log(`✅ Status atualizado com sucesso no banco`);
-        } catch (error) {
-          retryCount++;
-          console.error(`❌ Tentativa ${retryCount}/${maxRetries} falhou:`, error);
-          if (retryCount < maxRetries) {
-            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-          } else {
-            throw error;
-          }
-        }
-      }
-
-      await loadPairs();
-
-      // Se estiver ATIVANDO, forçar chamada IMEDIATA da edge function
-      if (!isRunning) {
-        console.log(`🔥 FORÇANDO início imediato da maturação via edge function...`);
-        
-        toast({
-          title: "🚀 Iniciando Maturação",
-          description: `Dupla ${pair.nome_chip1} ↔️ ${pair.nome_chip2} está sendo ativada...`
-        });
-
-        try {
-          const { data: forceData, error: forceError } = await supabase.functions.invoke('force-maturation', {
-            body: { pairId: id }
-          });
-
-          if (forceError) {
-            console.error('⚠️ Erro ao forçar maturação:', forceError);
-            // Não falhar silenciosamente - tentar novamente
-            setTimeout(async () => {
-              console.log('🔄 Retry: Tentando forçar maturação novamente...');
-              await supabase.functions.invoke('force-maturation', {
-                body: { pairId: id }
-              });
-            }, 3000);
-          } else {
-            console.log('✅ Maturação forçada com sucesso:', forceData);
-            toast({
-              title: "✅ Maturação Iniciada!",
-              description: `Dupla ${pair.nome_chip1} ↔️ ${pair.nome_chip2} está processando mensagens.`
-            });
-          }
-        } catch (invokeError) {
-          console.error('❌ Erro crítico ao invocar force-maturation:', invokeError);
-          // Ainda assim, o status foi atualizado, então o polling deve pegar
-          toast({
-            title: "⚠️ Aviso",
-            description: "Status atualizado, mas pode levar ~20s para iniciar. Aguarde...",
-            variant: "default"
-          });
-        }
-      } else {
-        toast({
-          title: "⏸️ Maturação Pausada",
-          description: `Dupla ${pair.nome_chip1} ↔️ ${pair.nome_chip2} foi pausada.`
-        });
-      }
-    } catch (error: any) {
-      console.error('❌ Erro fatal ao alternar status do par:', error);
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível alterar o status do par",
-        variant: "destructive"
-      });
-      throw error;
+    // Registrar horário de início quando ativar
+    if (!pair.is_active && !pair.started_at) {
+      updates.started_at = new Date().toISOString();
     }
+
+    await updatePair(id, updates);
   };
 
   // Incrementar contador de mensagens
@@ -305,6 +198,3 @@ export const useMaturadorPairs = () => {
     refreshPairs: loadPairs
   };
 };
-
-// Auto-carregar pares ao iniciar o hook não é feito aqui
-// pois o componente que usa o hook deve chamar loadPairs() no useEffect
