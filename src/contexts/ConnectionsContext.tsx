@@ -27,6 +27,7 @@ interface ConnectionsContextType {
   deleteConnection: (id: string) => Promise<void>;
   getConnection: (id: string) => WhatsAppConnection | undefined;
   syncWithEvolutionAPI: (connectionId: string) => Promise<void>;
+  syncAllFromEvolutionAPI: () => Promise<void>;
 }
 
 const ConnectionsContext = createContext<ConnectionsContextType | undefined>(undefined);
@@ -505,6 +506,107 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
+  const syncAllFromEvolutionAPI = async (): Promise<void> => {
+    try {
+      console.log('🔄 Sincronizando todas as instâncias da Evolution API...');
+
+      // Buscar todas as instâncias da Evolution API
+      const response = await fetch(`https://rltkxwswlvuzwmmbqwkr.supabase.co/functions/v1/evolution-api?action=listAll`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`,
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGt4d3N3bHZ1endtbWJxd2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzg1MTUsImV4cCI6MjA3MjYxNDUxNX0.CFvBnfnzS7GD8ksbDprZ3sbFE1XHRhtrJJpBUaGCQlM'
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Falha ao buscar instâncias da Evolution API');
+      }
+
+      console.log(`✅ ${data.total} instâncias encontradas na Evolution API`);
+
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      // Para cada instância da Evolution API, verificar se já existe no banco
+      for (const evolutionInstance of data.instances) {
+        const instanceName = evolutionInstance.name;
+        const phone = evolutionInstance.number || evolutionInstance.ownerJid?.replace('@s.whatsapp.net', '');
+        
+        // Verificar se já existe uma conexão com este evolutionInstanceName
+        const { data: existingConnection } = await supabase
+          .from('saas_conexoes')
+          .select('*')
+          .eq('evolution_instance_name', instanceName)
+          .single();
+
+        if (existingConnection) {
+          // Atualizar conexão existente
+          console.log(`🔄 Atualizando conexão existente: ${instanceName}`);
+          
+          const updateData: any = {
+            status: evolutionInstance.connectionStatus === 'open' ? 'ativo' : 'inativo',
+            telefone: phone,
+            display_name: evolutionInstance.profileName,
+            avatar_url: evolutionInstance.profilePicUrl,
+            evolution_instance_id: evolutionInstance.id,
+            last_sync: new Date().toISOString()
+          };
+
+          const { error } = await supabase
+            .from('saas_conexoes')
+            .update(updateData)
+            .eq('id', existingConnection.id);
+
+          if (error) {
+            console.error(`❌ Erro ao atualizar conexão ${instanceName}:`, error);
+          } else {
+            console.log(`✅ Conexão ${instanceName} atualizada`);
+          }
+        } else {
+          // Criar nova conexão
+          console.log(`➕ Criando nova conexão: ${instanceName}`);
+          
+          const newConnection = {
+            nome: instanceName,
+            status: evolutionInstance.connectionStatus === 'open' ? 'ativo' : 'inativo',
+            telefone: phone,
+            display_name: evolutionInstance.profileName,
+            avatar_url: evolutionInstance.profilePicUrl,
+            evolution_instance_name: instanceName,
+            evolution_instance_id: evolutionInstance.id,
+            conversas_count: 0,
+            modelo_ia: 'ChatGPT',
+            last_sync: new Date().toISOString(),
+            usuario_id: user.id
+          };
+
+          const { error } = await supabase
+            .from('saas_conexoes')
+            .insert(newConnection);
+
+          if (error) {
+            console.error(`❌ Erro ao criar conexão ${instanceName}:`, error);
+          } else {
+            console.log(`✅ Conexão ${instanceName} criada`);
+          }
+        }
+      }
+
+      // Recarregar conexões do banco
+      await loadConnectionsFromSupabase();
+      
+      console.log('✅ Sincronização completa concluída');
+
+    } catch (error) {
+      console.error('❌ Erro ao sincronizar com Evolution API:', error);
+      throw error;
+    }
+  };
+
   const activeConnectionsCount = connections.filter(conn => conn.isActive && conn.status === 'active').length;
 
   return (
@@ -515,7 +617,8 @@ export const ConnectionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       updateConnection,
       deleteConnection,
       getConnection,
-      syncWithEvolutionAPI
+      syncWithEvolutionAPI,
+      syncAllFromEvolutionAPI
     }}>
       {children}
     </ConnectionsContext.Provider>
