@@ -16,8 +16,9 @@ export const ConnectionsTab = () => {
   const [newConnectionName, setNewConnectionName] = useState('');
   const [showQRModal, setShowQRModal] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
   const { toast } = useToast();
-  const { connections, addConnection, updateConnection, deleteConnection, syncWithEvolutionAPI } = useConnections();
+  const { connections, addConnection, updateConnection, deleteConnection, syncWithEvolutionAPI, syncAllFromEvolutionAPI } = useConnections();
   
   // Filtrar conexões baseado no termo de busca
   const filteredConnections = connections.filter(connection => 
@@ -121,6 +122,27 @@ export const ConnectionsTab = () => {
     }
   };
 
+  const handleSyncAllConnections = async () => {
+    setIsSyncing(true);
+    try {
+      await syncAllFromEvolutionAPI();
+      
+      toast({
+        title: "✅ Sincronização Completa",
+        description: "Todas as instâncias da Evolution API foram sincronizadas."
+      });
+    } catch (error) {
+      console.error('Erro ao sincronizar todas as conexões:', error);
+      toast({
+        title: "Erro na Sincronização",
+        description: "Erro ao sincronizar com Evolution API.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleShowQR = (connectionId: string) => {
     setShowQRModal(connectionId);
   };
@@ -196,6 +218,37 @@ export const ConnectionsTab = () => {
                 )}
               </Button>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Sincronizar com Evolution API */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold">Sincronizar com Evolution API</h3>
+              <p className="text-sm text-muted-foreground">
+                Importar todas as instâncias da Evolution API automaticamente
+              </p>
+            </div>
+            <Button 
+              onClick={handleSyncAllConnections}
+              disabled={isSyncing}
+              variant="outline"
+            >
+              {isSyncing ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Sincronizando...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Sincronizar Todas
+                </>
+              )}
+            </Button>
           </div>
         </CardContent>
       </Card>

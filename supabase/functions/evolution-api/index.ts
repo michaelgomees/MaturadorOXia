@@ -375,6 +375,79 @@ serve(async (req) => {
       
       console.log('📥 GET Request:', { instanceName, action });
       
+      // Endpoint para listar TODAS as instâncias
+      if (action === 'listAll') {
+        console.log('📋 Listing all instances from Evolution API');
+        
+        const apiKey = Deno.env.get('EVOLUTION_API_KEY');
+        let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT');
+        
+        if (!apiKey || !endpoint) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Evolution API credentials not configured'
+          }), { 
+            status: 500, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+          endpoint = `https://${endpoint}`;
+        }
+        
+        const cleanApiKey = apiKey.trim();
+        
+        try {
+          console.log('🔄 Fetching all instances from:', `${endpoint}/instance/fetchInstances`);
+          
+          const response = await fetch(`${endpoint}/instance/fetchInstances`, {
+            method: 'GET',
+            headers: {
+              'apikey': cleanApiKey,
+              'Accept': 'application/json'
+            }
+          });
+
+          if (!response.ok) {
+            const errorData = await response.text();
+            console.error('❌ Failed to fetch instances:', errorData);
+            
+            return new Response(JSON.stringify({
+              success: false,
+              error: `Failed to fetch instances: ${response.status}`,
+              details: errorData
+            }), { 
+              status: response.status, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          const instances = await response.json();
+          console.log('✅ Instances fetched:', instances?.length || 0);
+          
+          return new Response(JSON.stringify({
+            success: true,
+            instances: Array.isArray(instances) ? instances : [],
+            total: Array.isArray(instances) ? instances.length : 0
+          }), { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+          
+        } catch (error) {
+          console.error('❌ Error fetching instances:', error);
+          
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Internal server error',
+            details: error.message
+          }), { 
+            status: 500, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+      }
+      
       if (!instanceName) {
         return new Response(
           JSON.stringify({ success: false, error: 'instanceName parameter is required' }),
