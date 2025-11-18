@@ -113,6 +113,16 @@ export const MaturadorTab = () => {
     localStorage.setItem('ox-global-maturation-mode', globalMaturationMode);
   }, [globalMaturationMode]);
 
+  // Resetar segundo chip quando o primeiro mudar
+  useEffect(() => {
+    if (newPair.chip1 && newPair.chip2) {
+      // Verificar se o segundo chip ainda é válido (diferente do primeiro)
+      if (newPair.chip1 === newPair.chip2) {
+        setNewPair(prev => ({ ...prev, chip2: '' }));
+      }
+    }
+  }, [newPair.chip1]);
+
   // Sincronizar configuração com dados do Supabase
   useEffect(() => {
     const mappedPairs = dbPairs.map(pair => ({

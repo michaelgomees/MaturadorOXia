@@ -58,6 +58,21 @@ export const EnhancedMaturadorTab: React.FC = () => {
     localStorage.setItem('ox-global-maturation-mode', globalMaturationMode);
   }, [globalMaturationMode]);
 
+  // Resetar segundo chip quando o primeiro mudar
+  useEffect(() => {
+    if (newPair.firstChipId && newPair.secondChipId) {
+      // Verificar se o segundo chip ainda é válido
+      const isSecondChipStillValid = activeConnections.some(
+        conn => conn.id === newPair.secondChipId && conn.id !== newPair.firstChipId
+      );
+      
+      // Se não for válido (igual ao primeiro), resetar
+      if (!isSecondChipStillValid) {
+        setNewPair(prev => ({ ...prev, secondChipId: '' }));
+      }
+    }
+  }, [newPair.firstChipId, activeConnections]);
+
   // Carregar dados iniciais
   useEffect(() => {
     loadData();
