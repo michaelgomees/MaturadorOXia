@@ -20,6 +20,7 @@ import { PromptsTab } from "@/components/PromptsTab";
 import { DadosTab } from "@/components/DadosTab";
 import { MaturadorTab } from "@/components/MaturadorTab";
 import { MessagesConfigTab } from "@/components/MessagesConfigTab";
+import { DisparoTab } from "@/components/DisparoTab";
 import { ProtectedRoute, useAuth } from "@/contexts/AuthContext";
 
 // Dados reais - sem demonstração
