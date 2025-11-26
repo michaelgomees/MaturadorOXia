@@ -40,7 +40,14 @@ Deno.serve(async (req) => {
       // Sem body ou body inválido, segue com valores padrão
     }
 
-    if (force) {
+    // Se uma campanha específica foi informada, sempre forçamos o envio,
+    // independentemente do valor de "force" enviado pelo cliente.
+    if (targetCampaignId && !force) {
+      force = true;
+      console.log(
+        `⚡ Modo FORÇADO ativado automaticamente para a campanha ${targetCampaignId}`,
+      );
+    } else if (force) {
       console.log('⚡ Modo FORÇADO ativado - ignorando regras de agendamento');
     }
 
