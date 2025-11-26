@@ -95,7 +95,7 @@ export const BroadcastConfigPanel = ({
 
   const handleStartCampaign = async () => {
     try {
-      toast.info('Criando campanha...');
+      toast.info('Criando campanha e preparando disparo...');
 
       const campaignData = {
         nome: campaignName || `Disparo ${new Date().toLocaleString('pt-BR')}`,
@@ -116,16 +116,59 @@ export const BroadcastConfigPanel = ({
         mensagens_total: 0,
       };
 
-      const success = await campaigns.createCampaign(campaignData);
+      const newCampaignId = await campaigns.createCampaign(campaignData);
       
-      if (!success) {
+      if (!newCampaignId) {
         toast.error('Erro ao criar campanha');
         return;
       }
 
-      toast.success(
-        '✅ Campanha criada com sucesso! Vá para a aba "Logs" para iniciar o disparo.'
+      // Criar fila de disparo para a campanha recém-criada
+      toast.info('Preparando fila de disparo...');
+      const { data: processData, error: processError } = await supabase.functions.invoke(
+        'process-broadcast-campaign',
+        {
+          body: { campaign_id: newCampaignId },
+        }
       );
+
+      if (processError) {
+        console.error('Erro ao processar campanha:', processError);
+        toast.error('Erro ao criar fila de disparo: ' + processError.message);
+        return;
+      }
+
+      console.log('Fila de disparo criada:', processData);
+
+      // Garantir que o status esteja como "running"
+      const { error: updateError } = await supabase
+        .from('saas_broadcast_campaigns')
+        .update({
+          status: 'running',
+          started_at: new Date().toISOString(),
+        })
+        .eq('id', newCampaignId);
+
+      if (updateError) throw updateError;
+
+      // Forçar o processamento imediato desta campanha (primeiro envio)
+      const { data: sendData, error: sendError } = await supabase.functions.invoke(
+        'send-broadcast-messages',
+        {
+          body: {
+            force: true,
+            campaign_id: newCampaignId,
+          },
+        }
+      );
+
+      if (sendError) {
+        console.error('Erro ao forçar processamento da campanha:', sendError);
+        toast.error('Campanha iniciada, mas houve erro ao processar a fila.');
+      } else {
+        console.log('Resultado processamento inicial:', sendData);
+        toast.success('Disparo iniciado. Os próximos envios seguirão automaticamente.');
+      }
 
       // Limpar seleções
       setSelectedLists(new Set());
