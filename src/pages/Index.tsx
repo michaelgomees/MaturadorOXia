@@ -15,6 +15,7 @@ import { useConnections } from "@/contexts/ConnectionsContext";
 import { useAutoSync } from "@/hooks/useAutoSync";
 import { useChipMaturation } from "@/hooks/useChipMaturation";
 import { useMaturadorPairs } from "@/hooks/useMaturadorPairs";
+import { useBroadcastQueue } from "@/hooks/useBroadcastQueue";
 import { ConnectionsTab } from "@/components/ConnectionsTab";
 import { PromptsTab } from "@/components/PromptsTab";
 import { DadosTab } from "@/components/DadosTab";
@@ -38,9 +39,10 @@ const Index = () => {
   const { user } = useAuth();
   const { pairs } = useMaturadorPairs();
   
-  // Usar hooks de sincronização automática e maturação
+  // Usar hooks de sincronização automática, maturação e broadcast
   useAutoSync();
   const { startChipConversation } = useChipMaturation();
+  useBroadcastQueue(); // Hook para processar fila de broadcast automaticamente
   
   // Contar duplas ativas (com status 'running')
   const activePairsCount = pairs.filter(pair => pair.status === 'running').length;

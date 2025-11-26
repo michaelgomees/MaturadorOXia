@@ -125,19 +125,29 @@ Deno.serve(async (req) => {
             .eq('id', campaign.id);
           continue;
         }
+
+        // Verificar próximo envio permitido
+        if (campaign.proximo_envio && new Date(campaign.proximo_envio) > now) {
+          console.log(`⏳ Aguardando intervalo até ${new Date(campaign.proximo_envio).toLocaleTimeString()}`);
+          continue;
+        }
       }
 
-      // Buscar próxima mensagem pendente da campanha
-      const { data: queueItem, error: queueError } = await supabaseClient
+      // Buscar até 10 mensagens pendentes desta campanha para processar em lote
+      const { data: queueItems, error: queueError } = await supabaseClient
         .from('saas_broadcast_queue')
         .select('*')
         .eq('campaign_id', campaign.id)
         .eq('status', 'pending')
         .order('created_at', { ascending: true })
-        .limit(1)
-        .single();
+        .limit(force ? 10 : 1); // No modo force, processar até 10 de uma vez
 
-      if (queueError || !queueItem) {
+      if (queueError) {
+        console.error('Erro ao buscar fila:', queueError);
+        continue;
+      }
+
+      if (!queueItems || queueItems.length === 0) {
         console.log(`✅ Todas as mensagens da campanha ${campaign.nome} foram processadas`);
         
         // Verificar se todas foram processadas
@@ -160,93 +170,97 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Verificar próximo envio permitido (ignorado em modo FORÇADO)
-      if (!force) {
-        if (campaign.proximo_envio && new Date(campaign.proximo_envio) > now) {
-          console.log(`⏳ Aguardando intervalo até ${new Date(campaign.proximo_envio).toLocaleTimeString()}`);
-          continue;
-        }
-      }
+      console.log(`📨 Processando ${queueItems.length} mensagens da campanha ${campaign.nome}`);
 
-      totalProcessed++;
+      // Processar cada mensagem da fila
+      for (const queueItem of queueItems) {
+        totalProcessed++;
 
-      try {
-        console.log(`📤 Enviando mensagem para ${queueItem.telefone}`);
+        try {
+          console.log(`📤 Enviando mensagem para ${queueItem.telefone}`);
 
-        // Buscar dados da instância
-        const { data: instance } = await supabaseClient
-          .from('saas_conexoes')
-          .select('evolution_instance_name')
-          .eq('id', queueItem.instance_id)
-          .single();
+          // Buscar dados da instância
+          const { data: instance } = await supabaseClient
+            .from('saas_conexoes')
+            .select('evolution_instance_name')
+            .eq('id', queueItem.instance_id)
+            .single();
 
-        if (!instance || !instance.evolution_instance_name) {
-          throw new Error('Instância não encontrada');
-        }
-
-        // Enviar via Evolution API
-        const response = await fetch(
-          `${EVOLUTION_API_URL}/message/sendText/${instance.evolution_instance_name}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': EVOLUTION_API_KEY,
-            },
-            body: JSON.stringify({
-              number: queueItem.telefone,
-              text: queueItem.mensagem,
-            }),
+          if (!instance || !instance.evolution_instance_name) {
+            throw new Error('Instância não encontrada');
           }
-        );
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(JSON.stringify(errorData));
+          // Enviar via Evolution API
+          const response = await fetch(
+            `${EVOLUTION_API_URL}/message/sendText/${instance.evolution_instance_name}`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': EVOLUTION_API_KEY,
+              },
+              body: JSON.stringify({
+                number: queueItem.telefone,
+                text: queueItem.mensagem,
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(JSON.stringify(errorData));
+          }
+
+          // Atualizar status para enviado
+          await supabaseClient
+            .from('saas_broadcast_queue')
+            .update({
+              status: 'sent',
+              enviado_em: now.toISOString(),
+              tentativas: queueItem.tentativas + 1,
+            })
+            .eq('id', queueItem.id);
+
+          totalSent++;
+          console.log(`✅ Mensagem enviada com sucesso para ${queueItem.telefone}`);
+
+          // Aguardar um pouco entre envios (apenas no modo não-forçado)
+          if (!force && queueItems.length > 1) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+
+        } catch (error) {
+          console.error(`❌ Erro ao enviar mensagem:`, error);
+          
+          // Atualizar status para falha
+          await supabaseClient
+            .from('saas_broadcast_queue')
+            .update({
+              status: 'failed',
+              erro_mensagem: error.message,
+              tentativas: queueItem.tentativas + 1,
+            })
+            .eq('id', queueItem.id);
+
+          totalFailed++;
         }
-
-        // Atualizar status para enviado
-        await supabaseClient
-          .from('saas_broadcast_queue')
-          .update({
-            status: 'sent',
-            enviado_em: now.toISOString(),
-            tentativas: queueItem.tentativas + 1,
-          })
-          .eq('id', queueItem.id);
-
-        // Atualizar campanha
-        const nextInterval = Math.floor(
-          Math.random() * (campaign.intervalo_max - campaign.intervalo_min + 1) + campaign.intervalo_min
-        );
-        const nextSendTime = new Date(now.getTime() + nextInterval * 1000);
-
-        await supabaseClient
-          .from('saas_broadcast_campaigns')
-          .update({
-            mensagens_enviadas: campaign.mensagens_enviadas + 1,
-            proximo_envio: nextSendTime.toISOString(),
-          })
-          .eq('id', campaign.id);
-
-        totalSent++;
-        console.log(`✅ Mensagem enviada com sucesso! Próximo envio em ${nextInterval}s`);
-
-      } catch (error) {
-        console.error(`❌ Erro ao enviar mensagem:`, error);
-        
-        // Atualizar status para falha
-        await supabaseClient
-          .from('saas_broadcast_queue')
-          .update({
-            status: 'failed',
-            erro_mensagem: error.message,
-            tentativas: queueItem.tentativas + 1,
-          })
-          .eq('id', queueItem.id);
-
-        totalFailed++;
       }
+
+      // Atualizar contador de mensagens enviadas e próximo envio da campanha
+      const nextInterval = Math.floor(
+        Math.random() * (campaign.intervalo_max - campaign.intervalo_min + 1) + campaign.intervalo_min
+      );
+      const nextSendTime = new Date(now.getTime() + nextInterval * 1000);
+
+      await supabaseClient
+        .from('saas_broadcast_campaigns')
+        .update({
+          mensagens_enviadas: campaign.mensagens_enviadas + totalSent,
+          proximo_envio: nextSendTime.toISOString(),
+        })
+        .eq('id', campaign.id);
+
+      console.log(`📊 Campanha ${campaign.nome}: ${totalSent} enviadas. Próximo envio em ${nextInterval}s`);
     }
 
     console.log(`\n📊 Resumo: ${totalProcessed} processadas, ${totalSent} enviadas, ${totalFailed} falharam`);
