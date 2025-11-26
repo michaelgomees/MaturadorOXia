@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.force-maturation]
 verify_jwt = false
+
+[functions.process-broadcast-campaign]
+verify_jwt = true
