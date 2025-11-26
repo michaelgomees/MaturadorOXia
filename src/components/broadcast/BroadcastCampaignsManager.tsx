@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Play, Pause, StopCircle, Trash2, RefreshCw } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Play, Pause, StopCircle, Trash2, RefreshCw, Settings2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -21,12 +24,23 @@ interface Campaign {
   horario_inicio: string;
   horario_fim: string;
   dias_semana: number[];
+  intervalo_min: number;
+  intervalo_max: number;
+  pausar_apos_mensagens: number;
+  pausar_por_minutos: number;
 }
 
 export const BroadcastCampaignsManager = () => {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(false);
   const [processingCampaign, setProcessingCampaign] = useState<string | null>(null);
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+  const [editConfig, setEditConfig] = useState({
+    intervalo_min: 30,
+    intervalo_max: 60,
+    pausar_apos_mensagens: 20,
+    pausar_por_minutos: 10,
+  });
 
   const loadCampaigns = async () => {
     try {
@@ -186,6 +200,41 @@ export const BroadcastCampaignsManager = () => {
     }
   };
 
+  const openEditDialog = (campaign: Campaign) => {
+    setEditingCampaign(campaign);
+    setEditConfig({
+      intervalo_min: campaign.intervalo_min,
+      intervalo_max: campaign.intervalo_max,
+      pausar_apos_mensagens: campaign.pausar_apos_mensagens,
+      pausar_por_minutos: campaign.pausar_por_minutos,
+    });
+  };
+
+  const handleSaveConfig = async () => {
+    if (!editingCampaign) return;
+
+    try {
+      const { error } = await supabase
+        .from('saas_broadcast_campaigns')
+        .update({
+          intervalo_min: editConfig.intervalo_min,
+          intervalo_max: editConfig.intervalo_max,
+          pausar_apos_mensagens: editConfig.pausar_apos_mensagens,
+          pausar_por_minutos: editConfig.pausar_por_minutos,
+        })
+        .eq('id', editingCampaign.id);
+
+      if (error) throw error;
+
+      toast.success('Configurações atualizadas com sucesso');
+      setEditingCampaign(null);
+      loadCampaigns();
+    } catch (error) {
+      console.error('Erro ao atualizar configurações:', error);
+      toast.error('Erro ao atualizar configurações');
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'running':
@@ -283,10 +332,26 @@ export const BroadcastCampaignsManager = () => {
                                 : 'Não iniciada'}
                             </p>
                           </div>
+
+                          <div>
+                            <span className="text-muted-foreground">Intervalo:</span>
+                            <p className="font-mono text-xs">{campaign.intervalo_min}-{campaign.intervalo_max}s</p>
+                          </div>
                         </div>
                       </div>
 
                       <div className="flex flex-col gap-2 ml-4">
+                        {(campaign.status === 'running' || campaign.status === 'paused') && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openEditDialog(campaign)}
+                          >
+                            <Settings2 className="h-4 w-4 mr-2" />
+                            Configurar
+                          </Button>
+                        )}
+
                         {campaign.status === 'running' && (
                           <>
                             <Button
@@ -358,6 +423,100 @@ export const BroadcastCampaignsManager = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog de Configuração */}
+      <Dialog open={!!editingCampaign} onOpenChange={() => setEditingCampaign(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Configurações de Disparo</DialogTitle>
+            <DialogDescription>
+              Ajuste os intervalos e pausas para evitar banimento. As alterações afetam os próximos envios.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-base font-semibold">Intervalo entre mensagens</Label>
+              <p className="text-sm text-muted-foreground">
+                Tempo aleatório entre o envio de cada mensagem (em segundos)
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="intervalo_min">Mínimo (seg)</Label>
+                  <Input
+                    id="intervalo_min"
+                    type="number"
+                    min="10"
+                    max="300"
+                    value={editConfig.intervalo_min}
+                    onChange={(e) => setEditConfig({ ...editConfig, intervalo_min: parseInt(e.target.value) || 30 })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="intervalo_max">Máximo (seg)</Label>
+                  <Input
+                    id="intervalo_max"
+                    type="number"
+                    min="10"
+                    max="300"
+                    value={editConfig.intervalo_max}
+                    onChange={(e) => setEditConfig({ ...editConfig, intervalo_max: parseInt(e.target.value) || 60 })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t pt-4 space-y-2">
+              <Label className="text-base font-semibold">Sistema de pausas</Label>
+              <p className="text-sm text-muted-foreground">
+                Pausar automaticamente após enviar X mensagens
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pausar_apos">Pausar após (msgs)</Label>
+                  <Input
+                    id="pausar_apos"
+                    type="number"
+                    min="5"
+                    max="100"
+                    value={editConfig.pausar_apos_mensagens}
+                    onChange={(e) => setEditConfig({ ...editConfig, pausar_apos_mensagens: parseInt(e.target.value) || 20 })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pausar_por">Pausar por (min)</Label>
+                  <Input
+                    id="pausar_por"
+                    type="number"
+                    min="1"
+                    max="60"
+                    value={editConfig.pausar_por_minutos}
+                    onChange={(e) => setEditConfig({ ...editConfig, pausar_por_minutos: parseInt(e.target.value) || 10 })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-muted/50 p-3 rounded-lg space-y-1">
+              <p className="text-sm font-medium">💡 Dica para evitar banimento:</p>
+              <ul className="text-xs text-muted-foreground space-y-1 ml-4">
+                <li>• Intervalos maiores = mais seguro (recomendado: 60-120s)</li>
+                <li>• Pause a cada 15-20 mensagens por 10-15 minutos</li>
+                <li>• As mudanças afetam apenas os próximos envios</li>
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingCampaign(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveConfig}>
+              Salvar Configurações
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
