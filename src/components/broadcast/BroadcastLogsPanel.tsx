@@ -28,9 +28,26 @@ export function BroadcastLogsPanel() {
     if (user?.id) {
       loadLogs();
       
-      // Atualizar logs a cada 5 segundos
-      const interval = setInterval(loadLogs, 5000);
-      return () => clearInterval(interval);
+      // Configurar realtime subscription para atualizações instantâneas
+      const channel = supabase
+        .channel('broadcast-queue-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'saas_broadcast_queue',
+            filter: `usuario_id=eq.${user.id}`
+          },
+          () => {
+            loadLogs();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user?.id]);
 
@@ -96,20 +113,30 @@ export function BroadcastLogsPanel() {
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, "default" | "secondary" | "destructive"> = {
-      sent: "default",
-      pending: "secondary",
-      failed: "destructive",
-    };
-
     const labels: Record<string, string> = {
       sent: "Enviado",
       pending: "Pendente",
       failed: "Falhou",
     };
 
+    if (status === 'sent') {
+      return (
+        <Badge className="bg-green-500 hover:bg-green-600 text-white border-green-600">
+          {labels[status] || status}
+        </Badge>
+      );
+    }
+
+    if (status === 'failed') {
+      return (
+        <Badge variant="destructive">
+          {labels[status] || status}
+        </Badge>
+      );
+    }
+
     return (
-      <Badge variant={variants[status] || "secondary"}>
+      <Badge variant="secondary">
         {labels[status] || status}
       </Badge>
     );
@@ -154,7 +181,14 @@ export function BroadcastLogsPanel() {
       <ScrollArea className="h-[600px] pr-4">
         <div className="space-y-2">
           {logs.map((log) => (
-            <Card key={log.id} className="p-4 hover:bg-accent/50 transition-colors">
+            <Card 
+              key={log.id} 
+              className={`p-4 transition-colors ${
+                log.status === 'sent' 
+                  ? 'bg-green-500/10 border-green-500/20 hover:bg-green-500/20' 
+                  : 'hover:bg-accent/50'
+              }`}
+            >
               <div className="flex items-start gap-3">
                 <div className="mt-1">
                   {getStatusIcon(log.status)}
