@@ -84,7 +84,6 @@ export const BroadcastConfigPanel = ({
   };
 
   const activeConnections = connections.filter(c => c.status === 'active');
-  const inactiveConnections = connections.filter(c => c.status !== 'active');
 
   const handleStartCampaign = async () => {
     const campaignData = {
@@ -150,7 +149,7 @@ export const BroadcastConfigPanel = ({
                 onClick={() => toggleInstance(connection.id)}
               >
                 <CardContent className="p-4 flex items-center gap-3">
-                <Avatar className="h-12 w-12">
+                  <Avatar className="h-12 w-12">
                     <AvatarImage src={connection.avatar || undefined} />
                     <AvatarFallback className="bg-primary text-primary-foreground font-bold">
                       {connection.name.substring(0, 2).toUpperCase()}
@@ -172,30 +171,10 @@ export const BroadcastConfigPanel = ({
                 </CardContent>
               </Card>
             ))}
-            {inactiveConnections.map((connection) => (
-              <Card
-                key={connection.id}
-                className="opacity-50 cursor-not-allowed"
-              >
-                <CardContent className="p-4 flex items-center gap-3">
-                <Avatar className="h-12 w-12">
-                    <AvatarImage src={connection.avatar || undefined} />
-                    <AvatarFallback className="bg-muted">
-                      {connection.name.substring(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold truncate">{connection.name}</p>
-                    <p className="text-xs text-muted-foreground">Indisponível</p>
-                  </div>
-                  <X className="h-5 w-5 text-destructive" />
-                </CardContent>
-              </Card>
-            ))}
           </div>
-          {connections.length === 0 && (
+          {activeConnections.length === 0 && (
             <p className="text-center text-muted-foreground py-8">
-              Nenhuma conexão disponível
+              Nenhuma conexão ativa disponível
             </p>
           )}
         </CardContent>
