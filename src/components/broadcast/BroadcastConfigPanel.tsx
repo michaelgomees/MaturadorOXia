@@ -43,6 +43,7 @@ export const BroadcastConfigPanel = ({
   const [selectedMessageFile, setSelectedMessageFile] = useState<string>('');
   const [dataAgendada, setDataAgendada] = useState('');
   const [randomNoRepeat, setRandomNoRepeat] = useState(true);
+  const [campaignName, setCampaignName] = useState('');
 
   const diasDaSemana = [
     { label: 'SEGUNDA', short: 'SEG', value: 1 },
@@ -97,7 +98,7 @@ export const BroadcastConfigPanel = ({
       toast.info('Criando campanha...');
 
       const campaignData = {
-        nome: `Disparo ${new Date().toLocaleString('pt-BR')}`,
+        nome: campaignName || `Disparo ${new Date().toLocaleString('pt-BR')}`,
         lista_ids: Array.from(selectedLists),
         instance_ids: Array.from(selectedInstances),
         message_file_id: selectedMessageFile || undefined,
@@ -156,6 +157,7 @@ export const BroadcastConfigPanel = ({
       setSelectedLists(new Set());
       setSelectedInstances(new Set());
       setSelectedMessageFile('');
+      setCampaignName('');
 
       // Recarregar campanhas
       await campaigns.loadCampaigns();
@@ -167,6 +169,24 @@ export const BroadcastConfigPanel = ({
 
   return (
     <div className="space-y-6">
+      {/* Nome da Campanha */}
+      <Card className="border-2">
+        <CardHeader>
+          <CardTitle className="text-xl">Nome da Campanha</CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            Dê um nome para identificar esta campanha
+          </p>
+        </CardHeader>
+        <CardContent>
+          <Input
+            placeholder="Ex: Disparo Black Friday, Promoção Janeiro..."
+            value={campaignName}
+            onChange={(e) => setCampaignName(e.target.value)}
+            className="text-base"
+          />
+        </CardContent>
+      </Card>
+
       {/* Conexões Disponíveis */}
       <Card className="border-2">
         <CardHeader>

@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, XCircle, Clock, Play } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Clock, Play, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -41,6 +41,7 @@ export function BroadcastLogsPanel() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<string>("");
   const [starting, setStarting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (user?.id) {
@@ -164,6 +165,31 @@ export function BroadcastLogsPanel() {
     }
   };
 
+  const handleDeleteAllLogs = async () => {
+    if (!confirm('Tem certeza que deseja remover TODOS os disparos configurados? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      
+      const { error } = await supabase
+        .from('saas_broadcast_queue')
+        .delete()
+        .eq('usuario_id', user!.id);
+
+      if (error) throw error;
+
+      toast.success('Todos os disparos foram removidos com sucesso!');
+      loadLogs();
+    } catch (error) {
+      console.error('Erro ao remover disparos:', error);
+      toast.error('Erro ao remover disparos');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'sent':
@@ -242,6 +268,25 @@ export function BroadcastLogsPanel() {
         <h3 className="text-lg font-semibold">Logs de Disparo</h3>
         <div className="flex items-center gap-2">
           <Badge variant="outline">{logs.length} registros</Badge>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleDeleteAllLogs}
+            disabled={deleting || logs.length === 0}
+            className="gap-2"
+          >
+            {deleting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Removendo...
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4" />
+                Remover Todos
+              </>
+            )}
+          </Button>
         </div>
       </div>
 
