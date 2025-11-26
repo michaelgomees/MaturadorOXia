@@ -60,14 +60,16 @@ export function useBroadcastQueue() {
 
     const processBroadcastQueue = async () => {
       try {
-        console.log('📤 Processando fila de broadcast...');
-        const { data, error } = await supabase.functions.invoke('send-broadcast-messages');
+        console.log('📤 Processando fila de broadcast (polling automático)...');
+        const { data, error } = await supabase.functions.invoke('send-broadcast-messages', {
+          body: { force: false } // Polling normal respeita configurações
+        });
         
         if (error) {
           console.error('Erro ao processar fila de broadcast:', error);
         } else {
           if (data?.sent > 0) {
-            console.log(`✅ ${data.sent} mensagens enviadas`);
+            console.log(`✅ ${data.sent} mensagens enviadas no polling`);
           }
         }
       } catch (error) {

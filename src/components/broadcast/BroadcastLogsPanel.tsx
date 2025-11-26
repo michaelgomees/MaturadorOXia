@@ -63,8 +63,8 @@ export function BroadcastLogsPanel() {
       loadLogs();
       loadCampaigns();
       
-      // Configurar realtime subscription para atualizações instantâneas
-      const channel = supabase
+      // Configurar realtime subscription para atualizações instantâneas da fila
+      const queueChannel = supabase
         .channel('broadcast-queue-changes')
         .on(
           'postgres_changes',
@@ -80,8 +80,26 @@ export function BroadcastLogsPanel() {
         )
         .subscribe();
 
+      // Configurar realtime subscription para atualizações de campanhas
+      const campaignsChannel = supabase
+        .channel('broadcast-campaigns-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'saas_broadcast_campaigns',
+            filter: `usuario_id=eq.${user.id}`
+          },
+          () => {
+            loadCampaigns();
+          }
+        )
+        .subscribe();
+
       return () => {
-        supabase.removeChannel(channel);
+        supabase.removeChannel(queueChannel);
+        supabase.removeChannel(campaignsChannel);
       };
     }
   }, [user?.id]);

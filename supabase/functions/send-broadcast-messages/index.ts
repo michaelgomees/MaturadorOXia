@@ -131,6 +131,8 @@ Deno.serve(async (req) => {
           console.log(`⏳ Aguardando intervalo até ${new Date(campaign.proximo_envio).toLocaleTimeString()}`);
           continue;
         }
+      } else {
+        console.log(`⚡ Modo FORÇADO - ignorando todas as regras de agendamento para ${campaign.nome}`);
       }
 
       // Buscar até 10 mensagens pendentes desta campanha para processar em lote
