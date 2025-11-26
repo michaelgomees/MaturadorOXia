@@ -123,34 +123,8 @@ export const BroadcastConfigPanel = ({
         return;
       }
 
-      // Buscar a campanha recém-criada
-      const { data: newCampaign } = await supabase
-        .from('saas_broadcast_campaigns')
-        .select('id')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (!newCampaign) {
-        toast.error('Erro ao buscar campanha criada');
-        return;
-      }
-
-      toast.info('Processando contatos e criando fila de disparo...');
-
-      // Processar a campanha (distribuir contatos entre instâncias)
-      const { data, error } = await supabase.functions.invoke('process-broadcast-campaign', {
-        body: { campaign_id: newCampaign.id },
-      });
-
-      if (error) {
-        console.error('Erro ao processar campanha:', error);
-        toast.error('Erro ao processar campanha: ' + error.message);
-        return;
-      }
-
       toast.success(
-        `✅ Campanha criada com sucesso! ${data.total_messages} mensagens preparadas entre ${data.active_instances} conexões. Vá para a aba "Logs" para iniciar o disparo.`
+        '✅ Campanha criada com sucesso! Vá para a aba "Logs" para iniciar o disparo.'
       );
 
       // Limpar seleções

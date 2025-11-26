@@ -175,10 +175,37 @@ export function BroadcastLogsPanel() {
       return;
     }
 
+    const campaign = campaigns.find((c) => c.id === selectedCampaign);
+
+    if (!campaign) {
+      toast.error('Campanha não encontrada');
+      return;
+    }
+
     try {
       setStarting(true);
 
-      // Atualizar status da campanha para "running"
+      // Se a campanha ainda é rascunho, primeiro criamos a fila de disparo
+      if (campaign.status === 'draft') {
+        toast.info('Preparando fila de disparo...');
+
+        const { data, error } = await supabase.functions.invoke(
+          'process-broadcast-campaign',
+          {
+            body: { campaign_id: selectedCampaign },
+          }
+        );
+
+        if (error) {
+          console.error('Erro ao processar campanha:', error);
+          toast.error('Erro ao criar fila de disparo: ' + error.message);
+          return;
+        }
+
+        console.log('Fila de disparo criada:', data);
+      }
+
+      // Garantir que o status esteja como "running"
       const { error: updateError } = await supabase
         .from('saas_broadcast_campaigns')
         .update({
@@ -189,24 +216,21 @@ export function BroadcastLogsPanel() {
 
       if (updateError) throw updateError;
 
-      // Forçar processamento imediato desta campanha, respeitando
-      // as regras internas da função (intervalos, limites, etc.)
-      const { data, error: functionError } = await supabase.functions.invoke(
-        'send-broadcast-messages',
-        {
+      // Forçar o processamento imediato desta campanha (primeiro envio)
+      const { data: processData, error: functionError } =
+        await supabase.functions.invoke('send-broadcast-messages', {
           body: {
             force: true,
             campaign_id: selectedCampaign,
           },
-        }
-      );
+        });
 
       if (functionError) {
         console.error('Erro ao forçar processamento da campanha:', functionError);
         toast.error('Campanha iniciada, mas houve erro ao processar a fila.');
       } else {
-        console.log('Resultado processamento forçado:', data);
-        toast.success('Disparo iniciado e fila de envio processada.');
+        console.log('Resultado processamento forçado:', processData);
+        toast.success('Disparo iniciado. Os próximos envios seguirão automaticamente.');
       }
 
       await loadCampaigns();
@@ -268,7 +292,6 @@ export function BroadcastLogsPanel() {
       setDeleting(false);
     }
   };
-
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'sent':
