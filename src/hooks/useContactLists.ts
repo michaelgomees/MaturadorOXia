@@ -175,7 +175,12 @@ export const useContactLists = () => {
   };
 
   const downloadTemplate = () => {
-    const template = 'nome,telefone,variavel1,variavel2,variavel3\nJoão Silva,5511999999999,Var1,Var2,Var3\nMaria Santos,5511888888888,Var1,Var2,Var3';
+    const template = `nome,telefone
+João Silva,5583999999999
+Maria Santos,5583988888888
+Pedro Oliveira,5583977777777
+Ana Costa,5583966666666
+Carlos Ferreira,5583955555555`;
     const blob = new Blob([template], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
