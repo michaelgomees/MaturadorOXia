@@ -16,10 +16,10 @@ interface Contact {
   variavel3: string | null;
 }
 
-interface Message {
-  numero: number;
-  texto: string;
-}
+type Message = string | {
+  numero?: number;
+  texto?: string;
+};
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
@@ -135,17 +135,23 @@ Deno.serve(async (req) => {
       const instance = instances[Math.min(instanceIndex, instances.length - 1)];
 
       // Selecionar mensagem
-      const message = availableMessages[messageIndex % availableMessages.length];
+      const rawMessage = availableMessages[messageIndex % availableMessages.length] as Message;
       messageIndex++;
 
-      // Verificar se a mensagem tem o campo texto
-      if (!message || !message.texto) {
-        console.error(`Mensagem sem campo texto:`, JSON.stringify(message));
-        throw new Error(`Estrutura de mensagem inválida no índice ${messageIndex - 1}`);
+      // Extrair texto da mensagem (pode ser string simples ou objeto)
+      let messageText: string;
+      if (typeof rawMessage === 'string') {
+        messageText = rawMessage;
+      } else if (rawMessage && typeof rawMessage.texto === 'string') {
+        messageText = rawMessage.texto;
+      } else {
+        console.error('Mensagem com formato inesperado:', JSON.stringify(rawMessage));
+        // fallback: não dispara mensagem vazia, apenas pula este contato
+        continue;
       }
 
       // Substituir variáveis na mensagem
-      const mensagemProcessada = substituirVariaveis(message.texto, contact);
+      const mensagemProcessada = substituirVariaveis(messageText, contact);
 
       queueItems.push({
         campaign_id: campaign.id,
