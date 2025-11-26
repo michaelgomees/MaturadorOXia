@@ -40,15 +40,37 @@ export const useBroadcastMessages = () => {
   const uploadMessageFile = async (file: File, nome: string): Promise<boolean> => {
     try {
       const content = await file.text();
-      const lines = content
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0);
+      const lines = content.split('\n');
 
-      if (lines.length === 0) {
+      // Parser para mensagens numeradas (formato: 1., 2., 3., etc.)
+      const messages: string[] = [];
+      let currentMessage = '';
+      
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        
+        // Verifica se é o início de uma nova mensagem (formato: número seguido de ponto)
+        if (/^\d+\.$/.test(trimmedLine)) {
+          // Se já tem uma mensagem em construção, salva ela
+          if (currentMessage.trim()) {
+            messages.push(currentMessage.trim());
+          }
+          currentMessage = '';
+        } else if (trimmedLine) {
+          // Adiciona linha à mensagem atual
+          currentMessage += (currentMessage ? '\n' : '') + trimmedLine;
+        }
+      }
+      
+      // Adiciona a última mensagem se houver
+      if (currentMessage.trim()) {
+        messages.push(currentMessage.trim());
+      }
+
+      if (messages.length === 0) {
         toast({
           title: 'Arquivo vazio',
-          description: 'O arquivo não contém mensagens válidas',
+          description: 'O arquivo não contém mensagens válidas no formato numerado (1., 2., 3., etc.)',
           variant: 'destructive',
         });
         return false;
@@ -71,15 +93,15 @@ export const useBroadcastMessages = () => {
         .insert({
           usuario_id: userId,
           nome,
-          mensagens: lines,
-          total_mensagens: lines.length,
+          mensagens: messages,
+          total_mensagens: messages.length,
         });
 
       if (error) throw error;
 
       toast({
         title: 'Mensagens carregadas',
-        description: `${lines.length} mensagens adicionadas com sucesso`,
+        description: `${messages.length} mensagens adicionadas com sucesso`,
       });
 
       await loadMessages();
@@ -143,9 +165,26 @@ export const useBroadcastMessages = () => {
   };
 
   const downloadTemplate = () => {
-    const template = `Olá! Como posso ajudar você hoje?
-Obrigado por entrar em contato conosco.
-Temos uma oferta especial para você!`;
+    const template = `1.
+<saudacao> <nome>
+💳 Sua *linha de crédito pré-aprovada* já está liberada!
+💳 Responda *SIM* para consultar.
+❌ Se não tiver interesse, responda *NÃO*.
+🚫 Para sair, digite *SAIR*.
+
+2.
+<saudacao> <nome>
+📊 Descubra o valor da sua *linha de crédito* agora mesmo!
+💳 Responda *SIM* para consultar.
+❌ Se não tiver interesse, responda *NÃO*.
+🚫 Para sair, digite *SAIR*.
+
+3.
+<saudacao> <nome>
+⚡ Uma oportunidade exclusiva: *crédito pré-aprovado* disponível!
+💳 Responda *SIM* para consultar.
+❌ Se não tiver interesse, responda *NÃO*.
+🚫 Para sair, digite *SAIR*.`;
     const blob = new Blob([template], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

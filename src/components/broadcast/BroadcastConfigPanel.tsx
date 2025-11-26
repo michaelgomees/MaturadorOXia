@@ -40,6 +40,7 @@ export const BroadcastConfigPanel = ({
   const [selectedInstances, setSelectedInstances] = useState<Set<string>>(new Set());
   const [selectedMessageFile, setSelectedMessageFile] = useState<string>('');
   const [dataAgendada, setDataAgendada] = useState('');
+  const [randomNoRepeat, setRandomNoRepeat] = useState(true);
 
   const diasDaSemana = [
     { label: 'SEGUNDA', short: 'SEG', value: 1 },
@@ -103,6 +104,7 @@ export const BroadcastConfigPanel = ({
       horario_inicio: config.horarioInicio,
       horario_fim: config.horarioFim,
       dias_semana: config.diasSemana,
+      random_no_repeat: randomNoRepeat,
       status: 'running',
       mensagens_enviadas: 0,
       mensagens_total: 0,
@@ -283,6 +285,27 @@ export const BroadcastConfigPanel = ({
               Nenhum arquivo de mensagens disponível
             </p>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Configuração de Envio */}
+      <Card className="border-2">
+        <CardHeader>
+          <CardTitle className="text-xl">Configuração de Envio</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between p-4 bg-accent/50 rounded-lg">
+            <div className="space-y-1">
+              <div className="font-semibold">Envio Aleatório Sem Repetição</div>
+              <p className="text-sm text-muted-foreground">
+                As mensagens serão enviadas de forma aleatória para os contatos, garantindo que cada contato receba uma mensagem diferente sem repetições neste disparo
+              </p>
+            </div>
+            <Switch
+              checked={randomNoRepeat}
+              onCheckedChange={setRandomNoRepeat}
+            />
+          </div>
         </CardContent>
       </Card>
 
