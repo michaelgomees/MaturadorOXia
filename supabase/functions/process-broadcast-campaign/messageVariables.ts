@@ -14,6 +14,12 @@ export function getSaudacao(): string {
 }
 
 export function substituirVariaveis(mensagem: string, contato: Contact): string {
+  // Handle undefined or null message
+  if (!mensagem) {
+    console.error('Mensagem undefined ou null recebida');
+    return '';
+  }
+
   const now = new Date();
   
   const meses = [
