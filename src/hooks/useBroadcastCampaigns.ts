@@ -17,6 +17,7 @@ export interface BroadcastCampaign {
   horario_inicio: string;
   horario_fim: string;
   dias_semana: number[];
+  random_no_repeat: boolean;
   status: string;
   mensagens_enviadas: number;
   mensagens_total: number;

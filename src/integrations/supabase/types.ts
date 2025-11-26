@@ -86,6 +86,7 @@ export type Database = {
           pausar_apos_mensagens: number
           pausar_por_minutos: number
           proximo_envio: string | null
+          random_no_repeat: boolean
           started_at: string | null
           status: string
           ultima_pausa: string | null
@@ -112,6 +113,7 @@ export type Database = {
           pausar_apos_mensagens?: number
           pausar_por_minutos?: number
           proximo_envio?: string | null
+          random_no_repeat?: boolean
           started_at?: string | null
           status?: string
           ultima_pausa?: string | null
@@ -138,6 +140,7 @@ export type Database = {
           pausar_apos_mensagens?: number
           pausar_por_minutos?: number
           proximo_envio?: string | null
+          random_no_repeat?: boolean
           started_at?: string | null
           status?: string
           ultima_pausa?: string | null
