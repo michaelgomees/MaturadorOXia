@@ -149,14 +149,19 @@ export const BroadcastConfigPanel = ({
       }
 
       toast.success(
-        `Campanha iniciada com sucesso! ${data.total_messages} mensagens distribuídas entre ${data.active_instances} conexões`
+        `✅ Campanha criada com sucesso! ${data.total_messages} mensagens preparadas entre ${data.active_instances} conexões. Vá para a aba "Logs" para iniciar o disparo.`
       );
+
+      // Limpar seleções
+      setSelectedLists(new Set());
+      setSelectedInstances(new Set());
+      setSelectedMessageFile('');
 
       // Recarregar campanhas
       await campaigns.loadCampaigns();
     } catch (error) {
-      console.error('Erro ao iniciar campanha:', error);
-      toast.error('Erro ao iniciar campanha');
+      console.error('Erro ao criar campanha:', error);
+      toast.error('Erro ao criar campanha');
     }
   };
 
@@ -488,14 +493,14 @@ export const BroadcastConfigPanel = ({
             </div>
           </div>
 
-          {/* Botão de Agendar Disparo */}
+          {/* Botão de Criar Campanha */}
           <Button
             onClick={handleStartCampaign}
             disabled={selectedLists.size === 0 || selectedInstances.size === 0 || !selectedMessageFile}
             className="w-full h-14 text-lg font-bold bg-[#FF6B2C] hover:bg-[#FF6B2C]/90 text-white"
             size="lg"
           >
-            Agendar Disparo
+            Criar Campanha
           </Button>
         </CardContent>
       </Card>
