@@ -51,7 +51,9 @@ export const useBroadcastCampaigns = () => {
     }
   };
 
-  const createCampaign = async (campaignData: Partial<BroadcastCampaign>): Promise<boolean> => {
+  const createCampaign = async (
+    campaignData: Partial<BroadcastCampaign>
+  ): Promise<string | null> => {
     try {
       const { data: session } = await supabase.auth.getSession();
       const userId = session?.session?.user?.id;
@@ -62,7 +64,7 @@ export const useBroadcastCampaigns = () => {
           description: 'Usuário não autenticado',
           variant: 'destructive',
         });
-        return false;
+        return null;
       }
 
       const insertData: any = {
@@ -85,9 +87,11 @@ export const useBroadcastCampaigns = () => {
         mensagens_total: 0,
       };
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('saas_broadcast_campaigns')
-        .insert([insertData]);
+        .insert([insertData])
+        .select('id')
+        .single();
 
       if (error) throw error;
 
@@ -97,7 +101,7 @@ export const useBroadcastCampaigns = () => {
       });
 
       await loadCampaigns();
-      return true;
+      return data?.id ?? null;
     } catch (error: any) {
       console.error('Erro ao criar campanha:', error);
       toast({
@@ -105,7 +109,7 @@ export const useBroadcastCampaigns = () => {
         description: error.message,
         variant: 'destructive',
       });
-      return false;
+      return null;
     }
   };
 
