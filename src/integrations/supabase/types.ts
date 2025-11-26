@@ -65,6 +65,195 @@ export type Database = {
         }
         Relationships: []
       }
+      saas_broadcast_campaigns: {
+        Row: {
+          agendar_data_especifica: boolean
+          completed_at: string | null
+          created_at: string
+          data_agendada: string | null
+          dias_semana: number[]
+          horario_fim: string
+          horario_inicio: string
+          id: string
+          instance_ids: string[]
+          intervalo_max: number
+          intervalo_min: number
+          lista_ids: string[]
+          mensagens_enviadas: number
+          mensagens_total: number
+          message_file_id: string | null
+          nome: string
+          pausar_apos_mensagens: number
+          pausar_por_minutos: number
+          proximo_envio: string | null
+          started_at: string | null
+          status: string
+          ultima_pausa: string | null
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          agendar_data_especifica?: boolean
+          completed_at?: string | null
+          created_at?: string
+          data_agendada?: string | null
+          dias_semana?: number[]
+          horario_fim?: string
+          horario_inicio?: string
+          id?: string
+          instance_ids?: string[]
+          intervalo_max?: number
+          intervalo_min?: number
+          lista_ids?: string[]
+          mensagens_enviadas?: number
+          mensagens_total?: number
+          message_file_id?: string | null
+          nome: string
+          pausar_apos_mensagens?: number
+          pausar_por_minutos?: number
+          proximo_envio?: string | null
+          started_at?: string | null
+          status?: string
+          ultima_pausa?: string | null
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          agendar_data_especifica?: boolean
+          completed_at?: string | null
+          created_at?: string
+          data_agendada?: string | null
+          dias_semana?: number[]
+          horario_fim?: string
+          horario_inicio?: string
+          id?: string
+          instance_ids?: string[]
+          intervalo_max?: number
+          intervalo_min?: number
+          lista_ids?: string[]
+          mensagens_enviadas?: number
+          mensagens_total?: number
+          message_file_id?: string | null
+          nome?: string
+          pausar_apos_mensagens?: number
+          pausar_por_minutos?: number
+          proximo_envio?: string | null
+          started_at?: string | null
+          status?: string
+          ultima_pausa?: string | null
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saas_broadcast_campaigns_message_file_id_fkey"
+            columns: ["message_file_id"]
+            isOneToOne: false
+            referencedRelation: "saas_broadcast_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saas_broadcast_messages: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          mensagens: Json
+          nome: string
+          total_mensagens: number
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          mensagens?: Json
+          nome: string
+          total_mensagens?: number
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          mensagens?: Json
+          nome?: string
+          total_mensagens?: number
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
+      saas_broadcast_queue: {
+        Row: {
+          campaign_id: string
+          contact_id: string
+          created_at: string
+          enviado_em: string | null
+          erro_mensagem: string | null
+          id: string
+          instance_id: string
+          mensagem: string
+          status: string
+          telefone: string
+          tentativas: number
+          usuario_id: string
+        }
+        Insert: {
+          campaign_id: string
+          contact_id: string
+          created_at?: string
+          enviado_em?: string | null
+          erro_mensagem?: string | null
+          id?: string
+          instance_id: string
+          mensagem: string
+          status?: string
+          telefone: string
+          tentativas?: number
+          usuario_id: string
+        }
+        Update: {
+          campaign_id?: string
+          contact_id?: string
+          created_at?: string
+          enviado_em?: string | null
+          erro_mensagem?: string | null
+          id?: string
+          instance_id?: string
+          mensagem?: string
+          status?: string
+          telefone?: string
+          tentativas?: number
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saas_broadcast_queue_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "saas_broadcast_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saas_broadcast_queue_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "saas_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saas_broadcast_queue_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "saas_conexoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       saas_conexoes: {
         Row: {
           avatar_url: string | null
@@ -127,6 +316,80 @@ export type Database = {
           usuario_id?: string | null
         }
         Relationships: []
+      }
+      saas_contact_lists: {
+        Row: {
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+          total_contatos: number
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+          total_contatos?: number
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          total_contatos?: number
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
+      saas_contacts: {
+        Row: {
+          created_at: string
+          id: string
+          lista_id: string
+          nome: string | null
+          telefone: string
+          usuario_id: string
+          variavel1: string | null
+          variavel2: string | null
+          variavel3: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lista_id: string
+          nome?: string | null
+          telefone: string
+          usuario_id: string
+          variavel1?: string | null
+          variavel2?: string | null
+          variavel3?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lista_id?: string
+          nome?: string | null
+          telefone?: string
+          usuario_id?: string
+          variavel1?: string | null
+          variavel2?: string | null
+          variavel3?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saas_contacts_lista_id_fkey"
+            columns: ["lista_id"]
+            isOneToOne: false
+            referencedRelation: "saas_contact_lists"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       saas_maturation_messages: {
         Row: {

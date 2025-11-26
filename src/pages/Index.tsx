@@ -84,7 +84,7 @@ const Index = () => {
       <main className="container mx-auto px-6 py-8 space-y-8">
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <Bot className="w-4 h-4" />
               Dashboard
@@ -108,6 +108,10 @@ const Index = () => {
             <TabsTrigger value="maturador" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
               Maturador
+            </TabsTrigger>
+            <TabsTrigger value="disparo" className="flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              Disparo
             </TabsTrigger>
           </TabsList>
 
@@ -307,6 +311,10 @@ const Index = () => {
 
           <TabsContent value="maturador" className="mt-8">
             <MaturadorTab />
+          </TabsContent>
+
+          <TabsContent value="disparo" className="mt-8">
+            <DisparoTab />
           </TabsContent>
         </Tabs>
       </main>
