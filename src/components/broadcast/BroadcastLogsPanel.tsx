@@ -125,7 +125,7 @@ export function BroadcastLogsPanel() {
         .from('saas_broadcast_campaigns')
         .select('id, nome, status')
         .eq('usuario_id', user!.id)
-        .in('status', ['draft', 'paused'])
+        .in('status', ['draft', 'paused', 'running'])
         .order('created_at', { ascending: false });
 
       if (error) throw error;
