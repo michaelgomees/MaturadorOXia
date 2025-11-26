@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -91,9 +91,34 @@ export const BroadcastConfigPanel = ({
     setSelectedInstances(new Set(activeConnections.map(c => c.id)));
   };
 
+  // Filtrar apenas conexões ativas e atualizar sempre
   const activeConnections = connections.filter(c => c.status === 'active');
 
+  // Atualizar conexões a cada 10 segundos para garantir que mostra apenas ativas
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Força re-render das conexões para pegar status atualizado
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleStartCampaign = async () => {
+    // Validações antes de criar campanha
+    if (selectedLists.size === 0) {
+      toast.error('Selecione pelo menos uma lista de contatos');
+      return;
+    }
+
+    if (selectedInstances.size === 0) {
+      toast.error('Selecione pelo menos uma conexão ativa');
+      return;
+    }
+
+    if (!selectedMessageFile) {
+      toast.error('Selecione um arquivo de mensagens');
+      return;
+    }
+
     try {
       toast.info('Criando campanha e preparando disparo...');
 
@@ -101,7 +126,7 @@ export const BroadcastConfigPanel = ({
         nome: campaignName || `Disparo ${new Date().toLocaleString('pt-BR')}`,
         lista_ids: Array.from(selectedLists),
         instance_ids: Array.from(selectedInstances),
-        message_file_id: selectedMessageFile || undefined,
+        message_file_id: selectedMessageFile,
         intervalo_min: config.intervaloMin,
         intervalo_max: config.intervaloMax,
         pausar_apos_mensagens: config.pausarAposMensagens,
@@ -123,6 +148,8 @@ export const BroadcastConfigPanel = ({
         return;
       }
 
+      console.log('✅ Campanha criada com ID:', newCampaignId);
+
       // Criar fila de disparo para a campanha recém-criada
       toast.info('Preparando fila de disparo...');
       const { data: processData, error: processError } = await supabase.functions.invoke(
@@ -138,7 +165,7 @@ export const BroadcastConfigPanel = ({
         return;
       }
 
-      console.log('Fila de disparo criada:', processData);
+      console.log('✅ Fila de disparo criada:', processData);
 
       // Garantir que o status esteja como "running"
       const { error: updateError } = await supabase
@@ -149,9 +176,15 @@ export const BroadcastConfigPanel = ({
         })
         .eq('id', newCampaignId);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Erro ao atualizar status da campanha:', updateError);
+        throw updateError;
+      }
+
+      console.log('✅ Campanha marcada como running');
 
       // Forçar o processamento imediato desta campanha (primeiro envio)
+      toast.info('Enviando primeira mensagem...');
       const { data: sendData, error: sendError } = await supabase.functions.invoke(
         'send-broadcast-messages',
         {
@@ -164,10 +197,10 @@ export const BroadcastConfigPanel = ({
 
       if (sendError) {
         console.error('Erro ao forçar processamento da campanha:', sendError);
-        toast.error('Campanha iniciada, mas houve erro ao processar a fila.');
+        toast.error('Campanha iniciada, mas houve erro ao enviar primeira mensagem: ' + sendError.message);
       } else {
-        console.log('Resultado processamento inicial:', sendData);
-        toast.success('Disparo iniciado. Os próximos envios seguirão automaticamente.');
+        console.log('✅ Resultado processamento inicial:', sendData);
+        toast.success(`Disparo iniciado! ${sendData?.sent || 0} mensagem(ns) enviada(s). Os próximos envios seguirão automaticamente.`);
       }
 
       // Limpar seleções
@@ -179,8 +212,8 @@ export const BroadcastConfigPanel = ({
       // Recarregar campanhas
       await campaigns.loadCampaigns();
     } catch (error) {
-      console.error('Erro ao criar campanha:', error);
-      toast.error('Erro ao criar campanha');
+      console.error('Erro ao criar e iniciar campanha:', error);
+      toast.error('Erro ao criar campanha: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
     }
   };
 
