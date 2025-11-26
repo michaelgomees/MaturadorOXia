@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -23,6 +24,7 @@ export function BroadcastLogsPanel() {
   const { user } = useAuth();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [forcing, setForcing] = useState(false);
 
   useEffect(() => {
     if (user?.id) {
@@ -96,6 +98,23 @@ export function BroadcastLogsPanel() {
       console.error('Erro ao carregar logs:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForceSend = async () => {
+    try {
+      setForcing(true);
+      const { error } = await supabase.functions.invoke('send-broadcast-messages', {
+        body: { force: true },
+      });
+
+      if (error) {
+        console.error('Erro ao forçar envio de broadcast:', error);
+      }
+    } catch (error) {
+      console.error('Erro ao chamar função de envio forçado:', error);
+    } finally {
+      setForcing(false);
     }
   };
 
@@ -175,7 +194,17 @@ export function BroadcastLogsPanel() {
     <Card className="p-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold">Logs de Disparo</h3>
-        <Badge variant="outline">{logs.length} registros</Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline">{logs.length} registros</Badge>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleForceSend}
+            disabled={forcing}
+          >
+            {forcing ? 'Forçando...' : 'Forçar envio'}
+          </Button>
+        </div>
       </div>
 
       <ScrollArea className="h-[600px] pr-4">
