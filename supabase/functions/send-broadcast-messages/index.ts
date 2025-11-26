@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
         .eq('campaign_id', campaign.id)
         .eq('status', 'pending')
         .order('created_at', { ascending: true })
-        .limit(force ? 10 : 1); // No modo force, processar até 10 de uma vez
+        .limit(1); // Processar sempre 1 mensagem por chamada para reduzir bursts
 
       if (queueError) {
         console.error('Erro ao buscar fila:', queueError);
