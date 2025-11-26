@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Calendar, Clock, List, RefreshCw, X, Check } from 'lucide-react';
+import { Calendar, Clock, List, RefreshCw, X, Check, MessageSquare } from 'lucide-react';
 import { ContactList } from '@/hooks/useContactLists';
 import { BroadcastMessage } from '@/hooks/useBroadcastMessages';
 import { useBroadcastCampaigns } from '@/hooks/useBroadcastCampaigns';
@@ -76,6 +76,10 @@ export const BroadcastConfigPanel = ({
       newSet.add(id);
     }
     setSelectedLists(newSet);
+  };
+
+  const toggleMessageFile = (id: string) => {
+    setSelectedMessageFile(selectedMessageFile === id ? '' : id);
   };
 
   const selectAllActive = () => {
@@ -222,6 +226,61 @@ export const BroadcastConfigPanel = ({
           {contactLists.length === 0 && (
             <p className="text-center text-muted-foreground py-8">
               Nenhuma lista disponível
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Mensagens Disponíveis */}
+      <Card className="border-2">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-xl">Mensagens disponíveis *</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Selecione o arquivo de mensagens que será enviado. Apenas um arquivo pode ser selecionado por vez.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {messageFiles.filter(m => m.is_active).map((messageFile) => (
+              <Card
+                key={messageFile.id}
+                className={cn(
+                  "cursor-pointer transition-all hover:shadow-md relative",
+                  selectedMessageFile === messageFile.id
+                    ? "border-primary border-2 bg-primary/5"
+                    : "border hover:border-primary/50"
+                )}
+                onClick={() => toggleMessageFile(messageFile.id)}
+              >
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
+                    <MessageSquare className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold truncate">{messageFile.nome}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {messageFile.total_mensagens} mensagens
+                    </p>
+                  </div>
+                  {selectedMessageFile === messageFile.id && (
+                    <div className="absolute top-2 right-2 h-6 w-6 rounded-full bg-green-500 flex items-center justify-center">
+                      <Check className="h-4 w-4 text-white" />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          {messageFiles.filter(m => m.is_active).length === 0 && (
+            <p className="text-center text-muted-foreground py-8">
+              Nenhum arquivo de mensagens disponível
             </p>
           )}
         </CardContent>
