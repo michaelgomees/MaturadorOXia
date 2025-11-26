@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
     for (const campaign of campaigns) {
       console.log(`\n🎯 Processando campanha: ${campaign.nome}`);
 
-      // Regras de agendamento (ignoradas em modo FORÇADO)
+      // Regras de agendamento (TOTALMENTE ignoradas em modo FORÇADO)
       if (!force) {
         // Verificar se está nos dias permitidos
         if (!campaign.dias_semana.includes(currentDay)) {
@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
           continue;
         }
       } else {
-        console.log(`⚡ Modo FORÇADO - ignorando todas as regras de agendamento para ${campaign.nome}`);
+        console.log(`⚡ Modo FORÇADO - ignorando TODAS as regras para ${campaign.nome}`);
       }
 
       // Buscar até 10 mensagens pendentes desta campanha para processar em lote

@@ -14,6 +14,7 @@ import { BroadcastMessagesManager } from './broadcast/BroadcastMessagesManager';
 import { BroadcastConfigPanel } from './broadcast/BroadcastConfigPanel';
 import { InstanceSelector } from './broadcast/InstanceSelector';
 import { BroadcastLogsPanel } from './broadcast/BroadcastLogsPanel';
+import { BroadcastCampaignsManager } from './broadcast/BroadcastCampaignsManager';
 
 export const DisparoTab = () => {
   const [activeSubTab, setActiveSubTab] = useState('listas');
@@ -37,7 +38,7 @@ export const DisparoTab = () => {
       </div>
 
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="listas" className="gap-2">
             <ListPlus className="h-4 w-4" />
             Listas de Contatos
@@ -53,6 +54,10 @@ export const DisparoTab = () => {
           <TabsTrigger value="disparar" className="gap-2">
             <Play className="h-4 w-4" />
             Configurar & Disparar
+          </TabsTrigger>
+          <TabsTrigger value="campanhas" className="gap-2">
+            <Settings className="h-4 w-4" />
+            Campanhas
           </TabsTrigger>
           <TabsTrigger value="logs" className="gap-2">
             <FileText className="h-4 w-4" />
@@ -78,6 +83,10 @@ export const DisparoTab = () => {
             messageFiles={broadcastMessages.messages}
             campaigns={campaigns}
           />
+        </TabsContent>
+
+        <TabsContent value="campanhas" className="space-y-4">
+          <BroadcastCampaignsManager />
         </TabsContent>
 
         <TabsContent value="logs" className="space-y-4">
