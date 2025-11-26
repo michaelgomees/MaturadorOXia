@@ -29,9 +29,28 @@ export const InstanceSelector = () => {
   };
 
   const handleSync = async () => {
-    setSyncing(true);
-    await syncAllFromEvolutionAPI();
-    setSyncing(false);
+    try {
+      setSyncing(true);
+      
+      // Toast de início
+      const { toast } = await import('react-hot-toast');
+      toast.loading('Sincronizando com Evolution API...', { id: 'sync-toast' });
+      
+      // Sincronizar com a API
+      await syncAllFromEvolutionAPI();
+      
+      // Toast de sucesso
+      toast.success('✅ Sincronização concluída! Mostrando apenas conexões ativas.', { 
+        id: 'sync-toast',
+        duration: 3000 
+      });
+    } catch (error) {
+      console.error('Erro ao sincronizar:', error);
+      const { toast } = await import('react-hot-toast');
+      toast.error('Erro ao sincronizar com a API', { id: 'sync-toast' });
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const activeConnections = connections.filter(c => c.status === 'active');
