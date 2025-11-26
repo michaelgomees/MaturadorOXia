@@ -12,6 +12,8 @@ import { BroadcastMessage } from '@/hooks/useBroadcastMessages';
 import { useBroadcastCampaigns } from '@/hooks/useBroadcastCampaigns';
 import { useConnections } from '@/contexts/ConnectionsContext';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface BroadcastConfigPanelProps {
   contactLists: ContactList[];
@@ -91,26 +93,71 @@ export const BroadcastConfigPanel = ({
   const activeConnections = connections.filter(c => c.status === 'active');
 
   const handleStartCampaign = async () => {
-    const campaignData = {
-      nome: `Disparo ${new Date().toLocaleString('pt-BR')}`,
-      lista_ids: Array.from(selectedLists),
-      instance_ids: Array.from(selectedInstances),
-      message_file_id: selectedMessageFile || undefined,
-      intervalo_min: config.intervaloMin,
-      intervalo_max: config.intervaloMax,
-      pausar_apos_mensagens: config.pausarAposMensagens,
-      pausar_por_minutos: config.pausarPorMinutos,
-      agendar_data_especifica: config.agendarDataEspecifica,
-      horario_inicio: config.horarioInicio,
-      horario_fim: config.horarioFim,
-      dias_semana: config.diasSemana,
-      random_no_repeat: randomNoRepeat,
-      status: 'running',
-      mensagens_enviadas: 0,
-      mensagens_total: 0,
-    };
+    try {
+      toast.info('Criando campanha...');
 
-    await campaigns.createCampaign(campaignData);
+      const campaignData = {
+        nome: `Disparo ${new Date().toLocaleString('pt-BR')}`,
+        lista_ids: Array.from(selectedLists),
+        instance_ids: Array.from(selectedInstances),
+        message_file_id: selectedMessageFile || undefined,
+        intervalo_min: config.intervaloMin,
+        intervalo_max: config.intervaloMax,
+        pausar_apos_mensagens: config.pausarAposMensagens,
+        pausar_por_minutos: config.pausarPorMinutos,
+        agendar_data_especifica: config.agendarDataEspecifica,
+        horario_inicio: config.horarioInicio,
+        horario_fim: config.horarioFim,
+        dias_semana: config.diasSemana,
+        random_no_repeat: randomNoRepeat,
+        status: 'draft',
+        mensagens_enviadas: 0,
+        mensagens_total: 0,
+      };
+
+      const success = await campaigns.createCampaign(campaignData);
+      
+      if (!success) {
+        toast.error('Erro ao criar campanha');
+        return;
+      }
+
+      // Buscar a campanha recém-criada
+      const { data: newCampaign } = await supabase
+        .from('saas_broadcast_campaigns')
+        .select('id')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!newCampaign) {
+        toast.error('Erro ao buscar campanha criada');
+        return;
+      }
+
+      toast.info('Processando contatos e criando fila de disparo...');
+
+      // Processar a campanha (distribuir contatos entre instâncias)
+      const { data, error } = await supabase.functions.invoke('process-broadcast-campaign', {
+        body: { campaign_id: newCampaign.id },
+      });
+
+      if (error) {
+        console.error('Erro ao processar campanha:', error);
+        toast.error('Erro ao processar campanha: ' + error.message);
+        return;
+      }
+
+      toast.success(
+        `Campanha iniciada com sucesso! ${data.total_messages} mensagens distribuídas entre ${data.active_instances} conexões`
+      );
+
+      // Recarregar campanhas
+      await campaigns.loadCampaigns();
+    } catch (error) {
+      console.error('Erro ao iniciar campanha:', error);
+      toast.error('Erro ao iniciar campanha');
+    }
   };
 
   return (
