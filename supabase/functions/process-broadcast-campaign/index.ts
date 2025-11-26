@@ -97,6 +97,7 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Total de mensagens encontradas: ${messages.length}`);
+    console.log(`Estrutura da primeira mensagem:`, JSON.stringify(messages[0]));
 
     // Verificar quais instâncias estão ativas
     const { data: instances, error: instancesError } = await supabaseClient
@@ -136,6 +137,12 @@ Deno.serve(async (req) => {
       // Selecionar mensagem
       const message = availableMessages[messageIndex % availableMessages.length];
       messageIndex++;
+
+      // Verificar se a mensagem tem o campo texto
+      if (!message || !message.texto) {
+        console.error(`Mensagem sem campo texto:`, JSON.stringify(message));
+        throw new Error(`Estrutura de mensagem inválida no índice ${messageIndex - 1}`);
+      }
 
       // Substituir variáveis na mensagem
       const mensagemProcessada = substituirVariaveis(message.texto, contact);
