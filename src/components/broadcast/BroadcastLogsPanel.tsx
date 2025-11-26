@@ -5,9 +5,17 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Clock, Play } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface LogEntry {
   id: string;
@@ -20,15 +28,24 @@ interface LogEntry {
   created_at: string;
 }
 
+interface Campaign {
+  id: string;
+  nome: string;
+  status: string;
+}
+
 export function BroadcastLogsPanel() {
   const { user } = useAuth();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [forcing, setForcing] = useState(false);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [selectedCampaign, setSelectedCampaign] = useState<string>("");
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     if (user?.id) {
       loadLogs();
+      loadCampaigns();
       
       // Configurar realtime subscription para atualizações instantâneas
       const channel = supabase
@@ -101,20 +118,49 @@ export function BroadcastLogsPanel() {
     }
   };
 
-  const handleForceSend = async () => {
+  const loadCampaigns = async () => {
     try {
-      setForcing(true);
-      const { error } = await supabase.functions.invoke('send-broadcast-messages', {
-        body: { force: true },
-      });
+      const { data, error } = await supabase
+        .from('saas_broadcast_campaigns')
+        .select('id, nome, status')
+        .eq('usuario_id', user!.id)
+        .in('status', ['draft', 'paused'])
+        .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Erro ao forçar envio de broadcast:', error);
-      }
+      if (error) throw error;
+      setCampaigns(data || []);
     } catch (error) {
-      console.error('Erro ao chamar função de envio forçado:', error);
+      console.error('Erro ao carregar campanhas:', error);
+    }
+  };
+
+  const handleStartCampaign = async () => {
+    if (!selectedCampaign) {
+      toast.error('Selecione uma campanha para iniciar');
+      return;
+    }
+
+    try {
+      setStarting(true);
+      
+      const { error } = await supabase
+        .from('saas_broadcast_campaigns')
+        .update({ 
+          status: 'running',
+          started_at: new Date().toISOString()
+        })
+        .eq('id', selectedCampaign);
+
+      if (error) throw error;
+
+      toast.success('Disparo iniciado com sucesso!');
+      loadCampaigns();
+      setSelectedCampaign("");
+    } catch (error) {
+      console.error('Erro ao iniciar disparo:', error);
+      toast.error('Erro ao iniciar disparo');
     } finally {
-      setForcing(false);
+      setStarting(false);
     }
   };
 
@@ -196,16 +242,44 @@ export function BroadcastLogsPanel() {
         <h3 className="text-lg font-semibold">Logs de Disparo</h3>
         <div className="flex items-center gap-2">
           <Badge variant="outline">{logs.length} registros</Badge>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleForceSend}
-            disabled={forcing}
-          >
-            {forcing ? 'Forçando...' : 'Forçar envio'}
-          </Button>
         </div>
       </div>
+
+      {campaigns.length > 0 && (
+        <Card className="p-4 mb-4 bg-primary/5 border-primary/20">
+          <div className="flex items-center gap-3">
+            <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Selecione uma campanha para iniciar" />
+              </SelectTrigger>
+              <SelectContent>
+                {campaigns.map((campaign) => (
+                  <SelectItem key={campaign.id} value={campaign.id}>
+                    {campaign.nome} ({campaign.status === 'draft' ? 'Rascunho' : 'Pausada'})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={handleStartCampaign}
+              disabled={!selectedCampaign || starting}
+              className="gap-2"
+            >
+              {starting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Iniciando...
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4" />
+                  Iniciar Disparo
+                </>
+              )}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <ScrollArea className="h-[600px] pr-4">
         <div className="space-y-2">
