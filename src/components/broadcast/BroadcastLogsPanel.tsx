@@ -143,20 +143,41 @@ export function BroadcastLogsPanel() {
 
     try {
       setStarting(true);
-      
-      const { error } = await supabase
+
+      // Atualizar status da campanha para "running"
+      const { error: updateError } = await supabase
         .from('saas_broadcast_campaigns')
-        .update({ 
+        .update({
           status: 'running',
-          started_at: new Date().toISOString()
+          started_at: new Date().toISOString(),
         })
         .eq('id', selectedCampaign);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
-      toast.success('Disparo iniciado com sucesso!');
-      loadCampaigns();
-      setSelectedCampaign("");
+      // Forçar processamento imediato desta campanha, respeitando
+      // as regras internas da função (intervalos, limites, etc.)
+      const { data, error: functionError } = await supabase.functions.invoke(
+        'send-broadcast-messages',
+        {
+          body: {
+            force: true,
+            campaign_id: selectedCampaign,
+          },
+        }
+      );
+
+      if (functionError) {
+        console.error('Erro ao forçar processamento da campanha:', functionError);
+        toast.error('Campanha iniciada, mas houve erro ao processar a fila.');
+      } else {
+        console.log('Resultado processamento forçado:', data);
+        toast.success('Disparo iniciado e fila de envio processada.');
+      }
+
+      await loadCampaigns();
+      await loadLogs();
+      setSelectedCampaign('');
     } catch (error) {
       console.error('Erro ao iniciar disparo:', error);
       toast.error('Erro ao iniciar disparo');
