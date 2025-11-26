@@ -26,11 +26,35 @@ Deno.serve(async (req) => {
 
     console.log('🚀 Iniciando processamento de fila de broadcast');
 
-    // Buscar campanhas ativas
-    const { data: campaigns, error: campaignsError } = await supabaseClient
+    // Tentar ler parâmetros opcionais (force, campaign_id)
+    let force = false;
+    let targetCampaignId: string | undefined = undefined;
+
+    try {
+      const body = await req.json();
+      force = !!body.force;
+      if (body.campaign_id && typeof body.campaign_id === 'string') {
+        targetCampaignId = body.campaign_id;
+      }
+    } catch {
+      // Sem body ou body inválido, segue com valores padrão
+    }
+
+    if (force) {
+      console.log('⚡ Modo FORÇADO ativado - ignorando regras de agendamento');
+    }
+
+    // Buscar campanhas ativas (opcionalmente filtrando por uma específica)
+    let campaignsQuery = supabaseClient
       .from('saas_broadcast_campaigns')
       .select('*')
-      .eq('status', 'running');
+      .eq('status', 'running') as any;
+
+    if (targetCampaignId) {
+      campaignsQuery = campaignsQuery.eq('id', targetCampaignId);
+    }
+
+    const { data: campaigns, error: campaignsError } = await campaignsQuery;
 
     if (campaignsError) {
       throw new Error(`Erro ao buscar campanhas: ${campaignsError.message}`);
@@ -59,38 +83,41 @@ Deno.serve(async (req) => {
     for (const campaign of campaigns) {
       console.log(`\n🎯 Processando campanha: ${campaign.nome}`);
 
-      // Verificar se está nos dias permitidos
-      if (!campaign.dias_semana.includes(currentDay)) {
-        console.log(`⏭️ Campanha ${campaign.nome} não roda hoje (dia ${currentDay})`);
-        continue;
-      }
-
-      // Verificar horário permitido
-      if (currentTime < campaign.horario_inicio || currentTime > campaign.horario_fim) {
-        console.log(`⏰ Fora do horário permitido (${campaign.horario_inicio} - ${campaign.horario_fim})`);
-        continue;
-      }
-
-      // Verificar se está em pausa
-      if (campaign.ultima_pausa) {
-        const pauseEnd = new Date(campaign.ultima_pausa);
-        pauseEnd.setMinutes(pauseEnd.getMinutes() + campaign.pausar_por_minutos);
-        
-        if (now < pauseEnd) {
-          console.log(`⏸️ Campanha em pausa até ${pauseEnd.toLocaleTimeString()}`);
+      // Regras de agendamento (ignoradas em modo FORÇADO)
+      if (!force) {
+        // Verificar se está nos dias permitidos
+        if (!campaign.dias_semana.includes(currentDay)) {
+          console.log(`⏭️ Campanha ${campaign.nome} não roda hoje (dia ${currentDay})`);
           continue;
         }
-      }
 
-      // Verificar se precisa pausar
-      const sentSinceLastPause = campaign.mensagens_enviadas % campaign.pausar_apos_mensagens;
-      if (sentSinceLastPause === 0 && campaign.mensagens_enviadas > 0) {
-        console.log(`⏸️ Pausando após ${campaign.pausar_apos_mensagens} mensagens`);
-        await supabaseClient
-          .from('saas_broadcast_campaigns')
-          .update({ ultima_pausa: now.toISOString() })
-          .eq('id', campaign.id);
-        continue;
+        // Verificar horário permitido
+        if (currentTime < campaign.horario_inicio || currentTime > campaign.horario_fim) {
+          console.log(`⏰ Fora do horário permitido (${campaign.horario_inicio} - ${campaign.horario_fim})`);
+          continue;
+        }
+
+        // Verificar se está em pausa
+        if (campaign.ultima_pausa) {
+          const pauseEnd = new Date(campaign.ultima_pausa);
+          pauseEnd.setMinutes(pauseEnd.getMinutes() + campaign.pausar_por_minutos);
+          
+          if (now < pauseEnd) {
+            console.log(`⏸️ Campanha em pausa até ${pauseEnd.toLocaleTimeString()}`);
+            continue;
+          }
+        }
+
+        // Verificar se precisa pausar
+        const sentSinceLastPause = campaign.mensagens_enviadas % campaign.pausar_apos_mensagens;
+        if (sentSinceLastPause === 0 && campaign.mensagens_enviadas > 0) {
+          console.log(`⏸️ Pausando após ${campaign.pausar_apos_mensagens} mensagens`);
+          await supabaseClient
+            .from('saas_broadcast_campaigns')
+            .update({ ultima_pausa: now.toISOString() })
+            .eq('id', campaign.id);
+          continue;
+        }
       }
 
       // Buscar próxima mensagem pendente da campanha
@@ -126,10 +153,12 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Verificar próximo envio permitido
-      if (campaign.proximo_envio && new Date(campaign.proximo_envio) > now) {
-        console.log(`⏳ Aguardando intervalo até ${new Date(campaign.proximo_envio).toLocaleTimeString()}`);
-        continue;
+      // Verificar próximo envio permitido (ignorado em modo FORÇADO)
+      if (!force) {
+        if (campaign.proximo_envio && new Date(campaign.proximo_envio) > now) {
+          console.log(`⏳ Aguardando intervalo até ${new Date(campaign.proximo_envio).toLocaleTimeString()}`);
+          continue;
+        }
       }
 
       totalProcessed++;
