@@ -166,25 +166,35 @@ export const useBroadcastMessages = () => {
 
   const downloadTemplate = () => {
     const template = `1.
-<saudacao> <nome>
+<saudacao> <nome>!
 💳 Sua *linha de crédito pré-aprovada* já está liberada!
 💳 Responda *SIM* para consultar.
 ❌ Se não tiver interesse, responda *NÃO*.
 🚫 Para sair, digite *SAIR*.
 
 2.
-<saudacao> <nome>
+Olá <nome>, <saudacao>!
 📊 Descubra o valor da sua *linha de crédito* agora mesmo!
 💳 Responda *SIM* para consultar.
 ❌ Se não tiver interesse, responda *NÃO*.
 🚫 Para sair, digite *SAIR*.
 
 3.
-<saudacao> <nome>
+<saudacao> <nome>!
 ⚡ Uma oportunidade exclusiva: *crédito pré-aprovado* disponível!
+Hoje, <diadasemana>, <data>, você tem acesso especial.
 💳 Responda *SIM* para consultar.
 ❌ Se não tiver interesse, responda *NÃO*.
-🚫 Para sair, digite *SAIR*.`;
+🚫 Para sair, digite *SAIR*.
+
+--- VARIÁVEIS DISPONÍVEIS ---
+<saudacao> - Saudação automática (Bom dia, Boa tarde, Boa noite)
+<nome> - Nome do contato
+<data> - Data atual (dd/mm/yyyy)
+<diadasemana> - Dia da semana
+<hora> - Hora atual (HH:mm)
+<mes> - Mês atual
+<variavel1>, <variavel2>, <variavel3> - Variáveis customizadas do contato`;
     const blob = new Blob([template], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
