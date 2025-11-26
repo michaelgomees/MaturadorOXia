@@ -19,6 +19,7 @@ import {
 
 interface LogEntry {
   id: string;
+  campaign_id: string;
   instance_name: string;
   telefone: string;
   mensagem: string;
@@ -32,6 +33,19 @@ interface Campaign {
   id: string;
   nome: string;
   status: string;
+  mensagens_total?: number;
+  mensagens_enviadas?: number;
+  intervalo_min?: number;
+  intervalo_max?: number;
+  pausar_apos_mensagens?: number;
+  pausar_por_minutos?: number;
+  agendar_data_especifica?: boolean;
+  data_agendada?: string | null;
+  horario_inicio?: string;
+  horario_fim?: string;
+  dias_semana?: number[];
+  instance_ids?: string[];
+  lista_ids?: string[];
 }
 
 export function BroadcastLogsPanel() {
@@ -41,6 +55,7 @@ export function BroadcastLogsPanel() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<string>("");
   const [starting, setStarting] = useState(false);
+  const [pausingId, setPausingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
@@ -83,7 +98,8 @@ export function BroadcastLogsPanel() {
           enviado_em,
           erro_mensagem,
           created_at,
-          instance_id
+          instance_id,
+          campaign_id
         `)
         .eq('usuario_id', user!.id)
         .order('created_at', { ascending: false })
@@ -102,6 +118,7 @@ export function BroadcastLogsPanel() {
 
       const formattedLogs: LogEntry[] = queueData?.map(log => ({
         id: log.id,
+        campaign_id: log.campaign_id,
         instance_name: instanceMap.get(log.instance_id) || 'Desconhecida',
         telefone: log.telefone,
         mensagem: log.mensagem,
@@ -123,7 +140,24 @@ export function BroadcastLogsPanel() {
     try {
       const { data, error } = await supabase
         .from('saas_broadcast_campaigns')
-        .select('id, nome, status')
+        .select(`
+          id,
+          nome,
+          status,
+          mensagens_total,
+          mensagens_enviadas,
+          intervalo_min,
+          intervalo_max,
+          pausar_apos_mensagens,
+          pausar_por_minutos,
+          agendar_data_especifica,
+          data_agendada,
+          horario_inicio,
+          horario_fim,
+          dias_semana,
+          instance_ids,
+          lista_ids
+        `)
         .eq('usuario_id', user!.id)
         .in('status', ['draft', 'paused', 'running'])
         .order('created_at', { ascending: false });
@@ -183,6 +217,30 @@ export function BroadcastLogsPanel() {
       toast.error('Erro ao iniciar disparo');
     } finally {
       setStarting(false);
+    }
+  };
+
+  const handlePauseCampaign = async (id: string) => {
+    try {
+      setPausingId(id);
+
+      const { error } = await supabase
+        .from('saas_broadcast_campaigns')
+        .update({
+          status: 'paused',
+          ultima_pausa: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast.success('Campanha pausada com sucesso!');
+      await loadCampaigns();
+    } catch (error) {
+      console.error('Erro ao pausar campanha:', error);
+      toast.error('Erro ao pausar campanha');
+    } finally {
+      setPausingId(null);
     }
   };
 
@@ -267,6 +325,35 @@ export function BroadcastLogsPanel() {
     return msg.substring(0, maxLength) + '...';
   };
 
+  const startableCampaigns = campaigns.filter(
+    (c) => c.status === 'draft' || c.status === 'paused'
+  );
+  const runningCampaigns = campaigns.filter((c) => c.status === 'running');
+  const selectedCampaignData = campaigns.find((c) => c.id === selectedCampaign);
+
+  const selectedCampaignLogs = selectedCampaign
+    ? logs.filter((log) => log.campaign_id === selectedCampaign)
+    : [];
+
+  const sentCount = selectedCampaignLogs.filter((l) => l.status === 'sent').length;
+  const pendingCount = selectedCampaignLogs.filter((l) => l.status === 'pending').length;
+  const failedCount = selectedCampaignLogs.filter((l) => l.status === 'failed').length;
+
+  const diasSemanaLabels: Record<number, string> = {
+    1: 'Seg',
+    2: 'Ter',
+    3: 'Qua',
+    4: 'Qui',
+    5: 'Sex',
+    6: 'Sáb',
+    7: 'Dom',
+  };
+
+  const formatDiasSemana = (dias?: number[]) => {
+    if (!dias || dias.length === 0) return 'Todos os dias';
+    return dias.map((d) => diasSemanaLabels[d] || d).join(', ');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -312,14 +399,14 @@ export function BroadcastLogsPanel() {
       </div>
 
       {campaigns.length > 0 && (
-        <Card className="p-4 mb-4 bg-primary/5 border-primary/20">
-          <div className="flex items-center gap-3">
+        <Card className="p-4 mb-4 bg-primary/5 border-primary/20 space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
             <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
-              <SelectTrigger className="flex-1">
+              <SelectTrigger className="flex-1 min-w-[220px]">
                 <SelectValue placeholder="Selecione uma campanha para iniciar" />
               </SelectTrigger>
               <SelectContent>
-                {campaigns.map((campaign) => (
+                {startableCampaigns.map((campaign) => (
                   <SelectItem key={campaign.id} value={campaign.id}>
                     {campaign.nome} ({campaign.status === 'draft' ? 'Rascunho' : 'Pausada'})
                   </SelectItem>
@@ -344,6 +431,81 @@ export function BroadcastLogsPanel() {
               )}
             </Button>
           </div>
+
+          {runningCampaigns.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                Campanhas em execução:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {runningCampaigns.map((campaign) => (
+                  <div
+                    key={campaign.id}
+                    className="flex items-center gap-2 rounded-full border border-primary/20 bg-background/40 px-3 py-1"
+                  >
+                    <span className="text-xs font-medium text-primary">
+                      {campaign.nome}
+                    </span>
+                    <Badge variant="secondary" className="text-[10px] uppercase">
+                      Rodando
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handlePauseCampaign(campaign.id)}
+                      disabled={pausingId === campaign.id}
+                      className="h-6 px-2 text-[11px]"
+                    >
+                      {pausingId === campaign.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        'Parar'
+                      )}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {selectedCampaignData && (
+            <div className="mt-1 grid gap-3 text-xs text-muted-foreground md:grid-cols-2 md:text-sm">
+              <div className="space-y-1">
+                <p>
+                  <span className="font-semibold text-foreground">Status:</span>{' '}
+                  {selectedCampaignData.status === 'draft'
+                    ? 'Rascunho'
+                    : selectedCampaignData.status === 'paused'
+                      ? 'Pausada'
+                      : 'Rodando'}
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Intervalo entre envios:</span>{' '}
+                  {selectedCampaignData.intervalo_min} - {selectedCampaignData.intervalo_max} segundos
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Pausa automática:</span>{' '}
+                  a cada {selectedCampaignData.pausar_apos_mensagens} mensagens, pausa por{' '}
+                  {selectedCampaignData.pausar_por_minutos} minutos
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p>
+                  <span className="font-semibold text-foreground">Horário:</span>{' '}
+                  {selectedCampaignData.horario_inicio} às {selectedCampaignData.horario_fim}
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Dias da semana:</span>{' '}
+                  {formatDiasSemana(selectedCampaignData.dias_semana)}
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Mensagens na fila:</span>{' '}
+                  {selectedCampaignLogs.length} no total — {sentCount} enviadas, {pendingCount} pendentes,{' '}
+                  {failedCount} com erro
+                </p>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 
