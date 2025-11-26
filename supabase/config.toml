@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.process-broadcast-campaign]
 verify_jwt = true
+
+[functions.send-broadcast-messages]
+verify_jwt = true

@@ -1,0 +1,240 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.0';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+const EVOLUTION_API_URL = Deno.env.get('EVOLUTION_API_URL') || '';
+const EVOLUTION_API_KEY = Deno.env.get('EVOLUTION_API_KEY') || '';
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: { Authorization: req.headers.get('Authorization')! },
+        },
+      }
+    );
+
+    console.log('🚀 Iniciando processamento de fila de broadcast');
+
+    // Buscar campanhas ativas
+    const { data: campaigns, error: campaignsError } = await supabaseClient
+      .from('saas_broadcast_campaigns')
+      .select('*')
+      .eq('status', 'running');
+
+    if (campaignsError) {
+      throw new Error(`Erro ao buscar campanhas: ${campaignsError.message}`);
+    }
+
+    if (!campaigns || campaigns.length === 0) {
+      console.log('ℹ️ Nenhuma campanha ativa encontrada');
+      return new Response(
+        JSON.stringify({ message: 'Nenhuma campanha ativa' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      );
+    }
+
+    console.log(`📊 Encontradas ${campaigns.length} campanhas ativas`);
+
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const currentDay = now.getDay(); // 0 = domingo, 1 = segunda, etc.
+    const currentTime = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}:00`;
+
+    let totalProcessed = 0;
+    let totalSent = 0;
+    let totalFailed = 0;
+
+    for (const campaign of campaigns) {
+      console.log(`\n🎯 Processando campanha: ${campaign.nome}`);
+
+      // Verificar se está nos dias permitidos
+      if (!campaign.dias_semana.includes(currentDay)) {
+        console.log(`⏭️ Campanha ${campaign.nome} não roda hoje (dia ${currentDay})`);
+        continue;
+      }
+
+      // Verificar horário permitido
+      if (currentTime < campaign.horario_inicio || currentTime > campaign.horario_fim) {
+        console.log(`⏰ Fora do horário permitido (${campaign.horario_inicio} - ${campaign.horario_fim})`);
+        continue;
+      }
+
+      // Verificar se está em pausa
+      if (campaign.ultima_pausa) {
+        const pauseEnd = new Date(campaign.ultima_pausa);
+        pauseEnd.setMinutes(pauseEnd.getMinutes() + campaign.pausar_por_minutos);
+        
+        if (now < pauseEnd) {
+          console.log(`⏸️ Campanha em pausa até ${pauseEnd.toLocaleTimeString()}`);
+          continue;
+        }
+      }
+
+      // Verificar se precisa pausar
+      const sentSinceLastPause = campaign.mensagens_enviadas % campaign.pausar_apos_mensagens;
+      if (sentSinceLastPause === 0 && campaign.mensagens_enviadas > 0) {
+        console.log(`⏸️ Pausando após ${campaign.pausar_apos_mensagens} mensagens`);
+        await supabaseClient
+          .from('saas_broadcast_campaigns')
+          .update({ ultima_pausa: now.toISOString() })
+          .eq('id', campaign.id);
+        continue;
+      }
+
+      // Buscar próxima mensagem pendente da campanha
+      const { data: queueItem, error: queueError } = await supabaseClient
+        .from('saas_broadcast_queue')
+        .select('*')
+        .eq('campaign_id', campaign.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .single();
+
+      if (queueError || !queueItem) {
+        console.log(`✅ Todas as mensagens da campanha ${campaign.nome} foram processadas`);
+        
+        // Verificar se todas foram processadas
+        const { count } = await supabaseClient
+          .from('saas_broadcast_queue')
+          .select('*', { count: 'exact', head: true })
+          .eq('campaign_id', campaign.id)
+          .eq('status', 'pending');
+
+        if (count === 0) {
+          await supabaseClient
+            .from('saas_broadcast_campaigns')
+            .update({ 
+              status: 'completed',
+              completed_at: now.toISOString()
+            })
+            .eq('id', campaign.id);
+          console.log(`🎉 Campanha ${campaign.nome} finalizada`);
+        }
+        continue;
+      }
+
+      // Verificar próximo envio permitido
+      if (campaign.proximo_envio && new Date(campaign.proximo_envio) > now) {
+        console.log(`⏳ Aguardando intervalo até ${new Date(campaign.proximo_envio).toLocaleTimeString()}`);
+        continue;
+      }
+
+      totalProcessed++;
+
+      try {
+        console.log(`📤 Enviando mensagem para ${queueItem.telefone}`);
+
+        // Buscar dados da instância
+        const { data: instance } = await supabaseClient
+          .from('saas_conexoes')
+          .select('evolution_instance_name')
+          .eq('id', queueItem.instance_id)
+          .single();
+
+        if (!instance || !instance.evolution_instance_name) {
+          throw new Error('Instância não encontrada');
+        }
+
+        // Enviar via Evolution API
+        const response = await fetch(
+          `${EVOLUTION_API_URL}/message/sendText/${instance.evolution_instance_name}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': EVOLUTION_API_KEY,
+            },
+            body: JSON.stringify({
+              number: queueItem.telefone,
+              text: queueItem.mensagem,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(JSON.stringify(errorData));
+        }
+
+        // Atualizar status para enviado
+        await supabaseClient
+          .from('saas_broadcast_queue')
+          .update({
+            status: 'sent',
+            enviado_em: now.toISOString(),
+            tentativas: queueItem.tentativas + 1,
+          })
+          .eq('id', queueItem.id);
+
+        // Atualizar campanha
+        const nextInterval = Math.floor(
+          Math.random() * (campaign.intervalo_max - campaign.intervalo_min + 1) + campaign.intervalo_min
+        );
+        const nextSendTime = new Date(now.getTime() + nextInterval * 1000);
+
+        await supabaseClient
+          .from('saas_broadcast_campaigns')
+          .update({
+            mensagens_enviadas: campaign.mensagens_enviadas + 1,
+            proximo_envio: nextSendTime.toISOString(),
+          })
+          .eq('id', campaign.id);
+
+        totalSent++;
+        console.log(`✅ Mensagem enviada com sucesso! Próximo envio em ${nextInterval}s`);
+
+      } catch (error) {
+        console.error(`❌ Erro ao enviar mensagem:`, error);
+        
+        // Atualizar status para falha
+        await supabaseClient
+          .from('saas_broadcast_queue')
+          .update({
+            status: 'failed',
+            erro_mensagem: error.message,
+            tentativas: queueItem.tentativas + 1,
+          })
+          .eq('id', queueItem.id);
+
+        totalFailed++;
+      }
+    }
+
+    console.log(`\n📊 Resumo: ${totalProcessed} processadas, ${totalSent} enviadas, ${totalFailed} falharam`);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        processed: totalProcessed,
+        sent: totalSent,
+        failed: totalFailed,
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    );
+  } catch (error) {
+    console.error('Erro ao processar fila:', error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      }
+    );
+  }
+});
