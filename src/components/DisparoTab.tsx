@@ -8,6 +8,7 @@ import { Upload, ListPlus, MessageSquare, Settings, Play, FileText } from 'lucid
 import { useContactLists } from '@/hooks/useContactLists';
 import { useBroadcastMessages } from '@/hooks/useBroadcastMessages';
 import { useBroadcastCampaigns } from '@/hooks/useBroadcastCampaigns';
+import { useBroadcastQueue } from '@/hooks/useBroadcastQueue';
 import { ContactListsManager } from './broadcast/ContactListsManager';
 import { BroadcastMessagesManager } from './broadcast/BroadcastMessagesManager';
 import { BroadcastConfigPanel } from './broadcast/BroadcastConfigPanel';
@@ -20,6 +21,9 @@ export const DisparoTab = () => {
   const contactLists = useContactLists();
   const broadcastMessages = useBroadcastMessages();
   const campaigns = useBroadcastCampaigns();
+  
+  // Processar fila de broadcast automaticamente
+  useBroadcastQueue();
 
   return (
     <div className="space-y-6">
