@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Play, Calendar, Clock, Users, MessageSquare } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Calendar, Clock, List, RefreshCw, X, Check } from 'lucide-react';
 import { ContactList } from '@/hooks/useContactLists';
 import { BroadcastMessage } from '@/hooks/useBroadcastMessages';
 import { useBroadcastCampaigns } from '@/hooks/useBroadcastCampaigns';
 import { useConnections } from '@/contexts/ConnectionsContext';
+import { cn } from '@/lib/utils';
 
 interface BroadcastConfigPanelProps {
   contactLists: ContactList[];
@@ -36,7 +39,7 @@ export const BroadcastConfigPanel = ({
   const [selectedLists, setSelectedLists] = useState<Set<string>>(new Set());
   const [selectedInstances, setSelectedInstances] = useState<Set<string>>(new Set());
   const [selectedMessageFile, setSelectedMessageFile] = useState<string>('');
-  const [previewMessage, setPreviewMessage] = useState('');
+  const [dataAgendada, setDataAgendada] = useState('');
 
   const diasDaSemana = [
     { label: 'SEGUNDA', short: 'SEG', value: 1 },
@@ -54,6 +57,34 @@ export const BroadcastConfigPanel = ({
       : [...config.diasSemana, dia];
     setConfig({ ...config, diasSemana: newDias });
   };
+
+  const toggleInstance = (id: string) => {
+    const newSet = new Set(selectedInstances);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedInstances(newSet);
+  };
+
+  const toggleList = (id: string) => {
+    const newSet = new Set(selectedLists);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedLists(newSet);
+  };
+
+  const selectAllActive = () => {
+    const activeConnections = connections.filter(c => c.status === 'active');
+    setSelectedInstances(new Set(activeConnections.map(c => c.id)));
+  };
+
+  const activeConnections = connections.filter(c => c.status === 'active');
+  const inactiveConnections = connections.filter(c => c.status !== 'active');
 
   const handleStartCampaign = async () => {
     const campaignData = {
@@ -78,18 +109,156 @@ export const BroadcastConfigPanel = ({
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-primary">
-              <Calendar className="h-5 w-5" />
-              Agendar disparo
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="agendar">Agendar para data específica</Label>
+    <div className="space-y-6">
+      {/* Conexões Disponíveis */}
+      <Card className="border-2">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-xl">Conexões disponíveis *</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Selecione uma ou mais conexões para o disparo. O sistema alternará entre as conexões selecionadas.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={selectAllActive}
+                className="gap-2"
+              >
+                <Check className="h-4 w-4" />
+                Selecionar ativas
+              </Button>
+              <Button variant="outline" size="sm" className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {activeConnections.map((connection) => (
+              <Card
+                key={connection.id}
+                className={cn(
+                  "cursor-pointer transition-all hover:shadow-md relative",
+                  selectedInstances.has(connection.id)
+                    ? "border-primary border-2 bg-primary/5"
+                    : "border hover:border-primary/50"
+                )}
+                onClick={() => toggleInstance(connection.id)}
+              >
+                <CardContent className="p-4 flex items-center gap-3">
+                <Avatar className="h-12 w-12">
+                    <AvatarImage src={connection.avatar || undefined} />
+                    <AvatarFallback className="bg-primary text-primary-foreground font-bold">
+                      {connection.name.substring(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold truncate">{connection.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {connection.phone || 'Indisponível'}
+                    </p>
+                  </div>
+                  {selectedInstances.has(connection.id) ? (
+                    <div className="absolute top-2 right-2 h-6 w-6 rounded-full bg-green-500 flex items-center justify-center">
+                      <Check className="h-4 w-4 text-white" />
+                    </div>
+                  ) : (
+                    <X className="h-5 w-5 text-destructive" />
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+            {inactiveConnections.map((connection) => (
+              <Card
+                key={connection.id}
+                className="opacity-50 cursor-not-allowed"
+              >
+                <CardContent className="p-4 flex items-center gap-3">
+                <Avatar className="h-12 w-12">
+                    <AvatarImage src={connection.avatar || undefined} />
+                    <AvatarFallback className="bg-muted">
+                      {connection.name.substring(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold truncate">{connection.name}</p>
+                    <p className="text-xs text-muted-foreground">Indisponível</p>
+                  </div>
+                  <X className="h-5 w-5 text-destructive" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          {connections.length === 0 && (
+            <p className="text-center text-muted-foreground py-8">
+              Nenhuma conexão disponível
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Listas de Contatos Disponíveis */}
+      <Card className="border-2">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-xl">Listas de contatos disponíveis</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Selecione uma ou mais listas de contatos para o disparo. Os contatos das listas selecionadas serão incluídos no envio.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            {contactLists.map((list) => (
+              <Card
+                key={list.id}
+                className={cn(
+                  "cursor-pointer transition-all hover:shadow-md",
+                  selectedLists.has(list.id)
+                    ? "border-primary border-2 bg-primary/5"
+                    : "border hover:border-primary/50"
+                )}
+                onClick={() => toggleList(list.id)}
+              >
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
+                    <List className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold truncate">{list.nome}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          {contactLists.length === 0 && (
+            <p className="text-center text-muted-foreground py-8">
+              Nenhuma lista disponível
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Configuração e Agendamento */}
+      <Card className="border-2">
+        <CardContent className="p-6 space-y-6">
+          {/* Agendar disparo */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-l-4 border-primary pl-4">
+              <h3 className="text-lg font-semibold">Agendar disparo</h3>
+            </div>
+            
+            <div className="flex items-center justify-between bg-muted/30 p-4 rounded-lg">
+              <Label htmlFor="agendar" className="text-base">Agendar para data específica</Label>
               <Switch
                 id="agendar"
                 checked={config.agendarDataEspecifica}
@@ -98,153 +267,130 @@ export const BroadcastConfigPanel = ({
                 }
               />
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-primary">
-              <Clock className="h-5 w-5" />
-              Intervalo entre mensagens
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-4">
+            {config.agendarDataEspecifica && (
+              <Input
+                type="datetime-local"
+                value={dataAgendada}
+                onChange={(e) => setDataAgendada(e.target.value)}
+                className="bg-background"
+              />
+            )}
+          </div>
+
+          {/* Intervalo entre mensagens */}
+          <div className="space-y-4">
+            <div className="border-l-4 border-primary pl-4">
+              <h3 className="text-lg font-semibold">Intervalo entre mensagens</h3>
+            </div>
+            
+            <div className="flex items-center gap-3 bg-muted/30 p-4 rounded-lg">
               <Input
                 type="number"
                 value={config.intervaloMin}
                 onChange={(e) =>
-                  setConfig({ ...config, intervaloMin: parseInt(e.target.value) })
+                  setConfig({ ...config, intervaloMin: parseInt(e.target.value) || 0 })
                 }
-                className="w-24"
+                className="w-24 bg-background"
               />
-              <span>e</span>
+              <span className="text-sm">e</span>
               <Input
                 type="number"
                 value={config.intervaloMax}
                 onChange={(e) =>
-                  setConfig({ ...config, intervaloMax: parseInt(e.target.value) })
+                  setConfig({ ...config, intervaloMax: parseInt(e.target.value) || 0 })
                 }
-                className="w-24"
+                className="w-24 bg-background"
               />
-              <span className="text-muted-foreground">segundos</span>
+              <span className="text-sm text-muted-foreground">segundos</span>
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-primary">
-              <Clock className="h-5 w-5" />
-              Pausa automática
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Após</Label>
-              <div className="flex items-center gap-4">
-                <Input
-                  type="number"
-                  value={config.pausarAposMensagens}
-                  onChange={(e) =>
-                    setConfig({ ...config, pausarAposMensagens: parseInt(e.target.value) })
-                  }
-                  className="w-24"
-                />
-                <span className="text-muted-foreground">mensagens, aguardar</span>
-                <Input
-                  type="number"
-                  value={config.pausarPorMinutos}
-                  onChange={(e) =>
-                    setConfig({ ...config, pausarPorMinutos: parseInt(e.target.value) })
-                  }
-                  className="w-24"
-                />
-                <span className="text-muted-foreground">minutos</span>
-              </div>
+          {/* Pausa automática */}
+          <div className="space-y-4">
+            <div className="border-l-4 border-primary pl-4">
+              <h3 className="text-lg font-semibold">Pausa automática</h3>
             </div>
-          </CardContent>
-        </Card>
+            
+            <div className="flex items-center gap-3 bg-muted/30 p-4 rounded-lg flex-wrap">
+              <span className="text-sm text-muted-foreground">Após</span>
+              <Input
+                type="number"
+                value={config.pausarAposMensagens}
+                onChange={(e) =>
+                  setConfig({ ...config, pausarAposMensagens: parseInt(e.target.value) || 0 })
+                }
+                className="w-20 bg-background"
+              />
+              <span className="text-sm text-muted-foreground">mensagens, aguardar</span>
+              <Input
+                type="number"
+                value={config.pausarPorMinutos}
+                onChange={(e) =>
+                  setConfig({ ...config, pausarPorMinutos: parseInt(e.target.value) || 0 })
+                }
+                className="w-20 bg-background"
+              />
+              <span className="text-sm text-muted-foreground">minutos</span>
+            </div>
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-primary">
-              <Clock className="h-5 w-5" />
-              Horário de envio
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-4">
+          {/* Horário de envio */}
+          <div className="space-y-4">
+            <div className="border-l-4 border-primary pl-4">
+              <h3 className="text-lg font-semibold">Horário de envio</h3>
+            </div>
+            
+            <div className="flex items-center gap-3 bg-muted/30 p-4 rounded-lg">
               <Input
                 type="time"
                 value={config.horarioInicio}
                 onChange={(e) => setConfig({ ...config, horarioInicio: e.target.value })}
+                className="w-32 bg-background"
               />
-              <span>às</span>
+              <span className="text-sm">às</span>
               <Input
                 type="time"
                 value={config.horarioFim}
                 onChange={(e) => setConfig({ ...config, horarioFim: e.target.value })}
+                className="w-32 bg-background"
               />
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-primary">
-              <Calendar className="h-5 w-5" />
-              Dias da semana
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
+          {/* Dias da semana */}
+          <div className="space-y-4">
+            <div className="border-l-4 border-primary pl-4">
+              <h3 className="text-lg font-semibold">Dias da semana</h3>
+            </div>
+            
+            <div className="grid grid-cols-7 gap-2 bg-muted/30 p-4 rounded-lg">
               {diasDaSemana.map((dia) => (
                 <Button
                   key={dia.value}
                   variant={config.diasSemana.includes(dia.value) ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => toggleDia(dia.value)}
-                  className="flex flex-col h-auto py-3"
+                  className="flex flex-col h-auto py-3 px-2"
                 >
-                  <span className="text-xs font-bold">{dia.label}</span>
-                  <span className="text-xs">{dia.short}</span>
+                  <span className="text-[10px] font-bold leading-tight">{dia.label}</span>
+                  <span className="text-xs text-muted-foreground">{dia.short}</span>
                 </Button>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <Button
-          onClick={handleStartCampaign}
-          disabled={selectedLists.size === 0 || selectedInstances.size === 0 || !selectedMessageFile}
-          className="w-full h-14 text-lg"
-          size="lg"
-        >
-          <Play className="h-5 w-5 mr-2" />
-          Iniciar Disparo
-        </Button>
-      </div>
-
-      <div>
-        <Card className="sticky top-4">
-          <CardHeader className="bg-primary/10">
-            <CardTitle>Preview</CardTitle>
-            <CardDescription>Contato Exemplo</CardDescription>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="bg-[#dcf8c6] rounded-lg p-4 min-h-[300px] flex items-center justify-center">
-              {previewMessage ? (
-                <p className="text-sm">{previewMessage}</p>
-              ) : (
-                <p className="text-sm text-muted-foreground italic text-center">
-                  Digite uma mensagem para ver o preview
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          {/* Botão de Agendar Disparo */}
+          <Button
+            onClick={handleStartCampaign}
+            disabled={selectedLists.size === 0 || selectedInstances.size === 0 || !selectedMessageFile}
+            className="w-full h-14 text-lg font-bold bg-[#FF6B2C] hover:bg-[#FF6B2C]/90 text-white"
+            size="lg"
+          >
+            Agendar Disparo
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 };
