@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Upload, ListPlus, MessageSquare, Settings, Play } from 'lucide-react';
+import { Upload, ListPlus, MessageSquare, Settings, Play, FileText } from 'lucide-react';
 import { useContactLists } from '@/hooks/useContactLists';
 import { useBroadcastMessages } from '@/hooks/useBroadcastMessages';
 import { useBroadcastCampaigns } from '@/hooks/useBroadcastCampaigns';
@@ -12,6 +12,7 @@ import { ContactListsManager } from './broadcast/ContactListsManager';
 import { BroadcastMessagesManager } from './broadcast/BroadcastMessagesManager';
 import { BroadcastConfigPanel } from './broadcast/BroadcastConfigPanel';
 import { InstanceSelector } from './broadcast/InstanceSelector';
+import { BroadcastLogsPanel } from './broadcast/BroadcastLogsPanel';
 
 export const DisparoTab = () => {
   const [activeSubTab, setActiveSubTab] = useState('listas');
@@ -32,7 +33,7 @@ export const DisparoTab = () => {
       </div>
 
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="listas" className="gap-2">
             <ListPlus className="h-4 w-4" />
             Listas de Contatos
@@ -48,6 +49,10 @@ export const DisparoTab = () => {
           <TabsTrigger value="disparar" className="gap-2">
             <Play className="h-4 w-4" />
             Configurar & Disparar
+          </TabsTrigger>
+          <TabsTrigger value="logs" className="gap-2">
+            <FileText className="h-4 w-4" />
+            Logs
           </TabsTrigger>
         </TabsList>
 
@@ -69,6 +74,10 @@ export const DisparoTab = () => {
             messageFiles={broadcastMessages.messages}
             campaigns={campaigns}
           />
+        </TabsContent>
+
+        <TabsContent value="logs" className="space-y-4">
+          <BroadcastLogsPanel />
         </TabsContent>
       </Tabs>
     </div>
