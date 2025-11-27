@@ -35,16 +35,13 @@ async function handleSendMessage(request: SendMessageRequest) {
     endpoint = `https://${endpoint}`;
   }
   
-  // Remover barra final se existir para evitar URLs com //
-  endpoint = endpoint.replace(/\/+$/, '');
-  
   // Limpar API Key
   const cleanApiKey = apiKey.trim();
 
   try {
-    // Construir payload para a uazapi (estrutura simplificada)
+    // Construir payload para a Evolution API
     const payload = {
-      number: request.to.replace(/\D/g, ''),
+      number: request.to,
       text: request.message
     };
 
@@ -61,12 +58,7 @@ async function handleSendMessage(request: SendMessageRequest) {
         'apikey': cleanApiKey,
         'Accept': 'application/json'
       },
-      body: JSON.stringify({
-        number: request.to.replace(/\D/g, ''),
-        textMessage: {
-          text: request.message
-        }
-      })
+      body: JSON.stringify(payload)
     });
 
     const responseData = await response.json();
@@ -200,7 +192,7 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ 
             success: false, 
-            error: 'uazapi não configurada. Por favor, adicione os secrets EVOLUTION_API_KEY e EVOLUTION_API_ENDPOINT no Supabase.',
+            error: 'Evolution API não configurada. Por favor, adicione os secrets EVOLUTION_API_KEY e EVOLUTION_API_ENDPOINT no Supabase.',
             availableSecrets: Object.keys(Deno.env.toObject()).filter(k => k.includes('EVOLUTION'))
           }),
           { 
@@ -214,9 +206,6 @@ serve(async (req) => {
       if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
         endpoint = `https://${endpoint}`;
       }
-      
-      // Remover barra final se existir para evitar URLs com //
-      endpoint = endpoint.replace(/\/+$/, '');
       
       const cleanApiKey = apiKey.trim();
 
@@ -253,7 +242,7 @@ serve(async (req) => {
             url: `${endpoint}/instance/create`,
             method: 'POST',
             headers: {
-              'token': `${cleanApiKey.substring(0, 10)}...`,
+              'apikey': `${cleanApiKey.substring(0, 10)}...`,
               'Content-Type': 'application/json',
             },
             payload: createPayload
@@ -397,7 +386,7 @@ serve(async (req) => {
           return new Response(JSON.stringify({
             success: false,
             error: 'Evolution API credentials not configured'
-          }), {
+          }), { 
             status: 500, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
@@ -406,9 +395,6 @@ serve(async (req) => {
         if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
           endpoint = `https://${endpoint}`;
         }
-        
-        // Remover barra final se existir para evitar URLs com //
-        endpoint = endpoint.replace(/\/+$/, '');
         
         const cleanApiKey = apiKey.trim();
         
@@ -423,45 +409,22 @@ serve(async (req) => {
             }
           });
 
-          const rawBody = await response.text();
-          
           if (!response.ok) {
-            console.error('❌ Failed to fetch instances (non-OK status):', {
-              status: response.status,
-              bodySnippet: rawBody.substring(0, 500),
-            });
+            const errorData = await response.text();
+            console.error('❌ Failed to fetch instances:', errorData);
             
             return new Response(JSON.stringify({
               success: false,
               error: `Failed to fetch instances: ${response.status}`,
-              details: rawBody.substring(0, 1000),
+              details: errorData
             }), { 
               status: response.status, 
               headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             });
           }
 
-          // Tentar fazer parse do JSON com proteção contra HTML / respostas inválidas
-          let instances: unknown;
-          try {
-            instances = JSON.parse(rawBody);
-          } catch (parseError) {
-            console.error('❌ Failed to parse Evolution API response as JSON:', {
-              error: parseError instanceof Error ? parseError.message : String(parseError),
-              bodySnippet: rawBody.substring(0, 500),
-            });
-
-            return new Response(JSON.stringify({
-              success: false,
-              error: 'Invalid JSON response from Evolution API',
-              details: rawBody.substring(0, 1000),
-            }), {
-              status: 500,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          }
-
-          console.log('✅ Instances fetched:', Array.isArray(instances) ? instances.length : 0);
+          const instances = await response.json();
+          console.log('✅ Instances fetched:', instances?.length || 0);
           
           return new Response(JSON.stringify({
             success: true,
@@ -502,11 +465,11 @@ serve(async (req) => {
       console.log('🔑 Credentials check:', { hasApiKey: !!apiKey, hasEndpoint: !!endpoint });
       
       if (!apiKey || !endpoint) {
-          return new Response(
-            JSON.stringify({ 
-              success: false, 
-              error: 'Evolution API credentials not configured' 
-            }),
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Evolution API credentials not configured' 
+          }),
           { 
             status: 500, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -519,14 +482,12 @@ serve(async (req) => {
         endpoint = `https://${endpoint}`;
       }
       
-      // Remover barra final se existir para evitar URLs com //
-      endpoint = endpoint.replace(/\/+$/, '');
-      
       const cleanApiKey = apiKey.trim();
       
       try {
         console.log('🔄 Fetching instance from Evolution API:', `${endpoint}/instance/fetchInstances?instanceName=${instanceName}`);
         
+        // Simplified: Just fetch instance and return basic info + QR if available
         const instanceResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
           method: 'GET',
           headers: {
@@ -538,14 +499,156 @@ serve(async (req) => {
         console.log('📥 Evolution API response status:', instanceResponse.status);
 
         if (!instanceResponse.ok) {
-          const errorText = await instanceResponse.text();
-          console.error('❌ Evolution API error:', errorText);
+          const errorData = await instanceResponse.text();
+          console.error('❌ Failed to fetch instance:', { status: instanceResponse.status, error: errorData });
           
+          // Se erro 500 (erro interno da Evolution API), tentar conectar diretamente
+          if (instanceResponse.status === 500) {
+            console.log('⚠️ Evolution API internal error (500), trying direct connect as fallback...');
+            
+            try {
+              const connectResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+                method: 'GET',
+                headers: {
+                  'apikey': cleanApiKey,
+                  'Accept': 'application/json'
+                }
+              });
+
+              console.log('📱 Fallback connect response status:', connectResponse.status);
+
+              if (connectResponse.ok) {
+                const connectData = await connectResponse.json();
+                console.log('✅ Instance found via fallback! Connect data:', connectData);
+                
+                const qrCode = connectData.base64 || connectData.qrcode?.base64 || connectData.qrcode || connectData.code || connectData.pairingCode || null;
+                
+                return new Response(
+                  JSON.stringify({
+                    success: true,
+                    qrCode: qrCode,
+                    instanceName: instanceName,
+                    instance: {
+                      connectionStatus: connectData.instance?.state || 'close',
+                      ownerJid: connectData.instance?.ownerJid || null,
+                      profileName: connectData.instance?.profileName || null,
+                      profilePicUrl: connectData.instance?.profilePicUrl || null
+                    }
+                  }),
+                  { 
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                  }
+                );
+              }
+            } catch (fallbackError) {
+              console.error('❌ Fallback connect also failed:', fallbackError);
+            }
+            
+            // Se fallback falhou, retornar erro mais amigável
+            return new Response(
+              JSON.stringify({ 
+                success: false, 
+                error: 'Erro interno da Evolution API. Tente novamente em alguns segundos.',
+                details: 'Evolution API retornou erro 500 (problema de banco de dados)',
+                technicalDetails: errorData.substring(0, 200)
+              }),
+              { 
+                status: 503, // Service Unavailable
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              }
+            );
+          }
+          
+          // Se a instância não existe (404), vamos criar ela
+          if (instanceResponse.status === 404) {
+            console.log('🔨 Instance not found, creating new instance...');
+            
+            const createPayload = {
+              instanceName: instanceName,
+              token: cleanApiKey,
+              qrcode: true,
+              integration: 'WHATSAPP-BAILEYS'
+            };
+
+            console.log('📤 Creating instance with payload:', createPayload);
+
+            const createResponse = await fetch(`${endpoint}/instance/create`, {
+              method: 'POST',
+              headers: {
+                'apikey': cleanApiKey,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify(createPayload)
+            });
+
+            const createData = await createResponse.json();
+            console.log('📥 Create response:', { status: createResponse.status, data: createData });
+
+            if (!createResponse.ok) {
+              console.error('❌ Failed to create instance:', createData);
+              return new Response(
+                JSON.stringify({ 
+                  success: false, 
+                  error: `Failed to create instance: ${createData.message || 'Unknown error'}`,
+                  details: createData
+                }),
+                { 
+                  status: createResponse.status, 
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                }
+              );
+            }
+
+            // Tentar buscar QR code
+            try {
+              const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+                method: 'GET',
+                headers: {
+                  'apikey': cleanApiKey,
+                  'Accept': 'application/json'
+                }
+              });
+
+              if (qrResponse.ok) {
+                const qrData = await qrResponse.json();
+                console.log('📱 QR Data:', qrData);
+                return new Response(
+                  JSON.stringify({
+                    success: true,
+                    qrCode: qrData.base64 || qrData.qrcode || qrData.code,
+                    instanceName: instanceName,
+                    created: true
+                  }),
+                  { 
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                  }
+                );
+              }
+            } catch (e) {
+              console.log('⚠️ Could not fetch QR code:', e);
+            }
+
+            // Retornar sucesso mesmo sem QR code
+            return new Response(
+              JSON.stringify({
+                success: true,
+                instanceName: instanceName,
+                created: true,
+                message: 'Instance created, waiting for connection'
+              }),
+              { 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              }
+            );
+          }
+          
+          // Para outros erros, retornar erro genérico
           return new Response(
             JSON.stringify({ 
               success: false, 
               error: `Failed to fetch instance: ${instanceResponse.status}`,
-              details: errorText
+              details: errorData
             }),
             { 
               status: instanceResponse.status, 
@@ -554,96 +657,257 @@ serve(async (req) => {
           )
         }
 
-        const instances = await instanceResponse.json();
-        console.log('📥 Instances data:', instances);
+        const instanceData = await instanceResponse.json()
         
-        if (!Array.isArray(instances) || instances.length === 0) {
-          console.warn('⚠️ Instance not found, attempting to create it...');
+        console.log('📊 Instance data received:', {
+          type: typeof instanceData,
+          isArray: Array.isArray(instanceData),
+          length: Array.isArray(instanceData) ? instanceData.length : 'N/A',
+          keys: instanceData ? Object.keys(instanceData) : [],
+          data: JSON.stringify(instanceData).substring(0, 500)
+        });
+        
+        // Se instanceData é um objeto (não array), transformar em array
+        let instances = Array.isArray(instanceData) ? instanceData : [instanceData];
+        
+        // Se o array está vazio OU se não há dados válidos
+        if (!instances || instances.length === 0 || !instances[0]) {
+          console.log('⚠️ Instance not found in fetchInstances, trying direct connect...');
           
-          // Tentar criar a instância
-          const createPayload = {
-            instanceName: instanceName,
-            token: cleanApiKey,
-            qrcode: true,
-            integration: 'WHATSAPP-BAILEYS'
-          };
-
-          const createResponse = await fetch(`${endpoint}/instance/create`, {
-            method: 'POST',
-            headers: {
-              'apikey': cleanApiKey,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify(createPayload)
-          });
-
-          if (!createResponse.ok) {
-            const createError = await createResponse.json();
-            console.error('❌ Failed to create instance:', createError);
-            
-            return new Response(
-              JSON.stringify({ 
-                success: false, 
-                error: `Failed to create instance: ${createResponse.status}`,
-                details: createError
-              }),
-              { 
-                status: createResponse.status, 
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          // Tentar conectar diretamente primeiro (instância pode existir mas não aparecer no fetch)
+          try {
+            const connectResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+              method: 'GET',
+              headers: {
+                'apikey': cleanApiKey,
+                'Accept': 'application/json'
               }
-            );
-          }
-        }
+            });
 
-        // Tentar buscar QR code
-        let qrCode = null;
-        
-        try {
-          const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
-            method: 'GET',
-            headers: {
-              'apikey': cleanApiKey,
-              'Accept': 'application/json'
+            console.log('📱 Connect response status:', connectResponse.status);
+
+            if (connectResponse.ok) {
+              const connectData = await connectResponse.json();
+              console.log('✅ Instance exists! Connect data:', connectData);
+              
+              const qrCode = connectData.base64 || connectData.qrcode?.base64 || connectData.qrcode || connectData.code || connectData.pairingCode || null;
+              
+              return new Response(
+                JSON.stringify({
+                  success: true,
+                  qrCode: qrCode,
+                  instanceName: instanceName,
+                  instance: {
+                    connectionStatus: connectData.instance?.state || 'close',
+                    ownerJid: connectData.instance?.ownerJid || null,
+                    profileName: connectData.instance?.profileName || null,
+                    profilePicUrl: connectData.instance?.profilePicUrl || null
+                  }
+                }),
+                { 
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                }
+              );
             }
-          });
-
-          if (qrResponse.ok) {
-            const qrData = await qrResponse.json();
-            console.log('📱 QR Data:', JSON.stringify(qrData, null, 2));
             
-            qrCode = qrData.base64 || 
-                    qrData.qrcode || 
-                    qrData.code ||
-                    qrData.qr ||
-                    qrData.pairingCode ||
-                    (qrData.instance && qrData.instance.qrcode);
+            // Se connect falhou com 404, aí sim a instância não existe
+            if (connectResponse.status === 404) {
+              console.log('🔨 Instance truly does not exist, creating new instance...');
+              
+              const createPayload = {
+                instanceName: instanceName,
+                token: cleanApiKey,
+                qrcode: true,
+                integration: 'WHATSAPP-BAILEYS'
+              };
+
+              console.log('📤 Creating instance with payload:', createPayload);
+
+              const createResponse = await fetch(`${endpoint}/instance/create`, {
+                method: 'POST',
+                headers: {
+                  'apikey': cleanApiKey,
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json'
+                },
+                body: JSON.stringify(createPayload)
+              });
+
+              const createData = await createResponse.json();
+              console.log('📥 Create response:', { status: createResponse.status, data: createData });
+
+              if (!createResponse.ok) {
+                console.error('❌ Failed to create instance:', createData);
+                return new Response(
+                  JSON.stringify({ 
+                    success: false, 
+                    error: `Failed to create instance: ${createData.message || createData.error || 'Unknown error'}`,
+                    details: createData
+                  }),
+                  { 
+                    status: createResponse.status, 
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                  }
+                );
+              }
+
+              console.log('✅ Instance created successfully!');
+              
+              // Tentar buscar QR code da nova instância
+              const newQrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
+                method: 'GET',
+                headers: {
+                  'apikey': cleanApiKey,
+                  'Accept': 'application/json'
+                }
+              });
+
+              if (newQrResponse.ok) {
+                const newQrData = await newQrResponse.json();
+                const qrCode = newQrData.base64 || newQrData.qrcode?.base64 || newQrData.qrcode || newQrData.code || null;
+                
+                return new Response(
+                  JSON.stringify({
+                    success: true,
+                    qrCode: qrCode,
+                    instanceName: instanceName,
+                    created: true,
+                    instance: {
+                      connectionStatus: 'close',
+                      ownerJid: null,
+                      profileName: null,
+                      profilePicUrl: null
+                    }
+                  }),
+                  { 
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                  }
+                );
+              }
+              
+              // Retornar sucesso mesmo sem QR code imediato
+              return new Response(
+                JSON.stringify({
+                  success: true,
+                  instanceName: instanceName,
+                  created: true,
+                  qrCode: null,
+                  message: 'Instance created, QR code will be available shortly'
+                }),
+                { 
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                }
+              );
+            }
+            
+            // Outro erro no connect
+            const connectError = await connectResponse.text();
+            console.error('❌ Connect failed:', { status: connectResponse.status, error: connectError });
+            
+          } catch (connectError) {
+            console.error('❌ Error trying to connect:', connectError);
           }
-        } catch (e) {
-          console.log('⚠️ Could not fetch QR code:', e);
+          
+          // Se chegou aqui, não conseguimos nem conectar nem criar
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: 'Instance not found and could not create or connect',
+              instanceName: instanceName
+            }),
+            { 
+              status: 404, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
         }
 
-        // Retornar sucesso
+        const instance = instances[0];
+        console.log('✅ Instance found:', {
+          instanceName: instance.instanceName || instanceName,
+          connectionStatus: instance.connectionStatus,
+          ownerJid: instance.ownerJid
+        });
+        
+        // Build simple response
+        const response: any = {
+          success: true,
+          instanceName: instanceName,
+          instance: {
+            connectionStatus: instance.connectionStatus,
+            ownerJid: instance.ownerJid,
+            profileName: instance.profileName,
+            profilePicUrl: instance.profilePicUrl,
+            disconnectionReasonCode: instance.disconnectionReasonCode
+          }
+        }
+
+        // Add QR code if not connected
+        if (instance.connectionStatus !== 'open') {
+          console.log('🔍 Instance not connected, trying to get QR code...');
+          
+          try {
+            // Tentar conectar a instância (SEM DELAY - uma única tentativa rápida)
+            const connectUrl = `${endpoint}/instance/connect/${instanceName}`;
+            
+            const connectResponse = await fetch(connectUrl, {
+              method: 'GET',
+              headers: {
+                'apikey': cleanApiKey,
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (connectResponse.ok) {
+              const connectData = await connectResponse.json();
+              console.log('📥 Connect response:', JSON.stringify(connectData, null, 2));
+              
+              // Extrair QR code (tentar múltiplos campos)
+              const qrCode = connectData.base64 || 
+                            connectData.qrcode?.base64 ||
+                            connectData.qrcode || 
+                            connectData.code ||
+                            connectData.pairingCode ||
+                            null;
+              
+              if (qrCode) {
+                response.qrCode = qrCode;
+                console.log('✅ QR Code found');
+              } else {
+                console.log('⚠️ QR code not available yet');
+                response.qrCode = null;
+              }
+            } else {
+              console.log(`⚠️ Connect failed: ${connectResponse.status}`);
+              response.qrCode = null;
+            }
+          } catch (qrError) {
+            console.error('❌ Error fetching QR code:', qrError);
+            response.qrCode = null;
+          }
+        }
+
+        // Add profile data if connected
+        if (instance.connectionStatus === 'open') {
+          response.phoneNumber = instance.ownerJid?.replace('@s.whatsapp.net', '')
+          response.displayName = instance.profileName
+          response.profilePicture = instance.profilePicUrl
+        }
+
         return new Response(
-          JSON.stringify({
-            success: true,
-            qrCode: qrCode,
-            instanceName: instanceName,
-            status: instances[0]?.state || 'unknown'
-          }),
+          JSON.stringify(response),
           { 
-            status: 200, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
           }
-        );
+        )
 
       } catch (error) {
-        console.error('❌ Error:', error);
+        console.error('GET error:', error)
         return new Response(
           JSON.stringify({ 
             success: false, 
-            error: `Internal error: ${error.message}`,
-            details: error.stack
+            error: 'Internal server error',
+            message: error.message
           }),
           { 
             status: 500, 
@@ -653,31 +917,27 @@ serve(async (req) => {
       }
     }
 
+    // Handle DELETE requests - apagar instância
     if (req.method === 'DELETE') {
-      const url = new URL(req.url)
-      const instanceName = url.searchParams.get('instanceName')
+      const { instanceName } = await req.json();
+      
+      console.log('🗑️ DELETE Request:', { instanceName });
       
       if (!instanceName) {
         return new Response(
-          JSON.stringify({ success: false, error: 'instanceName parameter is required' }),
-          { 
-            status: 400, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        )
+          JSON.stringify({ success: false, error: 'instanceName is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
-      const apiKey = Deno.env.get('EVOLUTION_API_KEY')
-      let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT')
-      
+      const apiKey = Deno.env.get('EVOLUTION_API_KEY');
+      let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT');
+
       if (!apiKey || !endpoint) {
         return new Response(
-          JSON.stringify({ success: false, error: 'uazapi credentials not configured' }),
-          { 
-            status: 500, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        )
+          JSON.stringify({ success: false, error: 'Evolution API credentials not configured' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
       if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
@@ -687,46 +947,58 @@ serve(async (req) => {
       const cleanApiKey = apiKey.trim();
 
       try {
-        const response = await fetch(`${endpoint}/instance/delete/${instanceName}`, {
+        console.log('🗑️ Deleting instance from Evolution API...');
+        
+        const deleteResponse = await fetch(`${endpoint}/instance/delete/${instanceName}`, {
           method: 'DELETE',
           headers: {
-            'apikey': cleanApiKey
+            'apikey': cleanApiKey,
+            'Accept': 'application/json'
           }
-        })
+        });
 
-        if (!response.ok) {
-          const errorData = await response.text();
+        const deleteData = await deleteResponse.json();
+        console.log('📥 Delete response:', { status: deleteResponse.status, data: deleteData });
+
+        if (!deleteResponse.ok) {
+          console.error('❌ Failed to delete instance:', deleteData);
           return new Response(
             JSON.stringify({ 
               success: false, 
-              error: `Failed to delete instance: ${response.status}`,
-              details: errorData
+              error: `Failed to delete instance: ${deleteData.message || 'Unknown error'}`,
+              details: deleteData
             }),
             { 
-              status: response.status, 
+              status: deleteResponse.status, 
               headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
             }
-          )
+          );
         }
 
         return new Response(
-          JSON.stringify({ success: true, message: 'Instance deleted successfully' }),
+          JSON.stringify({
+            success: true,
+            message: 'Instance deleted successfully',
+            instanceName: instanceName
+          }),
           { 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
           }
-        )
+        );
 
       } catch (error) {
+        console.error('DELETE error:', error);
         return new Response(
           JSON.stringify({ 
             success: false, 
-            error: `Error deleting instance: ${error.message}` 
+            error: 'Internal server error',
+            message: error.message
           }),
           { 
             status: 500, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
           }
-        )
+        );
       }
     }
 
@@ -739,13 +1011,9 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('❌ Unexpected error:', error)
+    console.error('Edge function error:', error)
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: 'Internal server error',
-        details: error.message
-      }),
+      JSON.stringify({ success: false, error: error.message }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 

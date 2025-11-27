@@ -376,54 +376,45 @@ serve(async (req) => {
             let messageBody: any;
 
             if (shouldSendMediaContent && mediaContent) {
-              // Enviar com mídia via Evolution API
+              // Enviar com mídia
               if (mediaContent.type === 'image') {
                 sendMessageUrl = `${evolutionEndpoint}/message/sendMedia/${respondingChip.evolution_instance_name}`;
                 messageBody = {
-                  number: receivingChip.telefone.replace(/\D/g, ''),
-                  mediaMessage: {
-                    mediatype: 'image',
-                    media: mediaContent.url,
-                    caption: mediaContent.mode === 'image_text' ? responseText : ''
-                  }
+                  number: receivingChip.telefone,
+                  mediatype: 'image',
+                  media: mediaContent.url,
+                  caption: mediaContent.mode === 'image_text' ? responseText : ''
                 };
                 console.log(`📷 Enviando imagem: ${mediaContent.name}`);
               } else if (mediaContent.type === 'link') {
                 sendMessageUrl = `${evolutionEndpoint}/message/sendText/${respondingChip.evolution_instance_name}`;
                 messageBody = {
-                  number: receivingChip.telefone.replace(/\D/g, ''),
-                  textMessage: {
-                    text: `${responseText}\n\n🔗 ${mediaContent.url}`
-                  }
+                  number: receivingChip.telefone,
+                  text: `${responseText}\n\n🔗 ${mediaContent.url}`
                 };
                 console.log(`🔗 Enviando link: ${mediaContent.name}`);
               } else if (mediaContent.type === 'audio') {
-                sendMessageUrl = `${evolutionEndpoint}/message/sendWhatsAppAudio/${respondingChip.evolution_instance_name}`;
+                sendMessageUrl = `${evolutionEndpoint}/message/sendMedia/${respondingChip.evolution_instance_name}`;
                 messageBody = {
-                  number: receivingChip.telefone.replace(/\D/g, ''),
-                  audioMessage: {
-                    audio: mediaContent.url
-                  }
+                  number: receivingChip.telefone,
+                  mediatype: 'audio',
+                  media: mediaContent.url
                 };
                 console.log(`🔊 Enviando áudio: ${mediaContent.name}`);
               } else {
                 // Fallback para texto simples
                 sendMessageUrl = `${evolutionEndpoint}/message/sendText/${respondingChip.evolution_instance_name}`;
                 messageBody = {
-                  number: receivingChip.telefone.replace(/\D/g, ''),
-                  textMessage: {
-                    text: responseText
-                  }
+                  number: receivingChip.telefone,
+                  text: responseText
                 };
               }
             } else {
               // Enviar apenas texto
               sendMessageUrl = `${evolutionEndpoint}/message/sendText/${respondingChip.evolution_instance_name}`;
               messageBody = {
-                number: receivingChip.telefone.replace(/\D/g, ''),
-                textMessage: {
-                  text: responseText
-                }
+                number: receivingChip.telefone,
+                text: responseText
               };
             }
 
