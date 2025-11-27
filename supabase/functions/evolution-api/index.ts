@@ -49,12 +49,12 @@ async function handleSendMessage(request: SendMessageRequest) {
     };
 
     console.log('🔄 Enviando para Evolution API:', {
-      url: `${endpoint}/message/sendText/${request.instanceName}`,
+      url: `${endpoint}/manager/message/sendText/${request.instanceName}`,
       payload
     });
 
     // Fazer a requisição para a Evolution API
-    const response = await fetch(`${endpoint}/message/sendText/${request.instanceName}`, {
+    const response = await fetch(`${endpoint}/manager/message/sendText/${request.instanceName}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -219,7 +219,7 @@ serve(async (req) => {
         // Primeiro, verificar se a instância já existe
         console.log('📋 Verificando se instância existe:', instanceName);
         
-        const checkResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
+        const checkResponse = await fetch(`${endpoint}/manager/instance/fetchInstances?instanceName=${instanceName}`, {
           method: 'GET',
           headers: {
             'apikey': cleanApiKey,
@@ -245,16 +245,15 @@ serve(async (req) => {
           };
 
           console.log('📤 Requisição:', {
-            url: `${endpoint}/instance/create`,
+            url: `${endpoint}/manager/instance/create`,
             method: 'POST',
             headers: {
-              'apikey': `${cleanApiKey.substring(0, 10)}...`,
-              'Content-Type': 'application/json',
-            },
-            payload: createPayload
+              'apikey': cleanApiKey,
+              'Content-Type': 'application/json'
+            }
           });
 
-          const createResponse = await fetch(`${endpoint}/instance/create`, {
+          const createResponse = await fetch(`${endpoint}/manager/instance/create`, {
             method: 'POST',
             headers: {
               'apikey': cleanApiKey,
@@ -408,9 +407,9 @@ serve(async (req) => {
         const cleanApiKey = apiKey.trim();
         
         try {
-          console.log('🔄 Fetching all instances from:', `${endpoint}/instance/fetchInstances`);
+          console.log('🔄 Fetching all instances from:', `${endpoint}/manager/instance/fetchInstances`);
           
-          const response = await fetch(`${endpoint}/instance/fetchInstances`, {
+          const response = await fetch(`${endpoint}/manager/instance/fetchInstances`, {
             method: 'GET',
             headers: {
               'apikey': cleanApiKey,
@@ -497,10 +496,10 @@ serve(async (req) => {
       const cleanApiKey = apiKey.trim();
       
       try {
-        console.log('🔄 Fetching instance from Evolution API:', `${endpoint}/instance/fetchInstances?instanceName=${instanceName}`);
+        console.log('🔄 Fetching instance from Evolution API:', `${endpoint}/manager/instance/fetchInstances?instanceName=${instanceName}`);
         
         // Simplified: Just fetch instance and return basic info + QR if available
-        const instanceResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
+        const instanceResponse = await fetch(`${endpoint}/manager/instance/fetchInstances?instanceName=${instanceName}`, {
           method: 'GET',
           headers: {
             'apikey': cleanApiKey,
@@ -584,7 +583,7 @@ serve(async (req) => {
 
             console.log('📤 Creating instance with payload:', createPayload);
 
-            const createResponse = await fetch(`${endpoint}/instance/create`, {
+            const createResponse = await fetch(`${endpoint}/manager/instance/create`, {
               method: 'POST',
               headers: {
                 'apikey': cleanApiKey,
@@ -735,7 +734,7 @@ serve(async (req) => {
 
               console.log('📤 Creating instance with payload:', createPayload);
 
-              const createResponse = await fetch(`${endpoint}/instance/create`, {
+              const createResponse = await fetch(`${endpoint}/manager/instance/create`, {
                 method: 'POST',
                 headers: {
                   'apikey': cleanApiKey,
@@ -964,7 +963,7 @@ serve(async (req) => {
       try {
         console.log('🗑️ Deleting instance from Evolution API...');
         
-        const deleteResponse = await fetch(`${endpoint}/instance/delete/${instanceName}`, {
+        const deleteResponse = await fetch(`${endpoint}/manager/instance/delete/${instanceName}`, {
           method: 'DELETE',
           headers: {
             'apikey': cleanApiKey,
