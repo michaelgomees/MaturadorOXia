@@ -192,17 +192,17 @@ Deno.serve(async (req) => {
             throw new Error('Instância não encontrada');
           }
 
-          // Enviar via Evolution API
+          // Enviar via uazapi
           const response = await fetch(
-            `${EVOLUTION_API_URL}/message/sendText/${instance.evolution_instance_name}`,
+            `${EVOLUTION_API_URL}/message/text`,
             {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'apikey': EVOLUTION_API_KEY,
+                'token': EVOLUTION_API_KEY,
               },
               body: JSON.stringify({
-                number: queueItem.telefone,
+                number: queueItem.telefone.replace(/\D/g, ''),
                 text: queueItem.mensagem,
               }),
             }
