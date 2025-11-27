@@ -376,44 +376,42 @@ serve(async (req) => {
             let messageBody: any;
 
             if (shouldSendMediaContent && mediaContent) {
-              // Enviar com mídia
+              // Enviar com mídia via uazapi
               if (mediaContent.type === 'image') {
-                sendMessageUrl = `${evolutionEndpoint}/message/sendMedia/${respondingChip.evolution_instance_name}`;
+                sendMessageUrl = `${evolutionEndpoint}/message/image`;
                 messageBody = {
-                  number: receivingChip.telefone,
-                  mediatype: 'image',
-                  media: mediaContent.url,
+                  number: receivingChip.telefone.replace(/\D/g, ''),
+                  url: mediaContent.url,
                   caption: mediaContent.mode === 'image_text' ? responseText : ''
                 };
                 console.log(`📷 Enviando imagem: ${mediaContent.name}`);
               } else if (mediaContent.type === 'link') {
-                sendMessageUrl = `${evolutionEndpoint}/message/sendText/${respondingChip.evolution_instance_name}`;
+                sendMessageUrl = `${evolutionEndpoint}/message/text`;
                 messageBody = {
-                  number: receivingChip.telefone,
+                  number: receivingChip.telefone.replace(/\D/g, ''),
                   text: `${responseText}\n\n🔗 ${mediaContent.url}`
                 };
                 console.log(`🔗 Enviando link: ${mediaContent.name}`);
               } else if (mediaContent.type === 'audio') {
-                sendMessageUrl = `${evolutionEndpoint}/message/sendMedia/${respondingChip.evolution_instance_name}`;
+                sendMessageUrl = `${evolutionEndpoint}/message/audio`;
                 messageBody = {
-                  number: receivingChip.telefone,
-                  mediatype: 'audio',
-                  media: mediaContent.url
+                  number: receivingChip.telefone.replace(/\D/g, ''),
+                  url: mediaContent.url
                 };
                 console.log(`🔊 Enviando áudio: ${mediaContent.name}`);
               } else {
                 // Fallback para texto simples
-                sendMessageUrl = `${evolutionEndpoint}/message/sendText/${respondingChip.evolution_instance_name}`;
+                sendMessageUrl = `${evolutionEndpoint}/message/text`;
                 messageBody = {
-                  number: receivingChip.telefone,
+                  number: receivingChip.telefone.replace(/\D/g, ''),
                   text: responseText
                 };
               }
             } else {
               // Enviar apenas texto
-              sendMessageUrl = `${evolutionEndpoint}/message/sendText/${respondingChip.evolution_instance_name}`;
+              sendMessageUrl = `${evolutionEndpoint}/message/text`;
               messageBody = {
-                number: receivingChip.telefone,
+                number: receivingChip.telefone.replace(/\D/g, ''),
                 text: responseText
               };
             }
@@ -422,7 +420,7 @@ serve(async (req) => {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'apikey': evolutionApiKey
+                'token': evolutionApiKey
               },
               body: JSON.stringify(messageBody)
             });
@@ -434,7 +432,7 @@ serve(async (req) => {
               console.log(`✅ Mensagem enviada via WhatsApp (${contentType}): ${respondingChip.nome} → ${receivingChip.telefone}`);
             } else {
               const errorData = await sendResponse.text();
-              console.error(`❌ Erro ${sendResponse.status} ao enviar via Evolution API:`, errorData);
+              console.error(`❌ Erro ${sendResponse.status} ao enviar via uazapi:`, errorData);
               
               // Logar o erro mas CONTINUAR tentando
               if (errorData.includes('Connection Closed')) {
@@ -443,7 +441,7 @@ serve(async (req) => {
             }
           }
         } catch (evolutionError) {
-          console.error(`❌ Erro ao enviar via Evolution API:`, evolutionError);
+          console.error(`❌ Erro ao enviar via uazapi:`, evolutionError);
         }
 
         results.push({

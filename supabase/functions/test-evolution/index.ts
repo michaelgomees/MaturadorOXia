@@ -39,7 +39,7 @@ serve(async (req) => {
     const response = await fetch(testUrl, {
       method: 'GET',
       headers: {
-        'apikey': apiKey.trim(),
+        'token': apiKey.trim(),
         'Accept': 'application/json'
       }
     });
