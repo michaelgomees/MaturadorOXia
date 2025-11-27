@@ -23,7 +23,7 @@ async function handleSendMessage(request: SendMessageRequest) {
   if (!apiKey || !endpoint) {
     return new Response(JSON.stringify({
       success: false,
-      error: 'uazapi credentials not configured. Please configure EVOLUTION_API_KEY and EVOLUTION_API_ENDPOINT in Supabase secrets.'
+      error: 'Evolution API credentials not configured. Please configure EVOLUTION_API_KEY and EVOLUTION_API_ENDPOINT in Supabase secrets.'
     }), { 
       status: 500, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -45,27 +45,32 @@ async function handleSendMessage(request: SendMessageRequest) {
       text: request.message
     };
 
-    console.log('🔄 Enviando para uazapi:', {
-      url: `${endpoint}/message/text`,
+    console.log('🔄 Enviando para Evolution API:', {
+      url: `${endpoint}/message/sendText/${request.instanceName}`,
       payload
     });
 
-    // Fazer a requisição para a uazapi
-    const response = await fetch(`${endpoint}/message/text`, {
+    // Fazer a requisição para a Evolution API
+    const response = await fetch(`${endpoint}/message/sendText/${request.instanceName}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'token': cleanApiKey,
+        'apikey': cleanApiKey,
         'Accept': 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        number: request.to.replace(/\D/g, ''),
+        textMessage: {
+          text: request.message
+        }
+      })
     });
 
     const responseData = await response.json();
-    console.log('📥 Resposta da uazapi:', responseData);
+    console.log('📥 Resposta da Evolution API:', responseData);
 
     if (!response.ok) {
-      console.error('❌ Erro na uazapi:', responseData);
+      console.error('❌ Erro na Evolution API:', responseData);
       
       // Apenas logar o erro, não pausar automaticamente
       const errorMessage = JSON.stringify(responseData);
@@ -216,7 +221,7 @@ serve(async (req) => {
         const checkResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
           method: 'GET',
           headers: {
-            'token': cleanApiKey,
+            'apikey': cleanApiKey,
             'Accept': 'application/json'
           }
         });
@@ -229,7 +234,7 @@ serve(async (req) => {
 
         // Se não existir, criar a instância
         if (!instanceExists) {
-          console.log('➕ Criando nova instância na uazapi...');
+          console.log('➕ Criando nova instância na Evolution API...');
           
           const createPayload = {
             instanceName: instanceName,
@@ -251,7 +256,7 @@ serve(async (req) => {
           const createResponse = await fetch(`${endpoint}/instance/create`, {
             method: 'POST',
             headers: {
-              'token': cleanApiKey,
+              'apikey': cleanApiKey,
               'Content-Type': 'application/json',
               'Accept': 'application/json'
             },
@@ -259,7 +264,7 @@ serve(async (req) => {
           });
 
           const createData = await createResponse.json();
-          console.log('📥 Resposta da uazapi:', {
+          console.log('📥 Resposta da Evolution API:', {
             status: createResponse.status,
             statusText: createResponse.statusText,
             data: createData
@@ -308,7 +313,7 @@ serve(async (req) => {
           const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
             method: 'GET',
             headers: {
-              'token': cleanApiKey,
+              'apikey': cleanApiKey,
               'Accept': 'application/json'
             }
           });
@@ -352,7 +357,7 @@ serve(async (req) => {
         );
 
       } catch (error) {
-        console.error('❌ Erro de rede ao conectar com uazapi:', error);
+        console.error('❌ Erro de rede ao conectar com Evolution API:', error);
         return new Response(
           JSON.stringify({ 
             success: false, 
@@ -377,7 +382,7 @@ serve(async (req) => {
       
       // Endpoint para listar TODAS as instâncias
       if (action === 'listAll') {
-        console.log('📋 Listing all instances from uazapi');
+        console.log('📋 Listing all instances from Evolution API');
         
         const apiKey = Deno.env.get('EVOLUTION_API_KEY');
         let endpoint = Deno.env.get('EVOLUTION_API_ENDPOINT');
@@ -385,8 +390,8 @@ serve(async (req) => {
         if (!apiKey || !endpoint) {
           return new Response(JSON.stringify({
             success: false,
-            error: 'uazapi credentials not configured'
-          }), { 
+            error: 'Evolution API credentials not configured'
+          }), {
             status: 500, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
@@ -404,7 +409,7 @@ serve(async (req) => {
           const response = await fetch(`${endpoint}/instance/fetchInstances`, {
             method: 'GET',
             headers: {
-              'token': cleanApiKey,
+              'apikey': cleanApiKey,
               'Accept': 'application/json'
             }
           });
@@ -465,11 +470,11 @@ serve(async (req) => {
       console.log('🔑 Credentials check:', { hasApiKey: !!apiKey, hasEndpoint: !!endpoint });
       
       if (!apiKey || !endpoint) {
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: 'uazapi credentials not configured' 
-          }),
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: 'Evolution API credentials not configured' 
+            }),
           { 
             status: 500, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -485,21 +490,21 @@ serve(async (req) => {
       const cleanApiKey = apiKey.trim();
       
       try {
-        console.log('🔄 Fetching instance from uazapi:', `${endpoint}/instance/fetchInstances?instanceName=${instanceName}`);
+        console.log('🔄 Fetching instance from Evolution API:', `${endpoint}/instance/fetchInstances?instanceName=${instanceName}`);
         
         const instanceResponse = await fetch(`${endpoint}/instance/fetchInstances?instanceName=${instanceName}`, {
           method: 'GET',
           headers: {
-            'token': cleanApiKey,
+            'apikey': cleanApiKey,
             'Accept': 'application/json'
           }
         })
 
-        console.log('📥 uazapi response status:', instanceResponse.status);
+        console.log('📥 Evolution API response status:', instanceResponse.status);
 
         if (!instanceResponse.ok) {
           const errorText = await instanceResponse.text();
-          console.error('❌ uazapi error:', errorText);
+          console.error('❌ Evolution API error:', errorText);
           
           return new Response(
             JSON.stringify({ 
@@ -531,7 +536,7 @@ serve(async (req) => {
           const createResponse = await fetch(`${endpoint}/instance/create`, {
             method: 'POST',
             headers: {
-              'token': cleanApiKey,
+              'apikey': cleanApiKey,
               'Content-Type': 'application/json',
               'Accept': 'application/json'
             },
@@ -563,7 +568,7 @@ serve(async (req) => {
           const qrResponse = await fetch(`${endpoint}/instance/connect/${instanceName}`, {
             method: 'GET',
             headers: {
-              'token': cleanApiKey,
+              'apikey': cleanApiKey,
               'Accept': 'application/json'
             }
           });
@@ -650,7 +655,7 @@ serve(async (req) => {
         const response = await fetch(`${endpoint}/instance/delete/${instanceName}`, {
           method: 'DELETE',
           headers: {
-            'token': cleanApiKey
+            'apikey': cleanApiKey
           }
         })
 

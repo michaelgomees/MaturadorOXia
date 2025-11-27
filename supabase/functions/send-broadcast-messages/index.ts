@@ -5,8 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const EVOLUTION_API_URL = Deno.env.get('EVOLUTION_API_ENDPOINT') || '';
-const EVOLUTION_API_KEY = Deno.env.get('EVOLUTION_API_KEY') || '';
+const BROADCAST_API_URL = Deno.env.get('BROADCAST_API_ENDPOINT') || '';
+const BROADCAST_API_KEY = Deno.env.get('BROADCAST_API_KEY') || '';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -40,8 +40,7 @@ Deno.serve(async (req) => {
       // Sem body ou body inválido, segue com valores padrão
     }
 
-    // Se uma campanha específica foi informada, sempre forçamos o envio,
-    // independentemente do valor de "force" enviado pelo cliente.
+    // Se uma campanha específica foi informada, sempre forçamos o envio
     if (targetCampaignId && !force) {
       force = true;
       console.log(
@@ -135,14 +134,14 @@ Deno.serve(async (req) => {
         console.log(`⚡ Modo FORÇADO - ignorando TODAS as regras para ${campaign.nome}`);
       }
 
-      // Buscar até 10 mensagens pendentes desta campanha para processar em lote
+      // Buscar mensagens pendentes desta campanha
       const { data: queueItems, error: queueError } = await supabaseClient
         .from('saas_broadcast_queue')
         .select('*')
         .eq('campaign_id', campaign.id)
         .eq('status', 'pending')
         .order('created_at', { ascending: true })
-        .limit(1); // Processar sempre 1 mensagem por chamada para reduzir bursts
+        .limit(1); // Processar 1 mensagem por vez
 
       if (queueError) {
         console.error('Erro ao buscar fila:', queueError);
@@ -179,27 +178,16 @@ Deno.serve(async (req) => {
         totalProcessed++;
 
         try {
-          console.log(`📤 Enviando mensagem para ${queueItem.telefone}`);
+          console.log(`📤 Enviando mensagem para ${queueItem.telefone} via uazapi`);
 
-          // Buscar dados da instância
-          const { data: instance } = await supabaseClient
-            .from('saas_conexoes')
-            .select('evolution_instance_name')
-            .eq('id', queueItem.instance_id)
-            .single();
-
-          if (!instance || !instance.evolution_instance_name) {
-            throw new Error('Instância não encontrada');
-          }
-
-          // Enviar via uazapi
+          // Enviar via uazapi (estrutura simplificada, sem /manager/)
           const response = await fetch(
-            `${EVOLUTION_API_URL}/message/text`,
+            `${BROADCAST_API_URL}/message/text`,
             {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'token': EVOLUTION_API_KEY,
+                'token': BROADCAST_API_KEY,
               },
               body: JSON.stringify({
                 number: queueItem.telefone.replace(/\D/g, ''),
