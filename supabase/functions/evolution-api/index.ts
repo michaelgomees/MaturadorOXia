@@ -35,6 +35,9 @@ async function handleSendMessage(request: SendMessageRequest) {
     endpoint = `https://${endpoint}`;
   }
   
+  // Remover barra final se existir para evitar URLs com //
+  endpoint = endpoint.replace(/\/+$/, '');
+  
   // Limpar API Key
   const cleanApiKey = apiKey.trim();
 
@@ -211,6 +214,9 @@ serve(async (req) => {
       if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
         endpoint = `https://${endpoint}`;
       }
+      
+      // Remover barra final se existir para evitar URLs com //
+      endpoint = endpoint.replace(/\/+$/, '');
       
       const cleanApiKey = apiKey.trim();
 
@@ -401,6 +407,9 @@ serve(async (req) => {
           endpoint = `https://${endpoint}`;
         }
         
+        // Remover barra final se existir para evitar URLs com //
+        endpoint = endpoint.replace(/\/+$/, '');
+        
         const cleanApiKey = apiKey.trim();
         
         try {
@@ -486,6 +495,9 @@ serve(async (req) => {
       if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
         endpoint = `https://${endpoint}`;
       }
+      
+      // Remover barra final se existir para evitar URLs com //
+      endpoint = endpoint.replace(/\/+$/, '');
       
       const cleanApiKey = apiKey.trim();
       
