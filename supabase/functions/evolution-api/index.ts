@@ -417,22 +417,42 @@ serve(async (req) => {
             }
           });
 
+          // Ler resposta como texto para evitar erros de JSON quando a API retorna HTML
+          const rawBody = await response.text();
+          const contentSnippet = rawBody.slice(0, 500);
+
           if (!response.ok) {
-            const errorData = await response.text();
-            console.error('❌ Failed to fetch instances:', errorData);
+            console.error('❌ Failed to fetch instances (non-200):', {
+              status: response.status,
+              bodyPreview: contentSnippet
+            });
             
             return new Response(JSON.stringify({
               success: false,
               error: `Failed to fetch instances: ${response.status}`,
-              details: errorData
+              details: contentSnippet
             }), { 
               status: response.status, 
               headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             });
           }
 
-          const instances = await response.json();
-          console.log('✅ Instances fetched:', instances?.length || 0);
+          let instances: unknown;
+          try {
+            instances = JSON.parse(rawBody);
+          } catch (parseError) {
+            console.error('❌ Evolution API returned non-JSON body for fetchInstances:', contentSnippet);
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Evolution API returned invalid JSON for fetchInstances',
+              details: contentSnippet
+            }), {
+              status: 502,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          console.log('✅ Instances fetched:', Array.isArray(instances) ? instances.length : 0);
           
           return new Response(JSON.stringify({
             success: true,
